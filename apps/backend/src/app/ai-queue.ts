@@ -5,6 +5,7 @@ import { runAiJob } from './bot/ai-writer';
 import { createWriterDeps } from './bot/writer-deps';
 import { runDailyReview } from './workflows/daily-review';
 import { runDispatchNow } from './workflows/dispatch-now';
+import { recordAutopublish } from './workflows/autopublish-log';
 import { runHypothesesReview } from './workflows/hypotheses';
 import { sourceEventWriter } from './workflows/source-event-ai-draft';
 import { attachSourceEventImages, type SourceMediaDeps } from './workflows/source-event-media';
@@ -190,6 +191,13 @@ const SKIPPED_TEXT: Record<Extract<AutopublishOutcome, { kind: 'skipped' }>['rea
   link: 'в тексте находки есть ссылка — проверьте её сами'
 };
 
+/** The event's title for the studio's record of a post that did not go out by itself. */
+async function eventTitle(container: Container, externalId: string): Promise<string> {
+  if (externalId.startsWith('files:')) return 'Находка в файлах игры';
+  const source = await container.dotaRepository.findSteamAnnouncement(externalId).catch(() => null);
+  return source?.title ?? 'Новость Dota 2';
+}
+
 /** The owner's short note of what the automatic publishing did; null when it did nothing. */
 function autopublishNote(outcome: AutopublishOutcome, appOrigin: string, externalId: string): string | null {
   if (outcome.kind === 'skipped' || outcome.kind === 'continue') return null;
@@ -231,6 +239,7 @@ async function runPatchPublishJob(
 ): Promise<void> {
   let text: string | null;
   let continued = false;
+  let recorded = false;
   try {
     if (
       !(await container.aiWriter.claimJob(job.id, container.clock.now(), {
@@ -255,6 +264,17 @@ async function runPatchPublishJob(
       }
     );
     container.logger.info({ component: 'autopublish', operation: 'patch_publish', requestId, status: outcome.kind });
+    if (outcome.kind === 'published' || outcome.kind === 'held') {
+      // Once per job: a later failure in this message does not add a contradicting row (QA 24.10.2026).
+      recorded = true;
+      await recordAutopublish(container, {
+        source: job.standalone === true ? 'game_files' : 'event',
+        title: outcome.title,
+        outcome: outcome.kind,
+        ...(outcome.kind === 'held' ? { reason: outcome.reason } : {}),
+        postId: outcome.postId
+      });
+    }
     // More pictures: the next part in a message of its own, under a new claim; this one is done.
     if (outcome.kind === 'continue') {
       await queuePictureJob(container, { ...job, id: container.newId(), from: outcome.from });
@@ -267,6 +287,14 @@ async function runPatchPublishJob(
     // The owner hears of it below: the claim ends, so the lost-job check does not report it a second time.
     await container.aiWriter.finishJob(job.id, container.clock.now()).catch(onError);
     if (!continued) await picturesDone(container, job.postId, onError);
+    if (!recorded)
+      await recordAutopublish(container, {
+        source: job.standalone === true ? 'game_files' : 'event',
+        title: await eventTitle(container, job.externalId),
+        outcome: 'held',
+        reason: 'failed',
+        postId: job.postId
+      });
     const link = escapeHtml(`${job.appOrigin}/posts/${encodeURIComponent(job.postId)}`);
     text = `Не опубликовано без вас (не получилось опубликовать). Пост ждёт в студии. <a href="${link}">Открыть</a>`;
   }
@@ -660,6 +688,24 @@ async function handleAiQueueMessages(batch: MessageBatch<unknown>, container: Co
           requestId,
           status: outcome.kind === 'skipped' ? outcome.reason : outcome.kind
         });
+        // For the studio's «Автопубликация»: a queued post is recorded by its own job, when it is published or held.
+        const source = eventJob.own === undefined ? 'event' : 'game_files';
+        if (outcome.kind === 'published' || outcome.kind === 'held')
+          await recordAutopublish(container, {
+            source,
+            title: outcome.title === '' ? await eventTitle(container, eventJob.externalId) : outcome.title,
+            outcome: outcome.kind,
+            ...(outcome.kind === 'held' ? { reason: outcome.reason } : {}),
+            postId: outcome.postId
+          });
+        // Switched off by the owner: every draft would be a row saying so, nothing to tell (QA 24.10.2026).
+        else if (outcome.kind === 'skipped' && outcome.reason !== 'off')
+          await recordAutopublish(container, {
+            source,
+            title: await eventTitle(container, eventJob.externalId),
+            outcome: 'held',
+            reason: outcome.reason
+          });
         // Skipped: the draft goes to the owner as usual, saying why it did not go out alone (owner, 23.10.2026).
         if (outcome.kind === 'skipped') return { held: SKIPPED_TEXT[outcome.reason] };
         return autopublishNote(outcome, eventJob.appOrigin, eventJob.externalId);

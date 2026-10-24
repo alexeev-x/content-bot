@@ -1,4 +1,4 @@
-import { dotaIntelligenceSchema, ownerOperationsSettingsSchema } from '@alexeev/contracts';
+import { autopublishActivitySchema, dotaIntelligenceSchema, ownerOperationsSettingsSchema } from '@alexeev/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createContainer, type Container } from '../../src/app/container';
 import { DOTA_APP_ID, DOTA_STAGING_APP_ID, runSteamWatch, steamChangePost } from '../../src/app/workflows/steam-watch';
@@ -167,6 +167,27 @@ describe('the Steam watch', () => {
     expect(await alerts()).toBe(1);
     await failing();
     expect(await alerts()).toBe(1);
+  });
+
+  it('shows in the studio what went out by itself and what was held, with the count against the limit', async () => {
+    const activity = async () =>
+      autopublishActivitySchema.parse(await (await api.request('/api/v1/settings/autopublish/activity')).json());
+    await autopublish(true);
+    expect(await activity()).toMatchObject({ enabled: true, dailyLimit: 10, usedToday: 0, items: [] });
+    await run();
+    steam = [app(DOTA_APP_ID, 100, '26139613'), app(DOTA_STAGING_APP_ID, 52)];
+    await run();
+    expect(await activity()).toMatchObject({
+      usedToday: 1,
+      items: [{ source: 'steam', outcome: 'published', reason: null }]
+    });
+    await autopublish(false);
+    clock.advance(60_000);
+    steam = [app(DOTA_APP_ID, 101, '26139700'), app(DOTA_STAGING_APP_ID, 52)];
+    await run();
+    const after = await activity();
+    expect(after.enabled).toBe(false);
+    expect(after.items[0]).toMatchObject({ source: 'steam', outcome: 'held', reason: 'off' });
   });
 
   it('publishes nothing while the automatic publishing is off', async () => {

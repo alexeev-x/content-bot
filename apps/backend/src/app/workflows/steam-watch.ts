@@ -8,6 +8,7 @@ import { aiPostText, draftFromMessageText } from '../bot/draft-from-message';
 import type { Container } from '../container';
 import { AUTOPUBLISH_ACTOR } from './autopublish-source-event';
 import { recordWatchFailure } from './watch-error-code';
+import { recordAutopublish } from './autopublish-log';
 import { kickDispatch } from './dispatch-now';
 
 // The early signal of a Dota update (owner, 24.10.2026: «как люди делают»; «они должны сразу постом идти без меня»):
@@ -169,6 +170,17 @@ export async function runSteamWatch(
           return 'failed';
         }
       );
+      await recordAutopublish(container, {
+        source: 'steam',
+        title:
+          app.appId === DOTA_STAGING_APP_ID
+            ? 'Valve что-то готовит: обновилась тестовая версия Dota 2'
+            : 'Steam уже раздаёт обновление Dota 2',
+        outcome: outcome === 'published' ? 'published' : 'held',
+        ...(outcome === 'published'
+          ? {}
+          : { reason: outcome === 'limit' ? 'limit' : outcome === 'off' ? 'off' : 'failed' })
+      });
       if (outcome !== 'published') notes.push(`Не опубликовано без вас (${HELD[outcome]}):\n\n${text}`);
       container.logger.info({ component: 'steam_watch', operation: 'post', requestId, status: outcome });
     }

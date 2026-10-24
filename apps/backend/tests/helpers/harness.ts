@@ -52,6 +52,7 @@ export async function resetDb(): Promise<void> {
       'game_file_builds',
       'steam_app_watch',
       'source_watch_checks',
+      'autopublish_log',
       'source_series_posts',
       'source_series',
       'dota_update_items',

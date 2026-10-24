@@ -1352,6 +1352,42 @@ export async function mockApi(page: Page): Promise<void> {
     found['resolvedAt'] ??= '2026-10-07T07:10:00.000Z';
     return json(route, found);
   });
+  await page.route('**/api/v1/settings/autopublish/activity', (route) =>
+    json(route, {
+      enabled: true,
+      dailyLimit: 10,
+      usedToday: 2,
+      items: [
+        {
+          id: '00000000-0000-4000-8000-0000000000a3',
+          at: '2026-10-07T09:40:00.000Z',
+          source: 'game_files',
+          title: 'Находка в файлах игры',
+          outcome: 'held',
+          reason: 'link',
+          postId: null
+        },
+        {
+          id: '00000000-0000-4000-8000-0000000000a2',
+          at: '2026-10-07T08:12:00.000Z',
+          source: 'event',
+          title: 'Патч 7.37e: изменения героев и предметов',
+          outcome: 'published',
+          reason: null,
+          postId: '11111111-1111-4111-8111-111111111111'
+        },
+        {
+          id: '00000000-0000-4000-8000-0000000000a1',
+          at: '2026-10-07T07:58:00.000Z',
+          source: 'steam',
+          title: 'Valve что-то готовит: обновилась тестовая версия Dota 2',
+          outcome: 'published',
+          reason: null,
+          postId: null
+        }
+      ]
+    })
+  );
   await page.route('**/api/v1/settings/operations', (route) =>
     json(route, {
       timezone: 'Europe/Moscow',

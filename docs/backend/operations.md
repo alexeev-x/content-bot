@@ -41,6 +41,21 @@ All admin endpoints `/api/v1/*` return stable JSON DTOs. Shared types and Zod sc
 - No secrets in the frontend build and logs; a Worker restart does not lose work.
 - Quotas are measured for 1,000 test jobs; the application does not depend on paid AI APIs.
 
+## Release checklist (owner runs every step; agents never deploy, run `--remote` or set Worker secrets)
+
+Written 24.10.2026 for the first release that publishes. In this order:
+
+1. **Worker secrets of `app` (production)**, set before the deploy: `TELEGRAM_BOT_TOKEN` (the channel's bot, not the test bot), `TELEGRAM_WEBHOOK_SECRET`, `OPENAI_API_KEY` (the AI writer; without it autopublishing has nothing to write), `GITHUB_TOKEN` (the game-files source; without it the source is off), `YOUTUBE_API_KEY` (analytics). Optional: `ANTHROPIC_API_KEY`; the var `BOT_INFO` saves a Telegram `getMe` round trip on cold starts.
+2. **Queue** `content-ai-prod` exists in the account (the AI writer, the watches, the dispatch kick all go through it).
+3. **D1 migrations on `content-db-prod`**, every one up to the newest (0111 as of 24.10.2026), before the code that needs them: `npx wrangler d1 migrations apply content-db-prod --remote --env production`. All are expand-only.
+4. **Production switches in `apps/backend/wrangler.jsonc`** (`env.production`): `triggers.crons` `["* * * * *"]` (without it nothing is dispatched, reconciled or watched) and `PUBLISHING_ENABLED` `"true"`. They ship with the release commit, on the owner's word.
+5. **Release:** the owner's `develop → main` PR; the merge deploys `app`.
+6. **Bot webhook** of the production bot points at `https://<app domain>/webhooks/telegram` with the same `TELEGRAM_WEBHOOK_SECRET`.
+7. **Studio, «Настройки»:** the channel added and enabled; «Автопубликация» on with that channel and a daily limit; the AI writer on with its budget.
+8. **First hour:** Workers Logs of `app` — one `scheduled`/`tick` line a minute with `status: ok`; `ai_queue` lines for `steam_watch`, `game_files_watch`, `treasure_watch` every five minutes; «Источники → Состояние лент» all green; one manual «Опубликовать сейчас» to the channel arrives within seconds (`dispatch_now`).
+
+Logs: Workers Logs (on in `observability`), free up to 200 000 events a day kept 3 days; about 6 000 a day are written (a tick line a minute, a line per queue job and per sent post, errors). Logpush needs a paid plan and is not used.
+
 # 15. Primary sources and confirmation of decisions
 
 - Cloudflare Workers best practices: https://developers.cloudflare.com/workers/best-practices/workers-best-practices/

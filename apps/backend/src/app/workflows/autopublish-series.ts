@@ -1,3 +1,4 @@
+import type { AutopublishHeldReason } from '@alexeev/contracts';
 import { Api, InlineKeyboard } from 'grammy';
 import { approvePost } from '../../modules/content';
 import { createPublication, createPublicationSeries } from '../../modules/publishing';
@@ -10,6 +11,7 @@ import type { Container } from '../container';
 import { approveSourceAiDraft, readSourceAiDraft } from './approve-source-ai-draft';
 import { AUTOPUBLISH_ACTOR, PICTURES_PER_RUN } from './autopublish-source-event';
 import { attachSourceEventImages, type SourceMediaDeps } from './source-event-media';
+import { recordAutopublish } from './autopublish-log';
 import { kickDispatch } from './dispatch-now';
 
 // An event's series published without the owner (owner, 22.10.2026), like a single news post: only Cron's series
@@ -64,6 +66,15 @@ export async function runSeriesPublishStep(
   let title = 'серия';
   let eventUrl = `${step.appOrigin}/sources`;
   let studioPostIds: string[] = [];
+  // For the studio's «Автопубликация»: the series as one row, linked to its first post.
+  const record = (outcome: 'published' | 'held', reason?: AutopublishHeldReason) =>
+    recordAutopublish(container, {
+      source: 'series',
+      title: `Серия «${title}»`,
+      outcome,
+      ...(reason === undefined ? {} : { reason }),
+      postId: studioPostIds[0] ?? null
+    });
   try {
     const posts = await container.sourceSeries.posts(step.seriesId);
     const first = posts[0];
@@ -88,6 +99,7 @@ export async function runSeriesPublishStep(
       let pristine = true;
       for (const post of posts) pristine = pristine && (await untouched(container, deps, post));
       if (!on || used >= dailyLimit || !pristine) {
+        if (!on || used >= dailyLimit) await record('held', !on ? 'off' : 'limit');
         await tell(`Серия постов «${title}» готова: ${posts.length}. Посмотрите и одобрите в студии.`, eventUrl);
         return;
       }
@@ -96,16 +108,20 @@ export async function runSeriesPublishStep(
     if (step.position > posts.length) {
       // The publication step: the posts approved by the steps before, still unpublished, still allowed.
       studioPostIds = posts.map((post) => post.postId).filter((id): id is string => id !== null);
-      if (studioPostIds.length !== posts.length || destinationId === null || !on)
+      if (studioPostIds.length !== posts.length || destinationId === null || !on) {
+        await record('held', !on || destinationId === null ? 'off' : 'failed');
         return void (await tell(`Серия «${title}» не опубликована без вас. Посты ждут в студии.`, eventUrl));
+      }
       // Counted again: other sources may have published while the series was written (review 24.10.2026).
       if (
         (await container.publications.countCreatedBy(AUTOPUBLISH_ACTOR, container.clock.now() - DAY_MS)) >= dailyLimit
-      )
+      ) {
+        await record('held', 'limit');
         return void (await tell(
           `Серия «${title}» не опубликована без вас: дневной лимит автопубликаций исчерпан. Посты ждут в студии.`,
           eventUrl
         ));
+      }
       if (await container.publications.hasAnyPublication(studioPostIds))
         return void (await tell(
           `Серия «${title}» не опубликована без вас: пост уже публиковали. Посты ждут в студии.`,
@@ -152,6 +168,7 @@ export async function runSeriesPublishStep(
               })
             ).publications[0]?.id;
       await kickDispatch(container);
+      await record('published');
       await tell(
         only !== undefined
           ? `Опубликовано без вас: «${title}».`
@@ -203,6 +220,7 @@ export async function runSeriesPublishStep(
       return void (await container.aiJobs.send({ ...step, id: container.newId(), from: from + PICTURES_PER_RUN }));
     const attached = (await container.posts.findById(postId))?.media?.length ?? 0;
     if (found > 0 && attached === 0) {
+      await record('held', 'no_images');
       await tell(
         `Серия «${title}» не опубликована без вас: к посту ${post.position} не загрузились картинки. Посты ждут в студии.`,
         eventUrl
@@ -223,6 +241,7 @@ export async function runSeriesPublishStep(
     // The series' write may have committed and lost its answer: never «not published» about posts that go out.
     const out =
       studioPostIds.length > 0 && (await container.publications.hasAnyPublication(studioPostIds).catch(() => false));
+    await record(out ? 'published' : 'held', 'failed');
     await tell(
       out
         ? `Опубликовано без вас: серия «${title}».`

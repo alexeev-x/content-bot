@@ -47,6 +47,9 @@ export const handlers: HttpHandler[] = [
   ),
 
   http.get('*/api/v1/settings/operations', () => HttpResponse.json(ownerOperationsSettings())),
+  http.get('*/api/v1/settings/autopublish/activity', () =>
+    HttpResponse.json({ enabled: false, dailyLimit: 3, usedToday: 0, items: [] })
+  ),
   http.put('*/api/v1/settings/operations', async ({ request }) => {
     const body = (await request.json()) as ReturnType<typeof ownerOperationsSettings>;
     return HttpResponse.json(

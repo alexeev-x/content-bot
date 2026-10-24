@@ -1,4 +1,5 @@
 import {
+  autopublishActivitySchema,
   ownerOperationsSettingsSchema,
   type UpdateOwnerOperationsSettingsInput,
   type OwnerOperationsSettingsDto
@@ -16,3 +17,7 @@ export function saveOwnerOperationsSettings(input: UpdateOwnerOperationsSettings
 }
 
 export type { OwnerOperationsSettingsDto, UpdateOwnerOperationsSettingsInput };
+
+export function fetchAutopublishActivity(signal?: AbortSignal) {
+  return apiRequest('/api/v1/settings/autopublish/activity', autopublishActivitySchema, { signal });
+}

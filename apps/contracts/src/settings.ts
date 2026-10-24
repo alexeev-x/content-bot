@@ -46,6 +46,42 @@ export const autopublishSettingsSchema = z.object({
   dailyLimit: z.number().int().min(1).max(AUTOPUBLISH_DAILY_LIMIT_MAX).default(3)
 });
 export type AutopublishSettings = z.infer<typeof autopublishSettingsSchema>;
+
+// GET /api/v1/settings/autopublish/activity -> 200 AutopublishActivityDto (owner, 24.10.2026: what went out without
+// the owner and what was held, and why). Read-only; errors: UNAUTHORIZED, FORBIDDEN, UNAVAILABLE.
+export const autopublishSourceSchema = z.enum(['event', 'game_files', 'steam', 'series']);
+export type AutopublishSource = z.infer<typeof autopublishSourceSchema>;
+/** Why a post did not go out by itself; the owner got it as a draft or a note instead. */
+export const autopublishHeldReasonSchema = z.enum([
+  'off',
+  'channel',
+  'limit',
+  'too_long',
+  'link',
+  'no_images',
+  'failed'
+]);
+export type AutopublishHeldReason = z.infer<typeof autopublishHeldReasonSchema>;
+export const autopublishActivityItemSchema = z.object({
+  id: z.uuid(),
+  at: z.iso.datetime(),
+  source: autopublishSourceSchema,
+  title: z.string().max(300),
+  outcome: z.enum(['published', 'held']),
+  /** Null when published; an unknown stored reason reads as `failed`. */
+  reason: autopublishHeldReasonSchema.nullable(),
+  postId: z.uuid().nullable()
+});
+export type AutopublishActivityItemDto = z.infer<typeof autopublishActivityItemSchema>;
+export const autopublishActivitySchema = z.object({
+  enabled: z.boolean(),
+  dailyLimit: z.number().int().min(1).max(AUTOPUBLISH_DAILY_LIMIT_MAX),
+  /** Publications the automatic publishing created in the last 24 hours: what the limit counts. */
+  usedToday: z.number().int().nonnegative(),
+  /** The last 24 hours, newest first. */
+  items: z.array(autopublishActivityItemSchema).max(50)
+});
+export type AutopublishActivityDto = z.infer<typeof autopublishActivitySchema>;
 export const AUTOPUBLISH_DEFAULTS: AutopublishSettings = { enabled: false, destinationId: null, dailyLimit: 3 };
 
 export const ownerOperationsSettingsSchema = z.object({

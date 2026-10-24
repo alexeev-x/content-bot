@@ -16,6 +16,7 @@ import {
   VisuallyHidden
 } from '../../../shared/ui';
 import { useGeneralSettings, type SettingsPatch } from '../model/use-general-settings';
+import { AutopublishActivity } from './AutopublishActivity';
 import { AutopublishPanel } from './AutopublishPanel';
 import styles from './GeneralSettingsEditor.module.css';
 import { TimezoneField, TimezoneFieldSkeleton } from './TimezoneField';
@@ -263,6 +264,7 @@ export function GeneralSettingsEditor({ channels = [] }: Props) {
         channels={channels}
         change={change}
       />
+      <AutopublishActivity />
       <output className={styles.status}>{STATUS_TEXT[status]}</output>
     </div>
   );

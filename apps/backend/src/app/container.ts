@@ -56,6 +56,7 @@ import {
   type WatchCheckRepository
 } from '../modules/game-files';
 import { type AiJob, aiJobSchema } from './bot/ai-job';
+import { type AutopublishLogStore, createD1AutopublishLog } from './workflows/autopublish-log';
 import { type BotIdentityStore, createD1BotIdentityStore } from './bot/bot-identity-store';
 import { createD1MediaImportStore, type MediaImportStore } from './bot/media-import-store';
 import { createD1PublishActionStore, type PublishActionStore } from './bot/publish-action-store';
@@ -222,6 +223,7 @@ export interface Container {
   /** What Steam last said about Dota's apps (migration 0108). */
   steamApps: SteamAppRepository;
   watchChecks: WatchCheckRepository;
+  autopublishLog: AutopublishLogStore;
   /** The game-files tracker on GitHub; null without `GITHUB_TOKEN`, which only leaves the source off. */
   gameFilesRepo: GitHubRepoApi | null;
   dotaWatchlists: ReturnType<typeof createD1DotaWatchlists>;
@@ -577,6 +579,9 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get watchChecks() {
       return createD1WatchChecks(db());
+    },
+    get autopublishLog() {
+      return createD1AutopublishLog(db());
     },
     get gameFilesRepo(): GitHubRepoApi | null {
       if (overrides.gameFilesRepo !== undefined) return overrides.gameFilesRepo;
