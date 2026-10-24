@@ -345,3 +345,45 @@ describe('the event job in the bot', () => {
     expect(edits.at(-1)).toContain('Не опубликовано без вас: дневной лимит автопубликаций исчерпан.');
   });
 });
+
+describe('automatic publishing of a find in the game files', () => {
+  // Owner, 24.10.2026: a find in the game's files goes out like every source post, once per build, with no Steam
+  // announcement behind it: no event link and no announcement pictures.
+  it('publishes the build post once under its own key, without asking for an announcement', async () => {
+    const destination = await seedDestination(api);
+    await settings({ enabled: true, destinationId: destination.id, dailyLimit: 3 });
+    const announcementRead = vi.fn(async () => ({ publishedAt: START }));
+    const deps: SourceMediaDeps = {
+      ...media(),
+      repo: { findSteamAnnouncement: announcementRead } as unknown as SourceMediaDeps['repo']
+    };
+    const externalId = `files:${'a'.repeat(40)}`;
+    const id = await draft('В файлах игры нашли новую аркану на Террорблейда.');
+    const outcome = await autopublishSourceEvent(container, await createWriterDeps(container, 'test'), deps, {
+      externalId,
+      rootId: id,
+      versionId: id,
+      requestId: 'test',
+      standalone: true
+    });
+    expect(outcome).toMatchObject({ kind: 'published' });
+    expect(announcementRead).not.toHaveBeenCalled();
+    expect(await count('idempotency_keys', `key = 'autopublish:${externalId}'`)).toBe(1);
+    expect(await count('publications')).toBe(1);
+  });
+
+  it('leaves a find with an address in it to the owner: GitHub’s text is nobody’s (QA 24.10.2026)', async () => {
+    const destination = await seedDestination(api);
+    await settings({ enabled: true, destinationId: destination.id, dailyLimit: 3 });
+    const id = await draft('В файлах игры нашли новый режим: https://example.com/x');
+    const outcome = await autopublishSourceEvent(container, await createWriterDeps(container, 'test'), media(), {
+      externalId: `files:${'b'.repeat(40)}`,
+      rootId: id,
+      versionId: id,
+      requestId: 'test',
+      standalone: true
+    });
+    expect(outcome).toEqual({ kind: 'skipped', reason: 'link' });
+    expect(await count('publications')).toBe(0);
+  });
+});

@@ -17,6 +17,7 @@ export {
   type RuleEvidence
 } from './d1-rules-repository';
 export { type AnalyticsReview, writeAnalyticsReview } from './analytics-review';
+export { gameFilesWorthPost } from './game-files-check';
 export { hotfixWorthPost } from './hotfix-check';
 export { condensePatchNotes } from './patch-condense';
 export { drawHotfixPicture, drawPatchPicture, type PatchPictureResult } from './patch-picture';

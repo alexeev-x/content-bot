@@ -140,7 +140,8 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   rich messages with every part of the classic one; a refused rich message falls back to the classic one).
   Release (owner, 23.10.2026): steps 1–5 whole, checked live on DEV, then the owner's `develop → main` and production
   migrations; the studio shows a rich post and edits its text with a live preview (owner, 24.10.2026; a block editor later).
-  After the release, on DEV: the rubrics, then the game-file source and new sources.
+  Before the release (owner, 24.10.2026: «не может идти в прод без» it): the game-file source below, on DEV; after the
+  release, on DEV: the rubrics and new sources.
   The AI money page counts only the chosen provider (OpenAI); a second API in use gets a tab per provider with its own
   spend (owner, 23.10.2026).
 - Next: changes in the game's files (owner, 23.10.2026: «это очень интересное»). Source: the GitHub repo
@@ -154,7 +155,9 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
   - the AI writes one Russian post per build worth it: a silent balance change, new strings of upcoming content
     (events, heroes, sets), new features; it says «в файлах игры нашли, Valve не подтверждала, может измениться»
     (owner, 23.10.2026: no SteamDB, no commit link), never quotes files (a diff is retold in Russian);
-  - the owner approves each such post at first (no automatic publishing until it proves itself).
+  - it goes through the automatic publishing like every source post (owner, 24.10.2026), under the same switch and
+    daily limit. Built 24.10.2026 (migration 0107, docs/backend/sources.md «Changes in the game's files»); on DEV it
+    starts once the owner sets GITHUB_TOKEN.
   Expected: about 1–2 posts a week outside patch weeks (07–22.10 gave: the Terrorblade arcana in the files, effect
   slots for abilities of 11 heroes, persona portraits in the hero grid, a Trove gifting notice).
 

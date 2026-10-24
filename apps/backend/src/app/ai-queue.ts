@@ -24,6 +24,7 @@ import {
 } from './workflows/autopublish-source-event';
 import { runSeriesPublishStep } from './workflows/autopublish-series';
 import { runTreasureWatch } from './workflows/treasure-watch';
+import { gameFilesExternalId, prepareGameFilesPost, runGameFilesWatch } from './workflows/game-files';
 import { getOwnerOperationsSettings } from '../modules/settings';
 import { escapeHtml } from './notifications/notice-template';
 import type { AiJob, WriterJob } from './bot/ai-job';
@@ -173,7 +174,8 @@ const SKIPPED_TEXT: Record<Extract<AutopublishOutcome, { kind: 'skipped' }>['rea
   off: 'автопубликация выключена в настройках',
   channel: 'канал автопубликации не выбран или выключен',
   limit: 'дневной лимит автопубликаций исчерпан — его можно поднять в настройках',
-  too_long: 'текст длиннее 4 096 знаков, столько пост не вмещает — нажмите «Короче»'
+  too_long: 'текст длиннее 4 096 знаков, столько пост не вмещает — нажмите «Короче»',
+  link: 'в тексте находки есть ссылка — проверьте её сами'
 };
 
 /** The owner's short note of what the automatic publishing did; null when it did nothing. */
@@ -228,7 +230,8 @@ async function runPatchPublishJob(
         requestId,
         ...(job.followUp === undefined ? {} : { followUp: job.followUp }),
         ...(job.urls === undefined ? {} : { followUpUrls: job.urls }),
-        ...(job.from === undefined ? {} : { from: job.from })
+        ...(job.from === undefined ? {} : { from: job.from }),
+        ...(job.standalone === true ? { standalone: true } : {})
       }
     );
     container.logger.info({ component: 'autopublish', operation: 'patch_publish', requestId, status: outcome.kind });
@@ -269,7 +272,13 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
         component: 'ai_queue',
         operation: job.kind,
         requestId,
-        errorCode: error instanceof Error ? error.name : 'unknown'
+        // A stable code when the error has one (GITHUB_TOKEN tells a revoked token from GITHUB_RATE), else its name.
+        errorCode:
+          error instanceof Error
+            ? 'code' in error && typeof error.code === 'string'
+              ? error.code
+              : error.name
+            : 'unknown'
       });
     if (job.kind === 'daily_review') {
       // The report row is the state: its review is written once, and a redelivered job finds it released.
@@ -317,6 +326,11 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
     }
     if (job.kind === 'treasure_watch') {
       await runTreasureWatch(container, job, requestId, onError);
+      message.ack();
+      continue;
+    }
+    if (job.kind === 'game_files_watch') {
+      await runGameFilesWatch(container, job, requestId, onError);
       message.ack();
       continue;
     }
@@ -444,6 +458,50 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
         automatic: true,
         followUp: { number: job.number, task: job.task, ...(job.urls === undefined ? {} : { urls: job.urls }) }
       };
+    } else if (job.kind === 'game_files_post') {
+      // A build of the game's files: a cheap call says whether it is worth a post before the owner hears of it, then it
+      // is written and, when allowed, published like Cron's event draft (owner, 24.10.2026).
+      // Claimed first under a second id of the job (its last character changed), as a source event's series plan: a
+      // redelivered copy neither pays the check again nor says «Пишу…» twice (QA 24.10.2026).
+      const first = await container.aiWriter
+        .claimJob(`${job.id.slice(0, 35)}g`, container.clock.now())
+        .catch((error: unknown) => {
+          onError(error);
+          return false;
+        });
+      if (!first) {
+        message.ack();
+        continue;
+      }
+      const prepared = await prepareGameFilesPost(container, job, requestId, onError);
+      if (prepared === null) {
+        message.ack();
+        continue;
+      }
+      let messageId: number;
+      try {
+        const quiet = await autopublishOn(container, requestId).catch(() => false);
+        messageId = (
+          await api.sendMessage(job.chatId, `Файлы игры, сборка ${job.build}: ${prepared.reason}\nПишу пост…`, {
+            disable_notification: quiet
+          })
+        ).message_id;
+      } catch (error) {
+        onError(error);
+        await container.gameFileBuilds.release(job.sha, 'failed', 'telegram').catch(onError);
+        message.ack();
+        continue;
+      }
+      writerJob = {
+        id: job.id,
+        kind: 'event',
+        chatId: job.chatId,
+        messageId,
+        appOrigin: job.appOrigin,
+        externalId: gameFilesExternalId(job.sha),
+        automatic: true,
+        own: prepared.own
+      };
     } else {
       writerJob = job;
     }
@@ -492,6 +550,7 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
             ...draft,
             requestId,
             ...(eventJob.followUp === undefined ? {} : { followUp: eventJob.followUp.number }),
+            ...(eventJob.own === undefined ? {} : { standalone: true }),
             // Every post's pictures and publication in a job of its own (QA 23.10.2026: the Free plan's 50 D1
             // statements do not hold the writer, the pictures and their improvement together).
             queuePicture: (postId: string) =>
@@ -503,7 +562,8 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
                 postId,
                 externalId: eventJob.externalId,
                 ...(eventJob.followUp === undefined ? {} : { followUp: eventJob.followUp.number }),
-                ...(eventJob.followUp?.urls === undefined ? {} : { urls: eventJob.followUp.urls })
+                ...(eventJob.followUp?.urls === undefined ? {} : { urls: eventJob.followUp.urls }),
+                ...(eventJob.own === undefined ? {} : { standalone: true })
               })
           }
         );

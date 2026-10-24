@@ -36,7 +36,7 @@ export type AutopublishOutcome =
   /** More pictures to attach: the queue job goes on from `from` in a message of its own; nothing is published yet. */
   | { kind: 'continue'; postId: string; from: number }
   /** Nothing done: the owner gets the draft as before. */
-  | { kind: 'skipped'; reason: 'off' | 'channel' | 'limit' | 'too_long' };
+  | { kind: 'skipped'; reason: 'off' | 'channel' | 'limit' | 'too_long' | 'link' };
 
 export async function autopublishSourceEvent(
   container: Container,
@@ -51,6 +51,8 @@ export async function autopublishSourceEvent(
     followUp?: number;
     /** The follow-up's pictures: the told sets' icons (owner, 23.10.2026), none without them. */
     followUpUrls?: string[];
+    /** A post of no Steam announcement (a find in the game's files): no event link, no announcement pictures. */
+    standalone?: boolean;
     /**
      * A patch: its picture is drawn by a job of its own (QA 23.10.2026: three tries do not fit the Free plan's 50
      * subrequests next to the writer's), which then publishes the approved post.
@@ -74,6 +76,9 @@ export async function autopublishSourceEvent(
   // A text over a post's 4 096 characters cannot become a post: the owner gets the draft to shorten, not a «сбой».
   const text = (await deps.writer.revisions(input.versionId)).at(-1)?.text ?? '';
   if (text.length > POST_BODY_MAX) return { kind: 'skipped', reason: 'too_long' };
+  // A find in the game's files is written from GitHub's text, which nobody vets: an address in it would go out as a
+  // hidden link, so such a post waits for the owner (QA 24.10.2026).
+  if (input.standalone === true && /https?:\/\/|www\./iu.test(text)) return { kind: 'skipped', reason: 'link' };
 
   let postId: string;
   let title: string;
@@ -84,7 +89,7 @@ export async function autopublishSourceEvent(
       actor: AUTOPUBLISH_ACTOR,
       provenance: 'OWNER_PREAPPROVED',
       queueMedia: false,
-      ...(input.followUp === undefined ? {} : { linkToEvent: false })
+      ...(input.followUp === undefined && input.standalone !== true ? {} : { linkToEvent: false })
     }));
     title = (await container.posts.findById(postId))?.title ?? '';
   } catch (error) {
@@ -119,7 +124,8 @@ export async function autopublishSourceEvent(
     destinationId,
     timezone: settings.timezone,
     ...(input.followUp === undefined ? {} : { followUp: input.followUp }),
-    ...(input.followUpUrls === undefined ? {} : { followUpUrls: input.followUpUrls })
+    ...(input.followUpUrls === undefined ? {} : { followUpUrls: input.followUpUrls }),
+    ...(input.standalone === true ? { standalone: true } : {})
   });
 }
 
@@ -136,6 +142,7 @@ export async function publishQueuedPatchPost(
     requestId: string;
     followUp?: number;
     followUpUrls?: string[];
+    standalone?: boolean;
     /** The picture to start from: a later message of the same job goes on where the last one stopped. */
     from?: number;
   }
@@ -169,6 +176,7 @@ async function publishApprovedEventPost(
     timezone: string;
     followUp?: number;
     followUpUrls?: string[];
+    standalone?: boolean;
     from?: number;
     /** The owner's daily limit, counted again before the publication of a deferred post. */
     dailyLimit?: number;
@@ -183,17 +191,19 @@ async function publishApprovedEventPost(
     const from = input.from ?? 0;
     const part = { from, count: PICTURES_PER_RUN };
     const { found, remaining, pictureFailed } =
-      input.followUp === undefined
-        ? await attachSourceEventImages(media, { postId, externalId: input.externalId, max: MAX_PICTURES, ...part })
-        : input.followUpUrls !== undefined && input.followUpUrls.length > 0
-          ? await attachSourceEventImages(media, {
-              postId,
-              externalId: input.externalId,
-              urls: input.followUpUrls,
-              max: input.followUpUrls.length,
-              ...part
-            })
-          : { found: 0, remaining: 0, pictureFailed: undefined };
+      input.standalone === true
+        ? { found: 0, remaining: 0, pictureFailed: undefined }
+        : input.followUp === undefined
+          ? await attachSourceEventImages(media, { postId, externalId: input.externalId, max: MAX_PICTURES, ...part })
+          : input.followUpUrls !== undefined && input.followUpUrls.length > 0
+            ? await attachSourceEventImages(media, {
+                postId,
+                externalId: input.externalId,
+                urls: input.followUpUrls,
+                max: input.followUpUrls.length,
+                ...part
+              })
+            : { found: 0, remaining: 0, pictureFailed: undefined };
     if (remaining > 0) return { kind: 'continue', postId, from: from + PICTURES_PER_RUN };
     // The pictures are done: the post may be published now (its own publication below included).
     await container.posts.setMediaPending(postId, null);

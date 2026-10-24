@@ -16,6 +16,8 @@ export type AppEnv = Env & {
   /** TikTok for Developers app keys (Login Kit + Display API). */
   TIKTOK_CLIENT_KEY?: string;
   TIKTOK_CLIENT_SECRET?: string;
+  /** A GitHub token with no scopes: the game-files tracker (owner, 24.10.2026). */
+  GITHUB_TOKEN?: string;
 };
 
 export type AppBindings = {

@@ -127,7 +127,9 @@ type TickContainer = Pick<
   | 'aiScriptLinks'
   | 'aiRepository'
   | 'aiProvider'
->;
+> &
+  // The game-files watch is off without its token, so a tick may run without it.
+  Partial<Pick<Container, 'gameFilesRepo'>>;
 
 // Cron entry point, once a minute (docs/BACKEND_ARCHITECTURE.md §5). Ticks may overlap or repeat:
 // every write below is a conditional claim or a guarded batch, so a second tick changes nothing
@@ -369,7 +371,7 @@ export async function handleScheduled(controller: ScheduledController, container
         // D1 query of this tick (the consumer reads the app origin, starts and serves the watches itself). A refused
         // send is only logged: the next run sends again.
         const ownerChat = Number(container.ownerChatId);
-        if (container.ownerChatId !== null && Number.isSafeInteger(ownerChat))
+        if (container.ownerChatId !== null && Number.isSafeInteger(ownerChat)) {
           await container.aiJobs
             .send({ id: container.newId(), kind: 'treasure_watch', chatId: ownerChat })
             .catch((error: unknown) =>
@@ -379,6 +381,18 @@ export async function handleScheduled(controller: ScheduledController, container
                 errorCode: error instanceof Error ? error.name : 'unknown'
               })
             );
+          // The game-files watch the same way (owner, 24.10.2026); without its token the source is off and costs nothing.
+          if (container.gameFilesRepo != null)
+            await container.aiJobs
+              .send({ id: container.newId(), kind: 'game_files_watch', chatId: ownerChat })
+              .catch((error: unknown) =>
+                logger.warn({
+                  component: 'game_files',
+                  operation: 'enqueue',
+                  errorCode: error instanceof Error ? error.name : 'unknown'
+                })
+              );
+        }
         const notifications = (
           await getOwnerOperationsSettings({ repo: container.settings, logger, requestId: 'scheduled' })
         ).notifications;

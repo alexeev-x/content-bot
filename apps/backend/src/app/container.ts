@@ -46,6 +46,8 @@ import {
   type TelegramChatReadApi,
   type TelegramOwnerMessageApi
 } from '../integrations/telegram/telegram-api';
+import { createGitHubRepoApi, type GitHubRepoApi } from '../integrations/github/github-api';
+import { createD1GameFileBuilds, type GameFileBuildRepository } from '../modules/game-files';
 import type { AiJob } from './bot/ai-job';
 import { type BotIdentityStore, createD1BotIdentityStore } from './bot/bot-identity-store';
 import { createD1MediaImportStore, type MediaImportStore } from './bot/media-import-store';
@@ -208,6 +210,10 @@ export interface Container {
   sourceSeries: SeriesRepository;
   /** The Liquipedia watch of a treasure announced without its own page (migration 0101). */
   treasureWatches: TreasureWatchRepository;
+  /** The builds of the game's files already seen (migration 0107). */
+  gameFileBuilds: GameFileBuildRepository;
+  /** The game-files tracker on GitHub; null without `GITHUB_TOKEN`, which only leaves the source off. */
+  gameFilesRepo: GitHubRepoApi | null;
   dotaWatchlists: ReturnType<typeof createD1DotaWatchlists>;
   /** Owner-visible history and conditional control for fixed Dota recurring work. */
   automations: AutomationRepository;
@@ -312,6 +318,8 @@ export interface ContainerEnv {
   /** Worker secrets: TikTok for Developers app (Login Kit + Display API). */
   TIKTOK_CLIENT_KEY?: string;
   TIKTOK_CLIENT_SECRET?: string;
+  /** Worker secret: a GitHub token with no scopes, for the game-files tracker (5 000 calls an hour). */
+  GITHUB_TOKEN?: string;
 }
 
 export interface ContainerOverrides {
@@ -334,6 +342,8 @@ export interface ContainerOverrides {
   dotaWatcher?: Container['dotaWatcher'];
   /** Replaces the outbound fetch of the content collectors (tests script it). */
   contentFetch?: typeof fetch;
+  /** Replaces the game-files tracker (tests script it; nothing reaches GitHub). */
+  gameFilesRepo?: GitHubRepoApi | null;
   /** Replaces the AI provider (tests); null forces «no key». */
   aiProvider?: AiTextProvider | null;
   /** Replaces the image provider (tests); null forces «no key». */
@@ -548,6 +558,14 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get treasureWatches() {
       return createD1TreasureWatchRepository(db());
+    },
+    get gameFileBuilds() {
+      return createD1GameFileBuilds(db());
+    },
+    get gameFilesRepo(): GitHubRepoApi | null {
+      if (overrides.gameFilesRepo !== undefined) return overrides.gameFilesRepo;
+      const token = env.GITHUB_TOKEN?.trim() ?? '';
+      return token === '' ? null : createGitHubRepoApi({ owner: 'SteamTracking', repo: 'GameTracking-Dota2', token });
     },
     get sourceEvents() {
       return createD1SourceEventsRepository(db(), () => (overrides.clock ?? systemClock).now());

@@ -75,7 +75,9 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
      */
     followUp: z.number().int().min(1).max(2).optional(),
     urls: z.array(z.url().max(500)).max(10).optional(),
-    from: z.number().int().min(0).max(10).optional()
+    from: z.number().int().min(0).max(10).optional(),
+    /** A post of no Steam announcement (a find in the game's files): no event link, no announcement pictures. */
+    standalone: z.boolean().optional()
   }),
   /** One planned post of an event's series, written by the AI writer (no chat message: the studio shows it). */
   z.object({
@@ -117,6 +119,22 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
     task: z.string().min(1).max(TEXT_MAX),
     /** The told sets' icons on Liquipedia's commons (owner, 23.10.2026: a slider of the sets), at most ten. */
     urls: z.array(z.url().max(500)).max(10).optional()
+  }),
+  /** One run of the game-files watch (migration 0107), queued by Cron's Dota step next to the treasure watch. */
+  z.object({ id: z.uuid(), kind: z.literal('game_files_watch'), chatId: z.number().int() }),
+  /**
+   * A build of the game's files with changes a player may care about (owner, 24.10.2026): checked by a cheap call,
+   * then written and published like Cron's event draft. `diff` is the build's condensed changes.
+   */
+  z.object({
+    id: z.uuid(),
+    kind: z.literal('game_files_post'),
+    chatId: z.number().int(),
+    appOrigin: z.string().max(200),
+    sha: z.string().regex(/^[0-9a-f]{40}$/),
+    build: z.string().regex(/^\d{1,10}$/),
+    committedAt: z.number().int().min(0),
+    diff: z.string().min(1).max(16_000)
   }),
   z.object({ ...base, kind: z.literal('draft'), format: formatSchema, task: z.string().min(1).max(TEXT_MAX) }),
   z.object({
@@ -166,6 +184,8 @@ export type EventWriterJob = AiJobBase & {
   automatic?: boolean;
   /** A treasure's follow-up (1 or 2): its own task, and the event's own draft is left as it is. */
   followUp?: { number: number; task: string; urls?: string[] };
+  /** A post of no Steam announcement (a find in the game's files): its own task and facts, published standalone. */
+  own?: { task: string; facts: string };
 };
 /** The jobs of the bot's AI writer: each has the chat message it ends in. */
 export type WriterJob =
@@ -182,7 +202,9 @@ export type WriterJob =
           | 'series_post'
           | 'series_publish'
           | 'treasure_watch'
-          | 'treasure_post';
+          | 'treasure_post'
+          | 'game_files_watch'
+          | 'game_files_post';
       }
     >
   | EventWriterJob;

@@ -382,9 +382,15 @@ async function jobResult(
     // The source's facts only (automatic mode): the writer never adds what the announcement does not say.
     const events = runtime.sourceEvents;
     try {
-      // A treasure's follow-up brings its own task (the watch's new facts).
+      // A treasure's follow-up brings its own task (the watch's new facts); a find in the game's files its task and
+      // the build's changes as the facts.
       const { task, facts } =
-        job.followUp === undefined ? await events.task(job.externalId) : { task: job.followUp.task, facts: null };
+        job.own !== undefined
+          ? job.own
+          : job.followUp === undefined
+            ? await events.task(job.externalId)
+            : { task: job.followUp.task, facts: null };
+      const ofEvent = job.followUp === undefined && job.own === undefined;
       // The writer's own time starts after the task: a big patch's condensing has its own (QA 23.10.2026).
       const signal = AbortSignal.timeout(MODEL_TIMEOUT_MS);
       // Automatic: the source's facts only, checked by a second pass before the owner sees it.
@@ -398,12 +404,12 @@ async function jobResult(
       });
       // The first version of the chain: a fix by the fact check is its child. A follow-up leaves the event's own
       // draft and its «Написать через ИИ» as they are.
-      if (job.followUp === undefined)
-        await events.generated(job, result.generation.parentGenerationId ?? result.generation.id);
+      if (ofEvent) await events.generated(job, result.generation.parentGenerationId ?? result.generation.id);
       return result;
     } finally {
       // Success or failure, the event's «Написать через ИИ» unlocks.
-      if (job.followUp === undefined) await events.finished(job).catch((error: unknown) => runtime.onError(error));
+      if (job.followUp === undefined && job.own === undefined)
+        await events.finished(job).catch((error: unknown) => runtime.onError(error));
     }
   }
   if (job.kind === 'draft')

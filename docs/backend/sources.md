@@ -86,3 +86,39 @@ icons are fetched 2 s apart.
 
 ## Treasure follow-ups from Liquipedia (migration 0101, owner 22.10.2026)
 A treasure announced without its own event page (Cron's `treasure` event, not baseline, not hidden) is followed for 6 hours after Valve's announcement. Cron's Dota step queues one `treasure_watch` job per run (every 5 minutes on idle ticks; no D1 query of the tick: the consumer reads the app origin itself); the consumer (`app/workflows/treasure-watch.ts`) starts a watch for each such treasure (`treasure_watches`) and serves at most two per run. A run takes each watch by a conditional update of its `checked_at`, the first only when no watch was taken in the last 3 minutes, so two runs never talk to Liquipedia at once and never queue the same follow-up; the watch is saved as of that claim before its follow-up is queued. Liquipedia's MediaWiki API only (`modules/dota/liquipedia.ts`; its terms forbid anything else; since 23.10.2026 the set icons the API's `imageinfo` names are fetched from its commons too, 2 s apart, the owner to confirm this fits the terms): 2 s between requests (also between watches), a User-Agent naming the project, its repository and a contact e-mail. The page is found by asking which phrases of two words or more of the announcement's title exist as pages («Inside the Trove of Terror» → «Trove of Terror»): of the three longest, the first whose infobox says it is a treasure. Each run asks for the page's latest revision; on a change the wikitext gives the sets by rarity, the opening bonuses, a short summary of the drop rates (only once its table has rates; sets only from level-3 sections, so «See also» is not a rarity) and the treasure's item id, whose price comes from Valve (dollars). Facts are compared one by one (each set by name, each bonus by its condition, the drop rates and the price once): a fact once told never goes again, even with another text, and what waits is rebuilt from the page as it is now, so a name corrected meanwhile goes out corrected. What is new waits until the page has been quiet for 30 minutes and then becomes one `treasure_post` (the sets alone are enough, the rest go at least two together; at the window's end anything left goes once); at most two follow-ups per event, and none before the event's own post went out to a channel (the follow-up says the treasure was told). The follow-up is written like Cron's event draft (automatic mode, fact check, the Liquipedia page linked, «по данным Liquipedia», the price «по данным Valve») and, when the automatic publishing allows, published without the owner under its own key (`autopublish:<id>:follow-up-<n>`), with its sets' icons when it tells sets (owner, 23.10.2026) and not as the event's own post; otherwise the owner gets the draft. A treasure whose event got its own page's series is told there, and a hidden event is not told: either watch ends.
+
+## Changes in the game's files (migration 0107, owner 23–24.10.2026)
+
+Required before the release and published like every source post (owner, 24.10.2026). Source: the GitHub repository
+SteamTracking/GameTracking-Dota2 (SteamDB's tracker, one commit per game build), read with the owner's no-scope token
+`GITHUB_TOKEN` (`integrations/github/github-api.ts`); without the token the source is off. Never steamdb.info itself
+(its FAQ forbids scraping); the post names no SteamDB or GitHub and links nothing.
+
+- Every Dota run of the Cron queues `game_files_watch` next to the treasure watch (`app/workflows/game-files.ts`). A run
+  reads the 10 newest commits. The first run only records them as the baseline (`game_file_builds`, `skipped`).
+- A new commit's message («6964 | 11 files | M\t<path>, …») decides whether it is read: relevant are
+  `pak01_dir/scripts/npc/**`, `pak01_dir/resource/localization/*english.txt`, `pak01_dir/scripts/*.vdata` and
+  `pak01_dir/patchnotes/**` (`modules/game-files/build-diff.ts`). The tracker cuts the message at about 1 000
+  characters, so a build whose message names fewer files than its count is always read (QA 24.10.2026). A build
+  naming every file and none of these is recorded as skipped unread.
+- One build is read per run, oldest first, as its plain unified diff (not JSON: a big build's JSON costs most of the
+  Free plan's 10 ms of CPU and lists only 300 files); only the file headers are scanned to pass the rest. A diff over
+  3 MB, or one GitHub refuses to make, is `skipped` (`too_big`): a big patch's build is about 30 MB, and its changes come
+  through Valve's patch notes source. A network failure, a rate limit or a revoked token leaves the build for the next
+  run; the queue log names the code (`GITHUB_RATE`, `GITHUB_TOKEN`).
+- A build's diff keeps only the changed lines of those files, «- old» / «+ new», without moves, spacing-only changes,
+  braces and block keys, at most 3 000 characters a file and 14 000 a build (cut at 15 500, under the job's 16 000).
+  Nothing left: `skipped` (`no_changes`).
+- The build is claimed once (`queued`, `INSERT OR IGNORE`) and becomes a `game_files_post` job, which claims itself
+  again under a second id before anything paid, so a redelivered copy does nothing. A cheap call (`gameFilesWorthPost`)
+  says whether a player would care; a dull build becomes `skipped` (`not_worth`) and the owner hears nothing. A check
+  that cannot answer lets the writer go on.
+- The writer's task (`gameFilesTask`): the text opens with «В файлах игры нашли», says Valve has not confirmed it and it
+  may change, retells the changes in Russian with numbers «было → стало», never quotes a file or names keys, no
+  heading and no link (so the post goes in the classic form). The build's changes are the source's facts, checked by the
+  fact check like any automatic draft.
+- Publishing: the event writer's job with its own task (`own`), the key `autopublish:files:<sha>` (one publication per
+  build), `standalone`: no event link and no announcement pictures, through `patch_publish` like every source post. A
+  text with an address in it waits for the owner (`link`): GitHub's text is nobody's, and an address would go out as a
+  hidden link. Off, over the daily limit or with an unclean fact check, the draft comes to the owner as any source draft.
+- Known gap: a run stopped by the platform between the claim and the queue send leaves the build `queued` with no post.
