@@ -17,7 +17,8 @@ export interface BrowserBinding {
   ): Promise<Response>;
 }
 
-export type BrowserRenderErrorCode = 'BROWSER_FAILED' | 'BROWSER_TIMEOUT' | 'BROWSER_SHAPE';
+/** BROWSER_RATE: the free plan allows one screenshot every 10 seconds and 10 browser minutes a day (429). */
+export type BrowserRenderErrorCode = 'BROWSER_FAILED' | 'BROWSER_RATE' | 'BROWSER_TIMEOUT' | 'BROWSER_SHAPE';
 
 export class BrowserRenderError extends Error {
   constructor(
@@ -61,7 +62,7 @@ export function createBrowserPictureRenderer(binding: BrowserBinding): PictureRe
       }
       if (!response.ok) {
         await response.body?.cancel();
-        throw new BrowserRenderError('BROWSER_FAILED', response.status);
+        throw new BrowserRenderError(response.status === 429 ? 'BROWSER_RATE' : 'BROWSER_FAILED', response.status);
       }
       const bytes = new Uint8Array(await response.arrayBuffer());
       // A PNG starts with its 8-byte signature; anything else (an error page) is not a picture.

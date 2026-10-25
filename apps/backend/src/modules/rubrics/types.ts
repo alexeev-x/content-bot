@@ -70,6 +70,18 @@ export interface StatsSource {
   heroBracketStats(bracket: number): Promise<HeroBracketStat[]>;
   /** A hero's most bought late items (item ids, most bought first). */
   heroLateItems(heroId: number): Promise<number[]>;
+  /** A hero's item purchases by minute with the wins of those matches. */
+  heroPurchases(heroId: number): Promise<{ itemId: number; minute: number; matches: number; wins: number }[]>;
+  /** A hero's matches still going at each minute and the wins among them. */
+  heroTimeline(heroId: number): Promise<{ minute: number; remaining: number; wins: number }[]>;
+  /** Every hero's matches and wins by position 1–5. */
+  positions(): Promise<{ heroId: number; position: number; matches: number; wins: number }[]>;
+  /** Every hero's last two weeks in a bracket, newest first. */
+  twoWeeks(bracket: number): Promise<{ heroId: number; week: number; matches: number; wins: number }[]>;
+  /** Every hero's per-match averages this week. */
+  averages(): Promise<
+    { heroId: number; matches: number; networth: number; heroDamage: number; kills: number; deaths: number }[]
+  >;
 }
 
 export interface RubricSources {

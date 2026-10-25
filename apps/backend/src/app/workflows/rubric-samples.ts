@@ -3,6 +3,7 @@ import { BrowserRenderError, type PictureRenderer } from '../../integrations/bro
 import { createDotaConstantsApi, DotaConstantsError } from '../../integrations/dotaconstants/dotaconstants';
 import type { GitHubRepoApi } from '../../integrations/github/github-api';
 import { createSteamPublicApi, SteamPublicError } from '../../integrations/steam-public/steam-public';
+import { createStratzApi, StratzError } from '../../integrations/stratz/stratz-api';
 import type { TelegramSendApi } from '../../integrations/telegram/telegram-api';
 import { createValveDatafeedApi, DatafeedError } from '../../integrations/valve-datafeed/valve-datafeed';
 import { parseBuildMessage } from '../../modules/game-files';
@@ -16,7 +17,8 @@ import { AppError } from '../../shared/app-error';
 const TELEGRAM_TIMEOUT_MS = 20_000;
 const FLAGS = { disable_notification: false, protect_content: false } as const;
 
-function rubricSources(gameFilesRepo: GitHubRepoApi | null): RubricSources {
+function rubricSources(gameFilesRepo: GitHubRepoApi | null, stratzToken: string | null): RubricSources {
+  const stratz = stratzToken === null ? null : createStratzApi({ token: stratzToken });
   const constants = createDotaConstantsApi();
   const datafeed = createValveDatafeedApi();
   const steam = createSteamPublicApi();
@@ -58,12 +60,38 @@ function rubricSources(gameFilesRepo: GitHubRepoApi | null): RubricSources {
                 : [{ build: header.build, paths: header.paths, committedAt: commit.committedAt }];
             })
           ),
-    stats: null
+    stats:
+      stratz === null
+        ? null
+        : {
+            async heroBracketStats(bracket) {
+              const rows = await stratz.heroWeeks(bracket, 1);
+              return rows.map((row) => ({ heroId: row.heroId, bracket, matches: row.matches, wins: row.wins }));
+            },
+            async heroLateItems(heroId) {
+              // Items bought from minute 20 on, most bought first.
+              const totals = new Map<number, number>();
+              for (const row of await stratz.heroPurchases(heroId)) {
+                if (row.minute >= 20) totals.set(row.itemId, (totals.get(row.itemId) ?? 0) + row.matches);
+              }
+              return [...totals.entries()].sort((a, b) => b[1] - a[1]).map(([itemId]) => itemId);
+            },
+            heroPurchases: (heroId) => stratz.heroPurchases(heroId),
+            heroTimeline: (heroId) => stratz.heroTimeline(heroId),
+            positions: () => stratz.positions(),
+            twoWeeks: (bracket) => stratz.heroWeeks(bracket, 2),
+            averages: () => stratz.averages()
+          }
   };
 }
 
 function sourceErrorCode(error: unknown): string | null {
-  if (error instanceof DotaConstantsError || error instanceof DatafeedError || error instanceof SteamPublicError) {
+  if (
+    error instanceof DotaConstantsError ||
+    error instanceof DatafeedError ||
+    error instanceof SteamPublicError ||
+    error instanceof StratzError
+  ) {
     return error.code;
   }
   return null;
@@ -72,6 +100,7 @@ function sourceErrorCode(error: unknown): string | null {
 export async function sendRubricSample(
   deps: {
     gameFilesRepo: GitHubRepoApi | null;
+    stratzToken: string | null;
     renderer: PictureRenderer | null;
     telegram: TelegramSendApi;
     ownerChatId: string;
@@ -96,7 +125,7 @@ export async function sendRubricSample(
   let sample;
   try {
     sample = await buildRubricSample(rubric, {
-      sources: rubricSources(deps.gameFilesRepo),
+      sources: rubricSources(deps.gameFilesRepo, deps.stratzToken),
       random: deps.random,
       now: deps.now
     });

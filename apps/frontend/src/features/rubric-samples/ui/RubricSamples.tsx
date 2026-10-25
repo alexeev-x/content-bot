@@ -22,32 +22,33 @@ const RUBRICS: { key: RubricSampleKey; label: string; note: string; need: Need }
   { key: 'ban_or_pick', label: '13. Бан или пик?', note: 'картинка + опрос', need: 'stratz' },
   { key: 'rank_meta', label: '14. Мета по рангам', note: 'картинка: топ-5', need: 'stratz' },
   { key: 'poison_for_low', label: '15. Яд для низов', note: 'текст', need: 'stratz' },
-  { key: 'daily_record', label: '16. Рекорд суток', note: 'текст', need: 'later' },
-  { key: 'hero_peak', label: '17. Когда герой сильнее всего', note: 'текст', need: 'later' },
-  { key: 'anti_build', label: '18. Антисборка', note: 'картинка', need: 'later' },
+  { key: 'daily_record', label: '16. Рекорд недели', note: 'текст', need: 'stratz' },
+  { key: 'hero_peak', label: '17. Когда герой сильнее всего', note: 'текст', need: 'stratz' },
+  { key: 'anti_build', label: '18. Антисборка', note: 'картинка', need: 'stratz' },
   { key: 'forgotten_hero', label: '19. Забытый герой', note: 'текст', need: 'stratz' },
   { key: 'did_you_know', label: '20. А вы знали?', note: 'текст', need: 'ready' },
   { key: 'item_exam', label: '21. Предметный экзамен', note: 'викторина, иногда с картинкой', need: 'ready' },
   { key: 'tier_list', label: '22. Тир-лист по-русски', note: 'картинка', need: 'stratz' },
-  { key: 'carry_on_five', label: '23. Керри на пятой', note: 'текст', need: 'later' },
+  { key: 'carry_on_five', label: '23. Керри на пятой', note: 'текст', need: 'stratz' },
   { key: 'combo_math', label: '24. Комбо-расчёт', note: 'картинка', need: 'ready' },
-  { key: 'horoscope', label: '25. Дота-гороскоп', note: 'текст', need: 'later' },
+  { key: 'horoscope', label: '25. Дота-гороскоп', note: 'текст', need: 'stratz' },
   { key: 'workshop_set', label: '26. Оцени сет из мастерской', note: 'картинка + ссылка', need: 'ready' },
   { key: 'rebus', label: '27. Ребус', note: 'картинка + викторина', need: 'ready' },
   { key: 'guess_streak', label: '28. Угадай-серия', note: 'викторина (без кнопок и таблицы)', need: 'ready' },
   { key: 'tier_list_vote', label: '29. Тир-лист голосованием', note: 'картинка + опрос', need: 'ready' },
-  { key: 'guess_match', label: '30. Угадай матч', note: 'опрос', need: 'later' },
+  { key: 'guess_match', label: '30. Угадай матч', note: 'опрос, нет источника свежих матчей', need: 'later' },
   { key: 'fake_item', label: '31. Шемелис недели', note: 'картинка', need: 'ready' },
   { key: 'whose_build', label: '32. Чья сборка?', note: 'картинка + викторина', need: 'stratz' }
 ];
-const NEED_NOTE: Record<Need, string> = { ready: '', stratz: ' · ждёт ключ STRATZ', later: ' · после ключа STRATZ' };
+const NEED_NOTE: Record<Need, string> = { ready: '', stratz: ' · STRATZ', later: ' · пока не готово' };
 
 const REASONS: Record<string, string> = {
   RUBRIC_SAMPLES_OFF: 'Образцы рубрик есть только на DEV.',
   BOT_NOT_CONFIGURED: 'Бот не подключён.',
   BROWSER_NOT_BOUND: 'Browser Rendering не подключён к этому серверу.',
+  BROWSER_RATE: 'Бесплатный тариф рисует одну картинку в 10 секунд — подождите и нажмите снова.',
   STATS_NOT_CONFIGURED: 'Нужен ключ STRATZ (STRATZ_TOKEN).',
-  NOT_BUILT_YET: 'Эту рубрику доделаю после ключа STRATZ.',
+  NOT_BUILT_YET: 'Для этой рубрики ещё нет источника данных.',
   GITHUB_NOT_CONFIGURED: 'Нужен GITHUB_TOKEN для файлов игры.'
 };
 

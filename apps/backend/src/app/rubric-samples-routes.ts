@@ -9,7 +9,7 @@ import { validated } from './validation';
 import { sendRubricSample } from './workflows/rubric-samples';
 
 // Each press is up to five data calls (GitHub, Valve, Steam), one browser screenshot (of 10 free minutes a day) and two messages.
-const SAMPLES_LIMIT = 20;
+const SAMPLES_LIMIT = 40;
 const SAMPLES_WINDOW_MS = 10 * 60 * 1000;
 
 const isBrowserBinding = (value: unknown): value is BrowserBinding =>
@@ -38,6 +38,7 @@ export const rubricSamplesRoutes = new Hono<AppBindings>()
       const result = await sendRubricSample(
         {
           gameFilesRepo: container.gameFilesRepo,
+          stratzToken: c.env.STRATZ_TOKEN?.trim() || null,
           renderer: isBrowserBinding(browser) ? createBrowserPictureRenderer(browser) : null,
           telegram: createTelegramApi(token),
           ownerChatId,

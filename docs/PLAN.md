@@ -223,8 +223,9 @@ the picture is an HTML page with Valve's real icons and real text, screenshotted
 Built on DEV 25.10.2026: «Рубрики (DEV)» on «Источники» sends a rubric's post from live data to the owner's chat
 (`POST /api/v1/rubric-samples`; templates over real numbers, not the AI writer yet), all 32 rubrics listed. OpenDota's
 API answers 429 to Cloudflare's shared addresses, so the game data comes from dotaconstants on GitHub and Valve's
-datafeed; 17 rubrics work now, 9 wait for STRATZ (`STRATZ_TOKEN`, owner's free sign-up, chosen 25.10.2026) and 6
-need more of STRATZ than pick and win rates. The rubric list
+datafeed; pick, win, build, game-length and position rates come from STRATZ (`STRATZ_TOKEN`, owner's free sign-up,
+chosen 25.10.2026). 31 rubrics work; «Угадай матч» has no source of recent high-rank matches yet (STRATZ's live list
+was empty). The rubric list
 with each one's picture is `.logs/rubrics-best.html` (local, not in Git).
 - Step 1, from data we already have:
   1. «Что сломали в патче»: after a patch, who was buffed or killed, then the next day a poll «Кто теперь имба?».

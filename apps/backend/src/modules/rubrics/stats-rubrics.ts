@@ -292,9 +292,197 @@ export async function whoseBuild(context: RubricContext): Promise<RubricSample> 
   };
 }
 
-/** Rubrics that need more of STRATZ than pick and win rates; they are built once its token is in. */
+const RECORDS = [
+  { title: 'самый богатый герой', value: (row: Average) => row.networth, unit: 'золота к концу игры', digits: 0 },
+  { title: 'больше всех урона по героям', value: (row: Average) => row.heroDamage, unit: 'урона за игру', digits: 0 },
+  { title: 'самый кровожадный герой', value: (row: Average) => row.kills, unit: 'убийств за игру', digits: 1 },
+  { title: 'главный фидер', value: (row: Average) => row.deaths, unit: 'смертей за игру', digits: 1 }
+];
+type Average = { heroId: number; matches: number; networth: number; heroDamage: number; kills: number; deaths: number };
+
+export async function weeklyRecord(context: RubricContext): Promise<RubricSample> {
+  const [rows, heroes] = await Promise.all([needStats(context).averages(), context.sources.heroes()]);
+  const record = pick(RECORDS, context.random);
+  const best = rows.filter((row) => row.matches >= 500).sort((a, b) => record.value(b) - record.value(a))[0];
+  const hero = heroes.find((each) => each.id === best?.heroId);
+  if (best === undefined || hero === undefined) throw noData('averages');
+  const value =
+    record.digits === 0
+      ? Math.round(record.value(best)).toLocaleString('ru-RU')
+      : record.value(best).toFixed(record.digits).replace('.', ',');
+  return {
+    picture: null,
+    text: `🏆 Рекорд недели: ${record.title} — ${hero.localizedName}.\nВ среднем ${value} ${record.unit} на Божествах и Титанах. А у тебя сколько?`,
+    poll: null
+  };
+}
+
+export async function heroPeak(context: RubricContext): Promise<RubricSample> {
+  const heroes = shuffled(await context.sources.heroes(), context.random);
+  for (const hero of heroes.slice(0, 5)) {
+    const timeline = await needStats(context).heroTimeline(hero.id);
+    const start = timeline.find((row) => row.minute === 0);
+    const at = (minute: number) => timeline.find((row) => row.minute === minute);
+    const early = at(25);
+    const late = at(45);
+    if (start === undefined || early === undefined || late === undefined || late.remaining < 200) continue;
+    // Games over by minute 25 are the start minus those still going; games past 45 are the ones still going.
+    const shortGames = start.remaining - early.remaining;
+    const shortWins = start.wins - early.wins;
+    if (shortGames < 200) continue;
+    const shortRate = shortWins / shortGames;
+    const longRate = late.wins / late.remaining;
+    const html = picturePage(
+      `<div class="title">Когда <b>${escapeHtml(hero.localizedName)}</b> сильнее всего</div>
+<div class="row"><img class="portrait big" src="${heroImage(hero.name)}" alt="">
+<div class="bars"><div class="bar"><span>игра до 25 минут</span><b class="${shortRate >= 0.5 ? 'good' : 'bad'}">${percent(shortRate)}</b></div>
+<div class="bar"><span>игра дольше 45 минут</span><b class="${longRate >= 0.5 ? 'good' : 'bad'}">${percent(longRate)}</b></div></div></div>`,
+      `.row{display:flex;align-items:center;gap:64px;margin-top:48px}
+.portrait.big{width:448px;height:252px}
+.bars{display:flex;flex-direction:column;gap:28px}
+.bar{display:flex;flex-direction:column}
+.bar span{font-weight:600;font-size:32px;color:#cbbfae}
+.bar b{font-weight:900;font-size:88px}
+.good{color:#7fd18f}.bad{color:#e46a5a}`
+    );
+    const verdict = longRate > shortRate ? 'Тяните игру.' : 'Заканчивайте быстро.';
+    return {
+      picture: { html, ...PICTURE_SIZE },
+      text: `${hero.localizedName}: игры до 25 минут — ${percent(shortRate)} побед, дольше 45 минут — ${percent(longRate)}.\n${verdict}`,
+      poll: null
+    };
+  }
+  throw noData('timeline');
+}
+
+/** Greedy items whose win rate falls the later they are bought. */
+const ANTI_ITEMS = ['hand_of_midas', 'battle_fury', 'radiance', 'maelstrom', 'armlet'];
+
+export async function antiBuild(context: RubricContext): Promise<RubricSample> {
+  const [heroes, itemList] = await Promise.all([context.sources.heroes(), context.sources.items()]);
+  const anti = new Map(itemList.filter((item) => ANTI_ITEMS.includes(item.key)).map((item) => [item.id, item]));
+  for (const hero of shuffled(
+    heroes.filter((each) => each.roles.includes('Carry')),
+    context.random
+  ).slice(0, 5)) {
+    const purchases = await needStats(context).heroPurchases(hero.id);
+    for (const [itemId, item] of anti) {
+      const rows = purchases.filter((row) => row.itemId === itemId);
+      const sum = (list: typeof rows) =>
+        list.reduce((acc, row) => ({ matches: acc.matches + row.matches, wins: acc.wins + row.wins }), {
+          matches: 0,
+          wins: 0
+        });
+      const early = sum(rows.filter((row) => row.minute <= 14));
+      const late = sum(rows.filter((row) => row.minute >= 22));
+      if (early.matches < 100 || late.matches < 100) continue;
+      const earlyRate = early.wins / early.matches;
+      const lateRate = late.wins / late.matches;
+      if (earlyRate - lateRate < 0.05) continue;
+      const html = picturePage(
+        `<div class="title"><b>Антисборка</b></div>
+<div class="row"><img class="portrait" src="${heroImage(hero.name)}" alt="">
+<div class="itemwrap"><img class="bigitem" src="${itemImage(item.key)}" alt=""><div class="cross"></div></div>
+<div class="facts"><div class="fact"><span>до 14-й минуты</span><b class="good">${percent(earlyRate)}</b></div>
+<div class="fact"><span>после 22-й минуты</span><b class="bad">${percent(lateRate)}</b></div></div></div>`,
+        `.row{display:flex;align-items:center;gap:48px;margin-top:56px}
+.portrait{width:320px;height:180px}
+.itemwrap{position:relative}
+.bigitem{width:220px;height:160px;border-radius:12px;border:4px solid #3a2a20}
+.cross{position:absolute;inset:-8px;background:linear-gradient(35deg,transparent 46%,#d4382a 46%,#d4382a 54%,transparent 54%),linear-gradient(-35deg,transparent 46%,#d4382a 46%,#d4382a 54%,transparent 54%)}
+.facts{display:flex;flex-direction:column;gap:16px}
+.fact{display:flex;flex-direction:column}
+.fact span{font-weight:600;font-size:30px;color:#cbbfae}
+.fact b{font-weight:900;font-size:76px}
+.good{color:#7fd18f}.bad{color:#e46a5a}`
+      );
+      return {
+        picture: { html, ...PICTURE_SIZE },
+        text: `${item.name} на ${hero.localizedName}: до 14-й минуты — ${percent(earlyRate)} побед, после 22-й — ${percent(lateRate)}.\nЗачем вы его покупаете так поздно? 🤡`,
+        poll: null
+      };
+    }
+  }
+  throw noData('item timings');
+}
+
+type PositionRow = { heroId: number; position: number; matches: number; wins: number };
+
+/** Each hero's main position by its own matches (STRATZ), not by the roles the game lists. */
+function mainPositions(rows: PositionRow[]): Map<number, { position: number; share: number; total: number }> {
+  const byHero = new Map<number, PositionRow[]>();
+  for (const row of rows) byHero.set(row.heroId, [...(byHero.get(row.heroId) ?? []), row]);
+  const main = new Map<number, { position: number; share: number; total: number }>();
+  for (const [heroId, own] of byHero) {
+    const total = own.reduce((sum, row) => sum + row.matches, 0);
+    const top = [...own].sort((a, b) => b.matches - a.matches)[0];
+    if (top !== undefined && total > 0) main.set(heroId, { position: top.position, share: top.matches / total, total });
+  }
+  return main;
+}
+
+export async function carryOnFive(context: RubricContext): Promise<RubricSample> {
+  const [rows, heroes] = await Promise.all([needStats(context).positions(), context.sources.heroes()]);
+  const main = mainPositions(rows);
+  // Real carries (most matches at position 1) that some still play as a five.
+  const found = heroes
+    .map((hero) => {
+      const own = main.get(hero.id);
+      const five = rows.find((row) => row.heroId === hero.id && row.position === 5);
+      return { hero, own, five, share: five === undefined || own === undefined ? 0 : five.matches / own.total };
+    })
+    .filter(
+      (each) => each.own?.position === 1 && each.own.total >= 1000 && each.five !== undefined && each.five.matches >= 50
+    )
+    .sort((a, b) => b.share - a.share)[0];
+  if (found === undefined || found.five === undefined) throw noData('positions');
+  return {
+    picture: null,
+    text: `Керри на пятой 🤡\n${found.hero.localizedName} — керри, но в ${percent(found.share)} игр его берут пятой позицией. И знаете что? Там он выигрывает ${percent(found.five.wins / found.five.matches)}.`,
+    poll: null
+  };
+}
+
+const SIGNS: Record<number, string> = { 1: 'Керри', 2: 'Мидеры', 3: 'Хардлайнеры', 4: 'Четвёрки', 5: 'Пятёрки' };
+
+export async function horoscope(context: RubricContext): Promise<RubricSample> {
+  const stats = needStats(context);
+  const [rows, positions, heroes] = await Promise.all([stats.twoWeeks(7), stats.positions(), context.sources.heroes()]);
+  const main = mainPositions(positions);
+  const weeks = [...new Set(rows.map((row) => row.week))].sort((a, b) => b - a);
+  const [current, previous] = weeks;
+  if (current === undefined || previous === undefined) throw noData('two weeks');
+  const rate = (heroId: number, week: number) => {
+    const row = rows.find((each) => each.heroId === heroId && each.week === week);
+    return row === undefined || row.matches < 200 ? null : row.wins / row.matches;
+  };
+  const lines = [1, 2, 3, 4, 5]
+    .map((position) => {
+      const up = heroes
+        .filter((hero) => main.get(hero.id)?.position === position)
+        .map((hero) => {
+          const now = rate(hero.id, current);
+          const before = rate(hero.id, previous);
+          return now === null || before === null ? null : { hero, delta: now - before };
+        })
+        .filter((each): each is { hero: HeroInfo; delta: number } => each !== null)
+        .sort((a, b) => b.delta - a.delta)[0];
+      if (up === undefined || up.delta <= 0) return null;
+      const points = (up.delta * 100).toFixed(1).replace('.', ',');
+      return `${SIGNS[position] ?? 'Все'}: звёзды за ${up.hero.localizedName} — +${points}% побед за неделю.`;
+    })
+    .filter((line): line is string => line !== null);
+  if (lines.length === 0) throw noData('moves');
+  return {
+    picture: null,
+    text: `🔮 Дота-гороскоп на неделю (Божества):\n${lines.join('\n')}`,
+    poll: null
+  };
+}
+
+/** Rubrics that still lack a data source. */
 export function notBuiltYet(what: string): Promise<RubricSample> {
   return Promise.reject(
-    new AppError('UNAVAILABLE', `The rubric needs more STRATZ data: ${what}`, { reason: 'NOT_BUILT_YET' })
+    new AppError('UNAVAILABLE', `The rubric has no data source yet: ${what}`, { reason: 'NOT_BUILT_YET' })
   );
 }

@@ -2,13 +2,18 @@ import { fakeItem, filesDontLie, guessStreak, rateIt, rebus, tierListVote, works
 import { comboMath, didYouKnow, guessByNumbers, itemExam, whoseAbility } from './game-rubrics';
 import { nerfOrBuff, patchBroken, valveSeriously, valveTime, whoGetsNerfed, whoIsImba } from './patch-rubrics';
 import {
+  antiBuild,
   banOrPick,
+  carryOnFive,
   forgottenHero,
   guessWinrate,
+  heroPeak,
+  horoscope,
   notBuiltYet,
   poisonForLow,
   rankMeta,
   tierList,
+  weeklyRecord,
   whoBeatsWhom,
   whoseBuild
 } from './stats-rubrics';
@@ -69,20 +74,21 @@ const BUILDERS: Record<RubricKey, (context: RubricContext) => Promise<RubricSamp
   ban_or_pick: banOrPick,
   rank_meta: rankMeta,
   poison_for_low: poisonForLow,
-  daily_record: () => notBuiltYet('daily records of matches'),
-  hero_peak: () => notBuiltYet('win rate by game length'),
-  anti_build: () => notBuiltYet('item win rate by purchase time'),
+  daily_record: weeklyRecord,
+  hero_peak: heroPeak,
+  anti_build: antiBuild,
   forgotten_hero: forgottenHero,
   did_you_know: didYouKnow,
   item_exam: itemExam,
   tier_list: tierList,
-  carry_on_five: () => notBuiltYet('picks by position'),
+  carry_on_five: carryOnFive,
   combo_math: comboMath,
-  horoscope: () => notBuiltYet('week-over-week meta shifts'),
+  horoscope,
   workshop_set: workshopSet,
   rebus,
   guess_streak: guessStreak,
   tier_list_vote: tierListVote,
+  // STRATZ's live matches came back empty (25.10.2026); a source of recent high-rank matches is still to find.
   guess_match: () => notBuiltYet('recent high-rank matches'),
   fake_item: fakeItem,
   whose_build: whoseBuild
