@@ -201,6 +201,13 @@ by weekday and hour, which rubric is better or worse. The scheduler learns from 
 hours come more often, weak ones less, with some posts still trying other hours so the picture stays fresh; the rest
 and the weekly limits above always hold. The research found the hour barely changes views in other channels, so our
 own numbers decide.
+
+Rubric pictures are layered (owner, 25.10.2026: the image model repeats one character from one photo exactly, but
+mixes up five characters with text): the owner's template per rubric (1536×768 PNG with empty slots, in
+`design-refs/<rubric>/`), Valve's real hero (256×144), item (88×64) and ability (128×128) icons placed in the slots by
+code, and the words in the post's text rather than on the picture. The model draws only scenes without exact
+characters, or one hero per call from one reference. How to compose the layers for $0 is checked first. The rubric
+list with each one's picture is `.logs/rubrics-plan.html` (local, not in Git).
 - Step 1, from data we already have:
   1. «Что сломали в патче»: after a patch, who was buffed or killed, then the next day a poll «Кто теперь имба?».
   2. «Оцениваем»: a reaction vote on a new set, arcana or hero change.
