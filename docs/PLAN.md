@@ -195,6 +195,9 @@ budget for all of them; a rubric rests about two weeks between its posts (owner:
 always comes first. Every interactive post stands alone, at most one a day and 3–4 a week; a poll always closes (`open_period`), and a
 rubric with few participants pauses itself.
 
+In the bot, rubrics live under their own command `/rubrics` (owner, 25.10.2026), apart from posts and the editor:
+the rubrics with their state and next turn, a pause or a resume, and the banks to approve (e.g. «Ребус»).
+
 All of it runs by itself (owner, 25.10.2026: «она сама решает, когда лучше публиковать какую рубрику»): Аналитика
 gets a «Рубрики» tab, each Telegram rubric's views, reactions, poll votes and comments against the channel's usual,
 by weekday and hour, which rubric is better or worse. The scheduler learns from these numbers: better rubrics and
