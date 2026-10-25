@@ -212,9 +212,12 @@ list with each one's picture is `.logs/rubrics-plan.html` (local, not in Git).
   1. «Что сломали в патче»: after a patch, who was buffed or killed, then the next day a poll «Кто теперь имба?».
   2. «Оцениваем»: a reaction vote on a new set, arcana or hero change.
   3. «Чей сет?»: a treasure set's image without the hero, a quiz poll with four heroes and the answer inside the poll.
-  4. «Чья способность?»: a quiz poll from the game files; the whole icon is too easy (owner, 25.10.2026), so the
-     levels take turns: the ability's numbers only (cooldown, mana, duration), a black-and-white 20% crop of its
-     icon, or a talent or facet.
+  4. «Чья способность?»: a quiz poll from the game files; the whole icon is too easy (owner, 25.10.2026: «важна
+     сложность, чтобы люди сразу не угадывали»). The four answers are always heroes with similar abilities, picked by
+     code from the numbers; five levels take turns: the ability's numbers only (cooldown, mana, duration), a
+     black-and-white 20% crop of its icon, a talent or facet, several correct answers, the odd one out.
+  4a. «Ребус» (owner, 25.10.2026: «как ёж + ружьё»): pictures of objects that add up to a hero's name as players say it
+     or an item's; from a bank the AI fills and the owner approves in the studio, so a weak rebus never goes out.
   5. «Файлы не врут»: the week's main game-file finds in one post.
   6. «Кого понерфят?»: a poll when a new build shows up before its patch; after the patch a result post that
      restates the question.
