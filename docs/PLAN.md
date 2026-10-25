@@ -196,6 +196,10 @@ rubric with few participants pauses itself.
   2. «Оцениваем»: a reaction vote on a new set, arcana or hero change.
   3. «Чей сет?»: a treasure set's image without the hero, a quiz poll with four heroes and the answer inside the poll.
   4. «Угадай героя по способности»: a quiz poll from the game files.
+  5. «Файлы не врут»: the week's main game-file finds in one post.
+  6. «Кого понерфят?»: a poll when a new build shows up before its patch; after the patch a result post that
+     restates the question.
+  7. «Valve, ты серьёзно?»: the oddest change of a patch or a file find, rated with reactions.
 - Step 2, from OpenDota and Steam (free, no key; checked 25.10.2026): «Мета недели» (who rose and fell by winrate),
   «Баттл героев» (an A-or-B poll for 24 hours), Dota's online records and a new #1 on Valve's leaderboard, item
   timings and counters (what Dota2ProTracker and Dotabuff show; both forbid scraping and have no API).
@@ -203,6 +207,10 @@ rubric with few participants pauses itself.
   Workshop and is rising there goes out for a rating with a link to its Workshop page (owner, 25.10.2026), at most
   twice a week (Steam Web API `QueryFiles` with the
   owner's `STEAM_WEB_API_KEY`; not checked yet).
+  «Антисборка недели» (the item with the worst winrate on a hero, in the spirit of the owner's «Учу фидить»),
+  «Забытый герой» (rarely picked, wins above average), «Цифра дня» (one surprising number), «Было / стало» (how an
+  ability changed over the years; the game files are tracked only since 07.10.2026, so the older history needs
+  another source, not checked yet) — the studio's own ideas, accepted by the owner 25.10.2026.
   «Кто кого перебьёт?» (owner, 25.10.2026): two heroes, each with six items, on one picture; an A-or-B poll and the
   comments («я бы добавил…»). The builds come from OpenDota's popular items per hero; the picture is composed from
   Valve's real hero and item icons, never AI-drawn (a drawn icon would be wrong); how to compose it for $0 (e.g.
