@@ -189,7 +189,9 @@ image-first channels at about 3 posts a day hold the best reach; named rubrics, 
 Dota channels, and so are plain-Russian patch breakdowns and game-file finds.
 
 Chosen with the owner (25.10.2026): the game only, no esports for now; giveaways are the owner's own, by hand.
-Every interactive post stands alone, at most one a day and 3–4 a week; a poll always closes (`open_period`), and a
+Many rubrics, dosed (owner, 25.10.2026: «много идей, но давать в канал дозированно»): one pool and one weekly
+budget for all of them; the next post rotates to the rubric that has rested longest and has material, so none repeats
+soon, and news always comes first. Every interactive post stands alone, at most one a day and 3–4 a week; a poll always closes (`open_period`), and a
 rubric with few participants pauses itself.
 - Step 1, from data we already have:
   1. «Что сломали в патче»: after a patch, who was buffed or killed, then the next day a poll «Кто теперь имба?».
