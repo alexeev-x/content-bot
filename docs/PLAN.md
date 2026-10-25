@@ -200,7 +200,8 @@ rubric with few participants pauses itself.
   «Баттл героев» (an A-or-B poll for 24 hours), Dota's online records and a new #1 on Valve's leaderboard, item
   timings and counters (what Dota2ProTracker and Dotabuff show; both forbid scraping and have no API).
   «Оцени сет из мастерской» (owner, 25.10.2026: «если появились там»): a set that has just appeared in the Steam
-  Workshop and is rising there goes out for a rating, at most twice a week (Steam Web API `QueryFiles` with the
+  Workshop and is rising there goes out for a rating with a link to its Workshop page (owner, 25.10.2026), at most
+  twice a week (Steam Web API `QueryFiles` with the
   owner's `STEAM_WEB_API_KEY`; not checked yet).
 - Later: «Какой ролик снять?» every two weeks (the owner films the winner). STRATZ (the only free source for the
   Immortal bracket) needs the owner's sign-up.
