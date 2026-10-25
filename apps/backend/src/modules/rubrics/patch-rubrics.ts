@@ -146,14 +146,60 @@ export async function whoGetsNerfed(context: RubricContext): Promise<RubricSampl
   };
 }
 
+/**
+ * «Нерф или баф?» must be a real question (owner, 25.10.2026: «тут явный нерф, было больше — стало меньше, в чём суть»).
+ * First choice: a hero who got buffs and nerfs at once — all its changes without a hint, and an opinion poll on the
+ * total. Otherwise a trap: a cost, a cooldown or a cast time that went down is a buff though the number shrank.
+ */
 export async function nerfOrBuff(context: RubricContext): Promise<RubricSample> {
   const patch = await latestPatch(context);
-  const withAbility = patch.changes.filter((change) => change.abilityId !== null && change.size >= 0.05);
-  const change = pick(withAbility.length > 0 ? withAbility : patch.changes, context.random);
+  const mixed = patch.scored.filter((each) => {
+    const own = patch.changes.filter((change) => change.heroId === each.hero.id);
+    return own.length >= 2 && own.length <= 8 && own.some((one) => one.buff) && own.some((one) => !one.buff);
+  });
+  if (mixed.length > 0) {
+    const { hero } = pick(mixed, context.random);
+    const own = patch.changes.filter((change) => change.heroId === hero.id);
+    const detail = await context.sources.heroDetail(hero.id).catch(() => null);
+    const name = (change: Change) => {
+      const ability = detail?.abilities.find((one) => one.id === change.abilityId)?.name;
+      return ability === undefined ? change.stat : `${ability}: ${change.stat.toLowerCase()}`;
+    };
+    const html = picturePage(
+      `<div class="title">Нерф <b>или</b> баф?</div>
+<div class="row"><img class="portrait big" src="${heroImage(hero.name)}" alt="">
+<div class="facts"><div class="hero">${escapeHtml(hero.localizedName)}</div>
+<div class="stat">${own.length} ${plural(own.length, 'правка', 'правки', 'правок')} в патче ${escapeHtml(patch.version)}</div></div></div>`,
+      `.row{display:flex;align-items:center;gap:56px;margin-top:48px}
+.portrait.big{width:448px;height:252px}
+.facts{display:flex;flex-direction:column;gap:14px;max-width:640px}
+.hero{font-weight:800;font-size:52px}.stat{font-weight:600;font-size:34px;color:#cbbfae}`
+    );
+    return {
+      picture: { html, ...PICTURE_SIZE },
+      // «Название: было → стало» lines: the post's table, with no red or green to give the answer away.
+      text: [
+        `${hero.localizedName} в патче ${patch.version}: часть усилили, часть ослабили.`,
+        ...own.map((change) => `${name(change)}: ${change.from} → ${change.to}`),
+        `В итоге ${hero.localizedName} стал сильнее или слабее?`
+      ].join('\n'),
+      poll: poll(`${hero.localizedName} после ${patch.version}: в итоге нерф или баф?`, [
+        'Нерф',
+        'Баф',
+        'Ничего не поменялось'
+      ])
+    };
+  }
+  const traps = patch.changes.filter(
+    (change) =>
+      change.abilityId !== null && LESS_IS_BETTER.test(change.stat) && firstNumber(change.to) < firstNumber(change.from)
+  );
+  if (traps.length === 0) throw noData('a change that is not obvious');
+  const change = pick(traps, context.random);
   const hero = patch.byId.get(change.heroId);
   if (hero === undefined) throw noData('hero');
-  const detail = change.abilityId === null ? null : await context.sources.heroDetail(change.heroId);
-  const ability = detail?.abilities.find((each) => each.id === change.abilityId);
+  const detail = await context.sources.heroDetail(change.heroId);
+  const ability = detail.abilities.find((each) => each.id === change.abilityId);
   const subject = ability === undefined ? hero.localizedName : `${ability.name} (${hero.localizedName})`;
   const html =
     ability === undefined
@@ -164,15 +210,15 @@ export async function nerfOrBuff(context: RubricContext): Promise<RubricSample> 
 <div class="facts"><div class="hero">${escapeHtml(subject)}</div><div class="stat">${escapeHtml(change.stat)}</div>
 <div class="nums">${escapeHtml(change.from)} → ${escapeHtml(change.to)}</div></div></div>`,
           `.row{display:flex;align-items:center;gap:56px;margin-top:48px}
-.ability{width:256px;height:256px;border-radius:16px;border:4px solid #3a2a20;box-shadow:0 14px 40px rgba(0,0,0,.6)}
+.ability{width:256px;height:256px;border-radius:16px;border:4px solid #7a5a32;box-shadow:0 14px 40px rgba(0,0,0,.6)}
 .facts{display:flex;flex-direction:column;gap:14px;max-width:760px}
 .hero{font-weight:800;font-size:40px}.stat{font-weight:600;font-size:32px;color:#cbbfae}
 .nums{font-weight:900;font-size:84px;color:#e8b04a}`
         );
   return {
     picture: html === null ? null : { html, ...PICTURE_SIZE },
-    text: `${subject}: ${change.stat.toLowerCase()} — было ${change.from}, стало ${change.to}. Нерф или баф?`,
-    poll: quiz('Это нерф или баф?', ['Нерф', 'Баф'], change.buff ? 1 : 0, `${change.note} (патч ${patch.version})`)
+    text: `${subject}: ${change.stat.toLowerCase()}: ${change.from} → ${change.to}\nЦифра стала меньше — значит, нерф?`,
+    poll: quiz('Это нерф или баф?', ['Нерф', 'Баф'], 1, `${change.note} (патч ${patch.version})`)
   };
 }
 

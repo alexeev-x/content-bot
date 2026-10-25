@@ -1,3 +1,4 @@
+import { richMediaId } from '@alexeev/contracts';
 import { InputFile } from 'grammy';
 import { BrowserRenderError, type PictureRenderer } from '../../integrations/browser-render/browser-render';
 import { createDotaConstantsApi, DotaConstantsError } from '../../integrations/dotaconstants/dotaconstants';
@@ -6,13 +7,14 @@ import { createSteamPublicApi, SteamPublicError } from '../../integrations/steam
 import { createStratzApi, StratzError } from '../../integrations/stratz/stratz-api';
 import { createTelegramApi, type TelegramSendApi } from '../../integrations/telegram/telegram-api';
 import { createValveDatafeedApi, DatafeedError } from '../../integrations/valve-datafeed/valve-datafeed';
-import { drawRubricVariants, writeRubricCaption } from '../../modules/ai';
+import { drawRubricScene, writeRubricCaption } from '../../modules/ai';
 import { parseBuildMessage } from '../../modules/game-files';
 import {
   buildRubricSample,
-  PICTURE_SIZE,
   pictureHeading,
   RUBRIC_TITLES,
+  titlePicture,
+  rubricRichHtml,
   type RubricKey,
   type RubricSources,
   withBackground
@@ -111,21 +113,16 @@ function sourceError(error: unknown): { code: string; status: number | null } | 
   return null;
 }
 
-/** The free plan takes one screenshot per 10 seconds. */
-const BROWSER_GAP_MS = 11_000;
 const CAPTION_TIMEOUT_MS = 120_000;
 
-type Variants = {
-  background: { kind: 'drawn'; picture: string } | { kind: 'failed'; reason: string };
-  cover: { kind: 'drawn'; picture: Uint8Array } | { kind: 'failed'; reason: string };
-};
+type Scene = { kind: 'drawn'; base64: string } | { kind: 'failed'; reason: string };
 
 export type RubricSampleDeps = {
   gameFilesRepo: GitHubRepoApi | null;
   /** STRATZ through the stats bridge; null until both the token and the bridge are set. */
   stratzAccess: { token: string; bridgeUrl: string } | null;
   renderer: PictureRenderer | null;
-  /** The AI writer's caption and the two drawn pictures; null when the AI is not wired. */
+  /** The AI writer's caption and the drawn scene with the title; null when the AI is not wired. */
   ai: {
     caption: (input: {
       title: string;
@@ -133,12 +130,7 @@ export type RubricSampleDeps = {
       poll: string | null;
       signal: AbortSignal;
     }) => Promise<string | null>;
-    variants: (input: {
-      title: string;
-      content: Uint8Array;
-      pictures: number;
-      heading: { text: string; red: string | null } | null;
-    }) => Promise<Variants>;
+    scene: (input: { heading: { text: string; red: string | null } | null }) => Promise<Scene>;
   } | null;
   telegram: TelegramSendApi;
   ownerChatId: string;
@@ -148,12 +140,10 @@ export type RubricSampleDeps = {
   requestId: string;
 };
 
-const wait = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, Math.max(0, ms)));
-
 /**
  * One rubric the way production would post it (owner, 25.10.2026: «как будто продовская, через ИИ»): live data, the AI
- * writer's caption, and two pictures to compare — A, the drawn scene under the browser's exact icons and text, and B,
- * the whole picture drawn by the model after the browser's layout. A note says which is which and what failed.
+ * writer's caption and a picture: the model's scene and title under the browser's exact portraits, icons and numbers.
+ * A note tells what failed.
  */
 export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey): Promise<void> {
   const startedAt = Date.now();
@@ -190,86 +180,71 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
 
   const title = RUBRIC_TITLES[rubric];
   const poll = sample.poll === null ? null : `${sample.poll.question} — ${sample.poll.options.join(' / ')}`;
-  // The caption is written while the pictures are drawn.
+  // The caption is written while the scene is drawn.
   const caption =
     deps.ai === null
       ? Promise.resolve(null)
       : deps.ai.caption({ title, draft: sample.text, poll, signal: AbortSignal.timeout(CAPTION_TIMEOUT_MS) });
 
   const notes: string[] = [];
-  const pictures: { bytes: Uint8Array; name: string }[] = [];
-  if (sample.picture !== null) {
+  let picture: Uint8Array | null = null;
+  // Every rubric gets a picture for now (owner, 25.10.2026: «пусть ИИ рисует для всех, а там уже отбросим»): one with
+  // no layout of its own is the drawn scene with its title alone, and none at all when the scene is not drawn.
+  const page = sample.picture ?? (deps.ai === null ? null : titlePicture(title));
+  if (page !== null) {
     if (deps.renderer === null) {
       throw new AppError('UNAVAILABLE', 'Browser Rendering is not bound here', { reason: 'BROWSER_NOT_BOUND' });
     }
-    const renderer = deps.renderer;
-    const render = async (html: string, format: 'png' | 'jpeg') => {
+    let html: string | null = page.html;
+    if (deps.ai === null) notes.push('ИИ не подключён: картинка без нарисованной сцены.');
+    else {
+      const scene = await deps.ai.scene({ heading: pictureHeading(page.html) });
+      if (scene.kind === 'drawn') html = withBackground(page.html, scene.base64);
+      else if (sample.picture === null) {
+        html = null;
+        notes.push(`Сцена не нарисована (${scene.reason}): пост без картинки.`);
+      } else notes.push(`Сцена не нарисована (${scene.reason}): картинка без неё.`);
+    }
+    if (html !== null)
       try {
-        return await renderer.render(html, sample.picture ?? PICTURE_SIZE, format);
+        picture = await deps.renderer.render(html, page, 'png');
       } catch (error) {
         const code = error instanceof BrowserRenderError ? error.code : 'BROWSER_FAILED';
         log('failed', code);
         throw new AppError('UNAVAILABLE', 'The picture was not rendered', { reason: code });
       }
-    };
-    const plain = await render(sample.picture.html, 'jpeg');
-    const renderedAt = Date.now();
-    if (deps.ai === null) {
-      pictures.push({ bytes: plain, name: `${rubric}.jpg` });
-      notes.push('ИИ не подключён: только точная картинка браузера.');
-    } else {
-      const { background, cover } = await deps.ai.variants({
-        title,
-        content: plain,
-        // Every portrait, item, ability and medal on the layout is one <img>.
-        pictures: (sample.picture.html.match(/<img\b/g) ?? []).length,
-        heading: pictureHeading(sample.picture.html)
-      });
-      if (background.kind === 'drawn') {
-        await wait(renderedAt + BROWSER_GAP_MS - Date.now());
-        try {
-          pictures.push({
-            bytes: await render(withBackground(sample.picture.html, background.picture), 'png'),
-            name: `${rubric}-a.png`
-          });
-        } catch (error) {
-          if (!(error instanceof AppError)) throw error;
-          notes.push(`A не собралась: ${error.details?.['reason'] ?? error.code}.`);
-        }
-      } else notes.push(`A не нарисована: ${background.reason}.`);
-      if (cover.kind === 'drawn') pictures.push({ bytes: cover.picture, name: `${rubric}-b.jpg` });
-      else notes.push(`B не нарисована: ${cover.reason}.`);
-      if (pictures.length === 0) pictures.push({ bytes: plain, name: `${rubric}.jpg` });
-    }
   }
   const written = await caption.catch(() => null);
   if (deps.ai !== null && written === null) notes.push('Текст — шаблон: ИИ его не написал.');
   const text = written ?? sample.text;
-  const both =
-    pictures.some((each) => each.name.endsWith('-a.png')) && pictures.some((each) => each.name.endsWith('-b.jpg'));
-  const header = [
-    `«${title}»${both ? ': A — сцену и заголовок рисует ИИ, героев, предметы и цифры ставит браузер (точные); B — всю картинку рисует ИИ.' : ''}`,
-    ...notes
-  ].join('\n');
 
   try {
     const signal = () => AbortSignal.timeout(TELEGRAM_TIMEOUT_MS);
-    await deps.telegram.sendMessage(deps.ownerChatId, header, { ...FLAGS, entities: [] }, signal());
-    if (pictures.length > 1) {
-      await deps.telegram.sendMediaGroup(
+    if (notes.length > 0)
+      await deps.telegram.sendMessage(
         deps.ownerChatId,
-        pictures.map((each, index) => ({
-          type: 'photo' as const,
-          media: new InputFile(each.bytes, each.name),
-          ...(index === 0 ? { caption: text, caption_entities: [] } : {})
-        })),
+        [`«${title}»:`, ...notes].join('\n'),
+        { ...FLAGS, entities: [] },
+        signal()
+      );
+    const rich = rubricRichHtml(text, picture !== null);
+    if (rich !== null) {
+      await deps.telegram.sendRichMessage(
+        deps.ownerChatId,
+        {
+          html: rich,
+          media:
+            picture === null
+              ? []
+              : [{ id: richMediaId(0), kind: 'photo', file: new InputFile(picture, `${rubric}.png`) }]
+        },
         FLAGS,
         signal()
       );
-    } else if (pictures[0] !== undefined) {
+    } else if (picture !== null) {
       await deps.telegram.sendPhoto(
         deps.ownerChatId,
-        new InputFile(pictures[0].bytes, pictures[0].name),
+        new InputFile(picture, `${rubric}.png`),
         { ...FLAGS, caption: text, caption_entities: [] },
         signal()
       );
@@ -330,7 +305,7 @@ export async function runRubricSampleJob(
         renderer: access.renderer,
         ai: {
           caption: (input) => writeRubricCaption(aiDeps, input),
-          variants: (input) => drawRubricVariants({ ...aiDeps, images: container.aiImageProvider, onError }, input)
+          scene: (input) => drawRubricScene({ ...aiDeps, images: container.aiImageProvider, onError }, input)
         },
         telegram,
         ownerChatId,

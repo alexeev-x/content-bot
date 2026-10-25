@@ -74,3 +74,11 @@ export function withBackground(html: string, base64: string): string {
   const style = `<style>:root{--bg:linear-gradient(rgba(8,6,5,.2),rgba(8,6,5,.2)),url(data:image/jpeg;base64,${base64}) center/cover no-repeat}.title,.mark{visibility:hidden}</style>`;
   return html.replace('</head>', `${style}</head>`);
 }
+
+/** A rubric with no layout of its own: its title alone, the last word red, for the drawn scene to letter. */
+export function titlePicture(title: string): { html: string; width: number; height: number } {
+  const words = title.split(' ');
+  const last = words.pop() ?? '';
+  const head = words.length === 0 ? '' : `${escapeHtml(words.join(' '))} `;
+  return { html: picturePage(`<div class="title">${head}<b>${escapeHtml(last)}</b></div>`), ...PICTURE_SIZE };
+}
