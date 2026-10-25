@@ -17,8 +17,11 @@ import { AppError } from '../../shared/app-error';
 const TELEGRAM_TIMEOUT_MS = 20_000;
 const FLAGS = { disable_notification: false, protect_content: false } as const;
 
-function rubricSources(gameFilesRepo: GitHubRepoApi | null, stratzToken: string | null): RubricSources {
-  const stratz = stratzToken === null ? null : createStratzApi({ token: stratzToken });
+function rubricSources(
+  gameFilesRepo: GitHubRepoApi | null,
+  stratzAccess: { token: string; bridgeUrl: string } | null
+): RubricSources {
+  const stratz = stratzAccess === null ? null : createStratzApi(stratzAccess);
   const constants = createDotaConstantsApi();
   const datafeed = createValveDatafeedApi();
   const steam = createSteamPublicApi();
@@ -100,7 +103,8 @@ function sourceError(error: unknown): { code: string; status: number | null } | 
 export async function sendRubricSample(
   deps: {
     gameFilesRepo: GitHubRepoApi | null;
-    stratzToken: string | null;
+    /** STRATZ through the stats bridge; null until both the token and the bridge are set. */
+    stratzAccess: { token: string; bridgeUrl: string } | null;
     renderer: PictureRenderer | null;
     telegram: TelegramSendApi;
     ownerChatId: string;
@@ -125,7 +129,7 @@ export async function sendRubricSample(
   let sample;
   try {
     sample = await buildRubricSample(rubric, {
-      sources: rubricSources(deps.gameFilesRepo, deps.stratzToken),
+      sources: rubricSources(deps.gameFilesRepo, deps.stratzAccess),
       random: deps.random,
       now: deps.now
     });

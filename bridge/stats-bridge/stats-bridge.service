@@ -1,0 +1,19 @@
+[Unit]
+Description=Stats bridge for the content bot (STRATZ, OpenDota)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+ExecStart=/usr/bin/node /opt/stats-bridge/server.mjs
+Environment=HOST=127.0.0.1
+Environment=PORT=8787
+Restart=always
+RestartSec=5
+DynamicUser=yes
+NoNewPrivileges=yes
+ProtectSystem=strict
+ProtectHome=yes
+PrivateTmp=yes
+
+[Install]
+WantedBy=multi-user.target

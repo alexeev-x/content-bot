@@ -47,7 +47,7 @@ const REASONS: Record<string, string> = {
   BOT_NOT_CONFIGURED: 'Бот не подключён.',
   BROWSER_NOT_BOUND: 'Browser Rendering не подключён к этому серверу.',
   BROWSER_RATE: 'Бесплатный тариф рисует одну картинку в 10 секунд — подождите и нажмите снова.',
-  STATS_NOT_CONFIGURED: 'Нужен ключ STRATZ (STRATZ_TOKEN).',
+  STATS_NOT_CONFIGURED: 'Нужны ключ STRATZ и мост статистики (STATS_BRIDGE_URL).',
   NOT_BUILT_YET: 'Для этой рубрики ещё нет источника данных.',
   GITHUB_NOT_CONFIGURED: 'Нужен GITHUB_TOKEN для файлов игры.'
 };

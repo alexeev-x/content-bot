@@ -2,11 +2,12 @@ import { z } from 'zod';
 import { readCappedText } from '../../platform/http/read-capped-text';
 
 // STRATZ GraphQL with the owner's free token (`STRATZ_TOKEN`, owner 25.10.2026): pick and win rates by rank, item
-// purchases by minute, win rate by game length and by position. Limits are per token, not per address, so Cloudflare's
-// shared egress does not matter here (OpenDota answers it 429). STRATZ asks for the «STRATZ_API» user agent.
+// purchases by minute, win rate by game length and by position. STRATZ refuses Cloudflare's addresses (403 without
+// its gateway's header), so the Worker goes through the owner's stats bridge (`bridge/stats-bridge`), which holds no
+// keys: the token travels in this request and the bridge passes it on. STRATZ asks for the «STRATZ_API» user agent.
 
 export const STRATZ_TIMEOUT_MS = 20_000;
-const ENDPOINT = 'https://api.stratz.com/graphql';
+const DIRECT = 'https://api.stratz.com/graphql';
 const MAX_BODY_BYTES = 1_000_000;
 
 /** STRATZ_TOKEN: STRATZ's gateway refused the key; STRATZ_BLOCKED: a 403 without it, the address itself was refused. */
@@ -83,7 +84,9 @@ export interface StratzApi {
   >;
 }
 
-export function createStratzApi(input: { token: string; fetchImpl?: typeof fetch }): StratzApi {
+/** `bridgeUrl`: the stats bridge's origin; without it STRATZ is called directly (it works from any non-Cloudflare host). */
+export function createStratzApi(input: { token: string; bridgeUrl?: string; fetchImpl?: typeof fetch }): StratzApi {
+  const endpoint = input.bridgeUrl === undefined ? DIRECT : `${input.bridgeUrl.replace(/\/+$/, '')}/stratz/graphql`;
   const fetchImpl = input.fetchImpl ?? fetch;
   async function query<T>(
     text: string,
@@ -93,7 +96,7 @@ export function createStratzApi(input: { token: string; fetchImpl?: typeof fetch
   ): Promise<T[]> {
     let response: Response;
     try {
-      response = await fetchImpl(ENDPOINT, {
+      response = await fetchImpl(endpoint, {
         method: 'POST',
         headers: {
           'content-type': 'application/json',

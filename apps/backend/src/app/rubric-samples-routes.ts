@@ -15,6 +15,14 @@ const SAMPLES_WINDOW_MS = 10 * 60 * 1000;
 const isBrowserBinding = (value: unknown): value is BrowserBinding =>
   typeof value === 'object' && value !== null && typeof (value as { quickAction?: unknown }).quickAction === 'function';
 
+// STRATZ refuses Cloudflare's addresses, so its calls go through the owner's stats bridge; both are needed.
+function stratzAccess(token: string | undefined, bridgeUrl: string | undefined) {
+  // A token pasted with its quotes is the same token.
+  const clean = token?.trim().replace(/^["']+|["']+$/g, '') ?? '';
+  const bridge = bridgeUrl?.trim() ?? '';
+  return clean === '' || !/^https:\/\/[\w.-]+(:\d+)?\/?$/.test(bridge) ? null : { token: clean, bridgeUrl: bridge };
+}
+
 export const rubricSamplesRoutes = new Hono<AppBindings>()
   // DEV only (owner, 25.10.2026): a rubric's post from live data, to the owner's chat with the bot.
   .post(
@@ -38,8 +46,7 @@ export const rubricSamplesRoutes = new Hono<AppBindings>()
       const result = await sendRubricSample(
         {
           gameFilesRepo: container.gameFilesRepo,
-          // A token pasted with its quotes is the same token.
-          stratzToken: c.env.STRATZ_TOKEN?.trim().replace(/^["']+|["']+$/g, '') || null,
+          stratzAccess: stratzAccess(c.env.STRATZ_TOKEN, c.env.STATS_BRIDGE_URL),
           renderer: isBrowserBinding(browser) ? createBrowserPictureRenderer(browser) : null,
           telegram: createTelegramApi(token),
           ownerChatId,

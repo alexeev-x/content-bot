@@ -224,7 +224,7 @@ Built on DEV 25.10.2026: «Рубрики (DEV)» on «Источники» send
 (`POST /api/v1/rubric-samples`; templates over real numbers, not the AI writer yet), all 32 rubrics listed. OpenDota's
 API answers 429 to Cloudflare's shared addresses, so the game data comes from dotaconstants on GitHub and Valve's
 datafeed; pick, win, build, game-length and position rates come from STRATZ (`STRATZ_TOKEN`, owner's free sign-up,
-chosen 25.10.2026). 31 rubrics work; «Угадай матч» has no source of recent high-rank matches yet (STRATZ's live list
+chosen 25.10.2026) through the owner's stats bridge, since STRATZ refuses Cloudflare (`bridge/stats-bridge`). 31 rubrics work; «Угадай матч» has no source of recent high-rank matches yet (STRATZ's live list
 was empty). The rubric list
 with each one's picture is `.logs/rubrics-best.html` (local, not in Git).
 - Step 1, from data we already have:
