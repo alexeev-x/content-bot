@@ -1,7 +1,6 @@
 import { sendRubricSampleInputSchema, sendRubricSampleResponseSchema } from '@alexeev/contracts';
 import { Hono } from 'hono';
 import { type BrowserBinding, createBrowserPictureRenderer } from '../integrations/browser-render/browser-render';
-import { createOpenDotaApi } from '../integrations/opendota/opendota-api';
 import { createTelegramApi } from '../integrations/telegram/telegram-api';
 import { AppError } from '../shared/app-error';
 import type { AppBindings } from './env';
@@ -9,7 +8,7 @@ import { rateLimit } from './rate-limit';
 import { validated } from './validation';
 import { sendRubricSample } from './workflows/rubric-samples';
 
-// Each press is up to three OpenDota calls, one browser screenshot (of 10 free minutes a day) and two messages.
+// Each press is up to five data calls (GitHub, Valve, Steam), one browser screenshot (of 10 free minutes a day) and two messages.
 const SAMPLES_LIMIT = 20;
 const SAMPLES_WINDOW_MS = 10 * 60 * 1000;
 
@@ -38,11 +37,12 @@ export const rubricSamplesRoutes = new Hono<AppBindings>()
       const { rubric } = c.req.valid('json');
       const result = await sendRubricSample(
         {
-          opendota: createOpenDotaApi(),
+          gameFilesRepo: container.gameFilesRepo,
           renderer: isBrowserBinding(browser) ? createBrowserPictureRenderer(browser) : null,
           telegram: createTelegramApi(token),
           ownerChatId,
           random: container.random,
+          now: container.clock.now(),
           logger: container.logger,
           requestId: c.get('requestId')
         },

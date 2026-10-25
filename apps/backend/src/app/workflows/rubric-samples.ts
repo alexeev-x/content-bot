@@ -1,24 +1,82 @@
 import { InputFile } from 'grammy';
 import { BrowserRenderError, type PictureRenderer } from '../../integrations/browser-render/browser-render';
-import { OpenDotaApiError, type OpenDotaApi } from '../../integrations/opendota/opendota-api';
+import { createDotaConstantsApi, DotaConstantsError } from '../../integrations/dotaconstants/dotaconstants';
+import type { GitHubRepoApi } from '../../integrations/github/github-api';
+import { createSteamPublicApi, SteamPublicError } from '../../integrations/steam-public/steam-public';
 import type { TelegramSendApi } from '../../integrations/telegram/telegram-api';
-import { buildRubricSample, type RubricKey } from '../../modules/rubrics';
+import { createValveDatafeedApi, DatafeedError } from '../../integrations/valve-datafeed/valve-datafeed';
+import { parseBuildMessage } from '../../modules/game-files';
+import { buildRubricSample, type RubricKey, type RubricSources } from '../../modules/rubrics';
 import type { Logger } from '../../platform/logging/logger';
 import { AppError } from '../../shared/app-error';
 
-// DEV only (owner, 25.10.2026): one rubric's post from live OpenDota data — the picture rendered by the browser from
-// Valve's icons, the caption, the poll — goes to the owner's chat with the bot, the way subscribers would see it.
+// DEV only (owner, 25.10.2026): one rubric's post from live data — the picture rendered by the browser from Valve's
+// icons, the caption, the poll — goes to the owner's chat with the bot, the way subscribers would see it.
 
 const TELEGRAM_TIMEOUT_MS = 20_000;
 const FLAGS = { disable_notification: false, protect_content: false } as const;
 
+function rubricSources(gameFilesRepo: GitHubRepoApi | null): RubricSources {
+  const constants = createDotaConstantsApi();
+  const datafeed = createValveDatafeedApi();
+  const steam = createSteamPublicApi();
+  return {
+    heroes: () => constants.heroes(),
+    items: () => constants.items(),
+    async heroDetail(heroId) {
+      const hero = await datafeed.hero(heroId);
+      return {
+        id: hero.id,
+        name: hero.name,
+        localizedName: hero.nameLoc,
+        abilities: hero.abilities.map((ability) => ({
+          id: ability.id,
+          key: ability.name,
+          name: ability.nameLoc,
+          isUltimate: ability.type === 1,
+          cooldowns: ability.cooldowns,
+          manaCosts: ability.manaCosts,
+          values: ability.values.map((value) => ({ heading: value.heading, values: value.values }))
+        }))
+      };
+    },
+    patches: () => datafeed.patchList(),
+    async patchNotes(version) {
+      const notes = await datafeed.patchNotes(version);
+      return { version: notes.version, timestamp: notes.timestamp, heroes: notes.heroes };
+    },
+    steamNews: () => steam.dotaNews(),
+    workshopTrending: () => steam.workshopTrending(),
+    gameBuilds: () =>
+      gameFilesRepo === null
+        ? null
+        : gameFilesRepo.listCommits(30).then((commits) =>
+            commits.flatMap((commit) => {
+              const header = parseBuildMessage(commit.message);
+              return header === null
+                ? []
+                : [{ build: header.build, paths: header.paths, committedAt: commit.committedAt }];
+            })
+          ),
+    stats: null
+  };
+}
+
+function sourceErrorCode(error: unknown): string | null {
+  if (error instanceof DotaConstantsError || error instanceof DatafeedError || error instanceof SteamPublicError) {
+    return error.code;
+  }
+  return null;
+}
+
 export async function sendRubricSample(
   deps: {
-    opendota: OpenDotaApi;
+    gameFilesRepo: GitHubRepoApi | null;
     renderer: PictureRenderer | null;
     telegram: TelegramSendApi;
     ownerChatId: string;
     random: () => number;
+    now: number;
     logger: Logger;
     requestId: string;
   },
@@ -37,12 +95,18 @@ export async function sendRubricSample(
 
   let sample;
   try {
-    sample = await buildRubricSample(rubric, { data: deps.opendota, random: deps.random });
+    sample = await buildRubricSample(rubric, {
+      sources: rubricSources(deps.gameFilesRepo),
+      random: deps.random,
+      now: deps.now
+    });
   } catch (error) {
-    if (error instanceof OpenDotaApiError) {
-      log('failed', error.code);
-      throw new AppError('UNAVAILABLE', 'OpenDota did not answer', { reason: error.code });
+    const code = sourceErrorCode(error);
+    if (code !== null) {
+      log('failed', code);
+      throw new AppError('UNAVAILABLE', 'A data source did not answer', { reason: code });
     }
+    if (error instanceof AppError) log('failed', error.details?.['reason'] ?? error.code);
     throw error;
   }
 

@@ -1,9 +1,13 @@
-export {
-  buildRubricSample,
-  type RubricAbility,
-  type RubricData,
-  type RubricHero,
-  type RubricItem,
-  type RubricKey,
-  type RubricSample
-} from './samples';
+export { buildRubricSample, RUBRIC_KEYS, type RubricKey } from './samples';
+export type {
+  AbilityDetail,
+  HeroBracketStat,
+  HeroDetail,
+  HeroInfo,
+  ItemInfo,
+  PatchNotes,
+  PrimaryAttr,
+  RubricSample,
+  RubricSources,
+  StatsSource
+} from './types';

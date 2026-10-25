@@ -220,9 +220,11 @@ mixes up five characters with text): the owner's template per rubric (1536×768 
 code. The model draws only scenes without exact characters, or one hero per call from one reference. The layers are
 composed by Cloudflare Browser Rendering (free plan, 10 browser minutes a day; owner, 25.10.2026: «давай попробуем»):
 the picture is an HTML page with Valve's real icons and real text, screenshotted, so numbers on it are exact too.
-Built on DEV 25.10.2026: «Рубрики (DEV)» on «Источники» sends a rubric's post from live OpenDota data to the owner's
-chat (`POST /api/v1/rubric-samples`; templates over real numbers, not the AI writer yet) for six rubrics: «Мета по
-рангам», «Кто кого перебьёт?», «Антисборка», «Угадай винрейт», «Рекорд суток», «Чья способность?». The rubric list
+Built on DEV 25.10.2026: «Рубрики (DEV)» on «Источники» sends a rubric's post from live data to the owner's chat
+(`POST /api/v1/rubric-samples`; templates over real numbers, not the AI writer yet), all 32 rubrics listed. OpenDota's
+API answers 429 to Cloudflare's shared addresses, so the game data comes from dotaconstants on GitHub and Valve's
+datafeed; 17 rubrics work now, 9 wait for STRATZ (`STRATZ_TOKEN`, owner's free sign-up, chosen 25.10.2026) and 6
+need more of STRATZ than pick and win rates. The rubric list
 with each one's picture is `.logs/rubrics-best.html` (local, not in Git).
 - Step 1, from data we already have:
   1. «Что сломали в патче»: after a patch, who was buffed or killed, then the next day a poll «Кто теперь имба?».
