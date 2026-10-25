@@ -9,7 +9,9 @@ export const STRATZ_TIMEOUT_MS = 20_000;
 const ENDPOINT = 'https://api.stratz.com/graphql';
 const MAX_BODY_BYTES = 1_000_000;
 
-export type StratzErrorCode = 'STRATZ_FETCH' | 'STRATZ_TOKEN' | 'STRATZ_RATE' | 'STRATZ_HTTP' | 'STRATZ_SHAPE';
+/** STRATZ_TOKEN: STRATZ's gateway refused the key; STRATZ_BLOCKED: a 403 without it, the address itself was refused. */
+export type StratzErrorCode =
+  'STRATZ_FETCH' | 'STRATZ_TOKEN' | 'STRATZ_BLOCKED' | 'STRATZ_RATE' | 'STRATZ_HTTP' | 'STRATZ_SHAPE';
 
 export class StratzError extends Error {
   constructor(
@@ -104,7 +106,12 @@ export function createStratzApi(input: { token: string; fetchImpl?: typeof fetch
     } catch {
       throw new StratzError('STRATZ_FETCH');
     }
-    if (response.status === 401 || response.status === 403) throw new StratzError('STRATZ_TOKEN', response.status);
+    if (response.status === 401 || response.status === 403) {
+      // STRATZ's gateway (Kong) names itself when it refuses a key; a refusal without that header is not about the key.
+      const byGateway = (response.headers.get('www-authenticate') ?? '').toLowerCase().includes('kong');
+      await response.body?.cancel();
+      throw new StratzError(byGateway ? 'STRATZ_TOKEN' : 'STRATZ_BLOCKED', response.status);
+    }
     if (response.status === 429) throw new StratzError('STRATZ_RATE', 429);
     if (!response.ok) throw new StratzError('STRATZ_HTTP', response.status);
     const body = await readCappedText(response, MAX_BODY_BYTES);
