@@ -194,6 +194,13 @@ budget for all of them; a rubric rests about two weeks between its posts (owner:
 наскучало»; a per-rubric setting), the next post goes to the rubric that has rested longest and has material, and news
 always comes first. Every interactive post stands alone, at most one a day and 3–4 a week; a poll always closes (`open_period`), and a
 rubric with few participants pauses itself.
+
+All of it runs by itself (owner, 25.10.2026: «она сама решает, когда лучше публиковать какую рубрику»): Аналитика
+gets a «Рубрики» tab, each Telegram rubric's views, reactions, poll votes and comments against the channel's usual,
+by weekday and hour, which rubric is better or worse. The scheduler learns from these numbers: better rubrics and
+hours come more often, weak ones less, with some posts still trying other hours so the picture stays fresh; the rest
+and the weekly limits above always hold. The research found the hour barely changes views in other channels, so our
+own numbers decide.
 - Step 1, from data we already have:
   1. «Что сломали в патче»: after a patch, who was buffed or killed, then the next day a poll «Кто теперь имба?».
   2. «Оцениваем»: a reaction vote on a new set, arcana or hero change.
