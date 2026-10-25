@@ -229,6 +229,9 @@ list with each one's picture is `.logs/rubrics-plan.html` (local, not in Git).
   Workshop and is rising there goes out for a rating with a link to its Workshop page (owner, 25.10.2026), under the
   same two-week rest (Steam Web API `QueryFiles` with the
   owner's `STEAM_WEB_API_KEY`; not checked yet).
+  «Мета по рангам» (owner, 25.10.2026): the five most picked heroes in one rank (Рекруты … Божества), or the five
+  worst by winrate; the rank and «top or worst» change each time; OpenDota's `heroStats` per bracket (Immortal is
+  empty there, STRATZ only).
   «Антисборка недели» (the item with the worst winrate on a hero, in the spirit of the owner's «Учу фидить»),
   «Забытый герой» (rarely picked, wins above average), «Цифра дня» (one surprising number), «Было / стало» (how an
   ability changed over the years; the game files are tracked only since 07.10.2026, so the older history needs
