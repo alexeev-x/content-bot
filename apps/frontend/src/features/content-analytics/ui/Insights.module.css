@@ -230,8 +230,3 @@
     padding: var(--space-3);
   }
 }
-
-.actionRow {
-  display: flex;
-  margin-top: var(--space-2);
-}

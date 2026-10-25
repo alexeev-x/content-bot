@@ -13,8 +13,6 @@ import {
   contentReportDetailSchema,
   contentReportSchema,
   contentReportsPageSchema,
-  inviteLinkSchema,
-  inviteLinksSchema,
   tiktokConnectSchema,
   type ContentContaminationReason,
   type ContentPlatform,
@@ -123,18 +121,6 @@ export function setContentGoal(platform: ContentPlatform, target: number) {
 
 export function removeContentGoal(platform: ContentPlatform) {
   return apiRequest(`/api/v1/content-analytics/goals/${platform}`, contentGoalsSchema, { method: 'DELETE' });
-}
-
-export function getInviteLinks(days: ContentReportPeriod, signal?: AbortSignal) {
-  return apiRequest(`/api/v1/content-analytics/invite-links${buildQuery({ days })}`, inviteLinksSchema, { signal });
-}
-
-export function createInviteLink(name: string) {
-  return apiRequest('/api/v1/content-analytics/invite-links', inviteLinkSchema, { method: 'POST', body: { name } });
-}
-
-export function revokeInviteLink(id: string) {
-  return apiRequest(`/api/v1/content-analytics/invite-links/${id}/revoke`, inviteLinkSchema, { method: 'POST' });
 }
 
 export function disconnectTikTok() {

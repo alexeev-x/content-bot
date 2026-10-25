@@ -38,11 +38,9 @@ import {
 import {
   createTelegramApi,
   createTelegramBotAdminApi,
-  createTelegramInviteLinkApi,
   createTelegramChatReadApi,
   createTelegramOwnerMessageApi,
   type TelegramBotAdminApi,
-  type TelegramInviteLinkApi,
   type TelegramChatReadApi,
   type TelegramOwnerMessageApi
 } from '../integrations/telegram/telegram-api';
@@ -137,8 +135,6 @@ import {
   createD1ContentRubricRepository,
   createD1ContentGoalRepository,
   type ContentGoalRepository,
-  createD1InviteLinkRepository,
-  type InviteLinkRepository,
   createD1ContentAnalyticsRepository,
   createD1TikTokConnectionRepository,
   listReviewVideoIds,
@@ -235,11 +231,7 @@ export interface Container {
   contentAlerts: ContentAlertRepository;
   /** Follower goals per platform (0048). */
   contentGoals: ContentGoalRepository;
-  /** Invite links into the analytics channel and the joins through them (0087). */
-  inviteLinks: InviteLinkRepository;
-  /** Creates and revokes those links; asking for it without the token is a 503. */
-  inviteLinkApi: TelegramInviteLinkApi;
-  /** `ANALYTICS_TELEGRAM_CHANNEL`: the channel the analytics reads and the invite links lead to. */
+  /** `ANALYTICS_TELEGRAM_CHANNEL`: the channel the analytics reads. */
   analyticsTelegramChannel: string | undefined;
   /** The daily report's forecasts and their scores (0076). */
   contentForecasts: ContentForecastRepository;
@@ -344,8 +336,6 @@ export interface ContainerOverrides {
   telegramChatApi?: TelegramChatReadApi;
   /** Replaces the Bot API webhook/command calls (tests script it; nothing reaches the network). */
   telegramBotAdminApi?: TelegramBotAdminApi;
-  /** Replaces the invite link calls (tests script it; nothing reaches the network). */
-  telegramInviteLinkApi?: TelegramInviteLinkApi;
   /** Replaces the owner notice sender (tests record it; nothing reaches the network). */
   ownerMessenger?: TelegramOwnerMessageApi;
   random?: () => number;
@@ -608,17 +598,6 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get contentGoals() {
       return createD1ContentGoalRepository(db());
-    },
-    get inviteLinks() {
-      return createD1InviteLinkRepository(db());
-    },
-    get inviteLinkApi(): TelegramInviteLinkApi {
-      if (overrides.telegramInviteLinkApi !== undefined) return overrides.telegramInviteLinkApi;
-      const token = botToken();
-      if (token === '') {
-        throw new AppError('UNAVAILABLE', 'Telegram bot is not configured', { reason: 'BOT_NOT_CONFIGURED' });
-      }
-      return createTelegramInviteLinkApi(token);
     },
     get analyticsTelegramChannel() {
       return env?.ANALYTICS_TELEGRAM_CHANNEL;

@@ -9,10 +9,7 @@ import { infiniteQueryOptions, queryOptions, useMutation, useQueryClient } from 
 import { nextCursor } from '../../../shared/api/query-string';
 import {
   connectTikTok,
-  createInviteLink,
   disconnectTikTok,
-  getInviteLinks,
-  revokeInviteLink,
   getContentGoals,
   getContentRubrics,
   createContentRubric,
@@ -49,10 +46,6 @@ export const contentAnalyticsKeys = {
   rubricsOf: (days: ContentReportPeriod | undefined) =>
     [...contentAnalyticsKeys.all, 'rubrics', days ?? 'names'] as const,
   postRubric: (postId: string) => [...contentAnalyticsKeys.all, 'post-rubric', postId] as const,
-  inviteLinks: (days?: ContentReportPeriod) =>
-    days === undefined
-      ? ([...contentAnalyticsKeys.all, 'invite-links'] as const)
-      : ([...contentAnalyticsKeys.all, 'invite-links', days] as const),
   script: (id: string) => [...contentAnalyticsKeys.all, 'script', id] as const,
   review: (id: string) => [...contentAnalyticsKeys.all, 'review', id] as const,
   reports: () => [...contentAnalyticsKeys.all, 'reports'] as const,
@@ -164,25 +157,6 @@ export function useSaveContentGoal() {
     retry: false,
     onSuccess: (goals) => client.setQueryData(contentAnalyticsKeys.goals(), goals)
   });
-}
-
-export function inviteLinksQueryOptions(days: ContentReportPeriod) {
-  return queryOptions({
-    queryKey: contentAnalyticsKeys.inviteLinks(days),
-    queryFn: ({ signal }) => getInviteLinks(days, signal),
-    // Joins arrive as they happen (webhook), so a minute old is old enough to refetch.
-    staleTime: 60_000
-  });
-}
-
-/** Creates or revokes a link; the lists of every period refetch after the server confirms. */
-export function useInviteLinkActions() {
-  const client = useQueryClient();
-  const refresh = () => client.invalidateQueries({ queryKey: contentAnalyticsKeys.inviteLinks() });
-  return {
-    create: useMutation({ mutationFn: (name: string) => createInviteLink(name), retry: false, onSuccess: refresh }),
-    revoke: useMutation({ mutationFn: (id: string) => revokeInviteLink(id), retry: false, onSuccess: refresh })
-  };
 }
 
 // The server collects about once an hour, so a few minutes of staleness costs nothing.

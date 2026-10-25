@@ -111,9 +111,7 @@ export async function connectBot(deps: BotConnectionDeps): Promise<BotStatusDto>
       {
         url: webhookUrlFor(appOrigin),
         secretToken: settings.webhookSecret,
-        // chat_member: joins and leaves of the analytics channel, counted per invite link (plan B1). Telegram sends
-        // them only when asked, so a bot connected before 20.10.2026 must be connected again once.
-        allowedUpdates: ['message', 'callback_query', 'chat_member']
+        allowedUpdates: ['message', 'callback_query']
       },
       signal
     )

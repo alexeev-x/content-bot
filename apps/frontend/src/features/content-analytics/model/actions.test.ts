@@ -69,7 +69,6 @@ describe('buildActions', () => {
       series: formatSeries(built.items, TO)
     });
     expect(actions.map((action) => action.id)).toEqual(['funnel', 'format-gap']);
-    expect(actions[0]?.action?.kind).toBe('invite');
     expect(actions[1]?.title).toMatch(/^«Учу фидить в доту?» в \d+ раз(а)? сильнее «Учусь играть в доту»$/);
   });
 

@@ -1,6 +1,5 @@
 import { z } from 'zod';
 import { pageQuerySchema, pageSchema } from './pagination';
-import { cleanText } from './text';
 
 // Audience and per-video counters of the owner's own channels, collected by the Worker
 // (docs/API_CONTRACTS.md § Content analytics). Separate from publication analytics (analytics.ts),
@@ -359,57 +358,6 @@ export const contentForecastAccuracySchema = z.object({
   nextTargetAt: z.iso.datetime().nullable()
 });
 export type ContentForecastAccuracyDto = z.infer<typeof contentForecastAccuracySchema>;
-
-// Invite links (plan B1, owner 20.10.2026): named links into the analytics Telegram channel, one per traffic source
-// (TikTok bio, a YouTube description, an ad post). The bot creates them and counts who joined the channel through
-// each one and who of those left, from Telegram's chat_member updates. Joins by the public @username or by a link
-// the studio did not create count as «без ссылки».
-//   GET  /api/v1/content-analytics/invite-links?days=7|30|90   → 200 InviteLinksDto (joins of the period)
-//   POST /api/v1/content-analytics/invite-links               body InviteLinkInput → 201 InviteLinkDto
-//        errors: VALIDATION_ERROR 400 (details.reason NAME_TAKEN: an active link has this name;
-//        TOO_MANY_LINKS: INVITE_LINKS_MAX links are active),
-//        UNAVAILABLE 503 (details.reason CHANNEL_NOT_CONFIGURED | BOT_NOT_CONFIGURED | BOT_CANNOT_INVITE, or Telegram
-//        is down), RATE_LIMIT 429, UNAUTHORIZED, FORBIDDEN. A repeat with the same name gets NAME_TAKEN, never a
-//        second Telegram link; after a timeout the name stays held for a minute, since Telegram may have made it.
-//   POST /api/v1/content-analytics/invite-links/:id/revoke     → 200 InviteLinkDto (safe to repeat; the link stops
-//        working, its counts stay). errors: NOT_FOUND 404, UNAVAILABLE 503, RATE_LIMIT 429, UNAUTHORIZED, FORBIDDEN.
-/** Telegram's own limit for an invite link name. */
-export const INVITE_LINK_NAME_MAX = 32;
-export const INVITE_LINKS_MAX = 50;
-export const inviteLinkInputSchema = z.strictObject({
-  name: z
-    .string()
-    .trim()
-    .min(1, { error: 'Name is required' })
-    .max(INVITE_LINK_NAME_MAX)
-    .refine(cleanText(false), { error: 'Name contains forbidden characters' })
-});
-export type InviteLinkInput = z.infer<typeof inviteLinkInputSchema>;
-export const inviteLinkParamsSchema = z.strictObject({ id: z.uuid() });
-const inviteCountsSchema = z.object({
-  /** People who joined the channel in the period through this source. */
-  joined: z.number().int().nonnegative(),
-  /** Of them, the ones who have left since. */
-  left: z.number().int().nonnegative()
-});
-export const inviteLinkSchema = inviteCountsSchema.extend({
-  id: z.uuid(),
-  name: z.string().min(1).max(INVITE_LINK_NAME_MAX),
-  url: z.url(),
-  createdAt: z.iso.datetime(),
-  revokedAt: z.iso.datetime().nullable()
-});
-export type InviteLinkDto = z.infer<typeof inviteLinkSchema>;
-export const inviteLinksSchema = z.object({
-  /** The channel the links lead to (`ANALYTICS_TELEGRAM_CHANNEL`, without «@»); null when it is not set. */
-  channel: z.string().min(1).max(64).nullable(),
-  /** Newest first; revoked ones stay, so their history is not lost. */
-  links: z.array(inviteLinkSchema).max(INVITE_LINKS_MAX),
-  withoutLink: inviteCountsSchema,
-  /** The first join or leave the bot ever recorded; null until Telegram sends one (the bot must be reconnected once). */
-  trackingSince: z.iso.datetime().nullable()
-});
-export type InviteLinksDto = z.infer<typeof inviteLinksSchema>;
 
 // Telegram rubrics against results (plan B3, migration 0089; owner, 20.10.2026: «Оба способа»). A Telegram post's
 // rubric is the owner's pick for the studio post it was sent from, else a marker in the post: the rubric's hashtag,
