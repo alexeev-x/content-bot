@@ -246,6 +246,9 @@ list with each one's picture is `.logs/rubrics-plan.html` (local, not in Git).
   «Забытый герой» (rarely picked, wins above average), «Цифра дня» (one surprising number), «Было / стало» (how an
   ability changed over the years; the game files are tracked only since 07.10.2026, so the older history needs
   another source, not checked yet) — the studio's own ideas, accepted by the owner 25.10.2026.
+  «Угадай героя по сборке» (owner, 25.10.2026): six late-game items, a quiz «чья сборка?»; a couple of honest runs
+  (the hero's most popular late build, OpenDota `itemPopularity`), then a trick one — a top carry build whose answer
+  is a support like Shadow Shaman or Crystal Maiden, best taken from a real match where a support really built it.
   «Кто кого перебьёт?» (owner, 25.10.2026): two heroes, each with six items, on one picture; an A-or-B poll and the
   comments («я бы добавил…»). The builds come from OpenDota's popular items per hero; the picture is composed from
   Valve's real hero and item icons, never AI-drawn (a drawn icon would be wrong); how to compose it for $0 (e.g.
