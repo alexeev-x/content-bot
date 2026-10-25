@@ -276,6 +276,11 @@ Errors: `400` `VALIDATION_ERROR` (bad query or id), `401`, `403`, `404` `NOT_FOU
 
 Errors: add returns `400` `VALIDATION_ERROR`, `401` `UNAUTHORIZED`, `403` `FORBIDDEN`, `409` `CONFLICT`, or `503` `UNAVAILABLE`; delete returns `400` `VALIDATION_ERROR`, `401` `UNAUTHORIZED`, `403` `FORBIDDEN`, or `503` `UNAVAILABLE`. `GET` is safe to retry; a notification action is not exposed as an HTTP retry.
 
+### Rubric samples (DEV)
+| Endpoint | Meaning |
+|---|---|
+| `POST /api/v1/rubric-samples` | `{ rubric }` (`apps/contracts/src/rubric-samples.ts`): builds one rubric's post from live OpenDota data — the picture rendered by Cloudflare Browser Rendering from Valve's real icons, the text, the poll — and the bot sends it to the owner's chat only, never to a channel. No AI call, not idempotent, at most 20 per 10 minutes (`RATE_LIMIT`). `200 { rubric, messages, picture }`. DEV only (`RUBRIC_SAMPLES="true"`; else `403` `RUBRIC_SAMPLES_OFF`); `503 UNAVAILABLE` with `BOT_NOT_CONFIGURED`, `BROWSER_NOT_BOUND`, `BROWSER_*`, `OPENDOTA_*` or `TELEGRAM_SEND`. |
+
 ## Bot connection
 
 Schemas and error codes: `apps/contracts/src/bot.ts`.

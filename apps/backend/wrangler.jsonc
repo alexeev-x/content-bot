@@ -63,6 +63,8 @@
         }
       ],
       "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "content-r2-dev" }],
+      // Rubric pictures from HTML with Valve's real icons (owner, 25.10.2026: free plan, 10 browser minutes a day).
+      "browser": { "binding": "BROWSER" },
       "queues": {
         "producers": [{ "binding": "AI_JOBS", "queue": "content-ai-dev" }],
         // One job at a time, no automatic retry: a model call is paid and its failure is shown in the chat.
@@ -75,6 +77,8 @@
         "AI_DRAFT_LIMIT": "200",
         // The studio's «Проверить автопубликацию» on an old announcement (owner, 23.10.2026); never in production.
         "AUTOPUBLISH_TEST": "true",
+        // The studio's «Рубрики (DEV)»: a rubric's post from live data to the owner's chat (owner, 25.10.2026).
+        "RUBRIC_SAMPLES": "true",
         "ANALYTICS_TELEGRAM_CHANNEL": "alexeev_x",
         "ANALYTICS_YOUTUBE_CHANNEL_ID": "UCE-VQmi1Qym7MrEzHg9ngjA"
       }
