@@ -38,7 +38,8 @@ export const rubricSamplesRoutes = new Hono<AppBindings>()
       const result = await sendRubricSample(
         {
           gameFilesRepo: container.gameFilesRepo,
-          stratzToken: c.env.STRATZ_TOKEN?.trim() || null,
+          // A token pasted with its quotes is the same token.
+          stratzToken: c.env.STRATZ_TOKEN?.trim().replace(/^["']+|["']+$/g, '') || null,
           renderer: isBrowserBinding(browser) ? createBrowserPictureRenderer(browser) : null,
           telegram: createTelegramApi(token),
           ownerChatId,
