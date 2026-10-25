@@ -1,3 +1,4 @@
+import type { BackgroundJob } from '@alexeev/contracts';
 import {
   ARCHIVE_LOOKBACK_SWEEP_MS,
   ARCHIVE_LOOKBACK_TICK_MS,
@@ -77,6 +78,7 @@ type TickContainer = Pick<
   Container,
   | 'clock'
   | 'logger'
+  | 'backgroundSwitch'
   | 'publishing'
   | 'settings'
   | 'dispatchJobs'
@@ -291,6 +293,13 @@ export async function handleScheduled(controller: ScheduledController, container
   const readAppOrigin = () => (appOrigin ??= container.systemState.readAppOrigin());
   const readPreferences = () =>
     (preferences ??= getOwnerOperationsSettings({ repo: container.settings, logger, requestId: 'scheduled' }));
+  // DEV only (owner, 25.10.2026: «на дев убрать кроны, чтобы не тратилось»): a background job runs only when the
+  // owner switched it on; production has no switch and runs them all. Publishing, reconcile and cleanup always run.
+  const backgroundOn = async (job: BackgroundJob) => {
+    if (!container.backgroundSwitch) return true;
+    const { background } = await readPreferences();
+    return background.enabled && background.jobs[job];
+  };
 
   const alerts = await alertOwnerOfIncidents({
     repo: container.dispatchJobs,
@@ -328,6 +337,7 @@ export async function handleScheduled(controller: ScheduledController, container
   // Minutes 0 and 30 keep their whole budget for the housekeeping: their slot is queued and run a minute later.
   if (
     ((minute % 5 === 0 && minute !== 0 && minute !== PURGE_MINUTE) || minute === 1 || minute === PURGE_MINUTE + 1) &&
+    (await backgroundOn('sources')) &&
     // Two statements (the insert and its guard); a tick that spent its budget leaves the slot to the next one.
     container.queryBudget.remaining() >= 2 + HEARTBEAT_RESERVE
   ) {
@@ -341,7 +351,7 @@ export async function handleScheduled(controller: ScheduledController, container
       return {};
     });
   }
-  if (publicationIdle && minute !== 0 && minute !== PURGE_MINUTE) {
+  if (publicationIdle && minute !== 0 && minute !== PURGE_MINUTE && (await backgroundOn('sources'))) {
     await step('dota-watch', async (): Promise<Record<string, number>> => {
       const run = await container.automations.claimNext({ id: 'dota-intelligence', now: clock.now() });
       if (run === null) return {};
@@ -467,6 +477,7 @@ export async function handleScheduled(controller: ScheduledController, container
   if (
     publicationIdle &&
     container.gameFilesRepo != null &&
+    (await backgroundOn('gameFiles')) &&
     steamApps !== undefined &&
     container.ownerChatId !== null &&
     minute % 5 !== 0 &&
@@ -488,6 +499,7 @@ export async function handleScheduled(controller: ScheduledController, container
     (counts.due ?? 0) === 0 &&
     raised.length === 0 &&
     container.contentSources.collectors.length > 0 &&
+    (await backgroundOn('contentAnalytics')) &&
     container.queryBudget.remaining() >= CONTENT_SOURCE_MIN + HEARTBEAT_RESERVE
   ) {
     await step('content-analytics', async () => {
@@ -513,7 +525,8 @@ export async function handleScheduled(controller: ScheduledController, container
     minute % 10 === 2 &&
     (counts.due ?? 0) === 0 &&
     raised.length === 0 &&
-    container.queryBudget.remaining() >= DAILY_REPORT_STATEMENTS + HEARTBEAT_RESERVE
+    container.queryBudget.remaining() >= DAILY_REPORT_STATEMENTS + HEARTBEAT_RESERVE &&
+    (await backgroundOn('reports'))
   ) {
     const { timezone, notifications } = await readPreferences();
     await step('reports', async () => {
@@ -523,14 +536,17 @@ export async function handleScheduled(controller: ScheduledController, container
         names: container.contentVideoNames,
         now: clock.now()
       });
-      const weekly = await raiseWeeklyReport({
-        analytics: container.contentAnalytics,
-        alerts: container.contentAlerts,
-        goals: container.contentGoals,
-        reports: container.contentDailyReports,
-        clock,
-        timezone
-      });
+      // The Monday report is the owner's switch too (25.10.2026).
+      const weekly = !notifications.weeklyReport
+        ? { attempted: false, reportId: null }
+        : await raiseWeeklyReport({
+            analytics: container.contentAnalytics,
+            alerts: container.contentAlerts,
+            goals: container.contentGoals,
+            reports: container.contentDailyReports,
+            clock,
+            timezone
+          });
       // A weekly attempt (even one that lost its claim to an overlapping run) takes this tick's statements.
       const daily =
         !weekly.attempted && notifications.dailyReport
@@ -575,7 +591,9 @@ export async function handleScheduled(controller: ScheduledController, container
     (counts.due ?? 0) === 0 &&
     raised.length === 0 &&
     container.contentSources.collectors.length > 0 &&
-    container.queryBudget.remaining() >= SCRIPT_PROMPT_STATEMENTS + HEARTBEAT_RESERVE
+    container.queryBudget.remaining() >= SCRIPT_PROMPT_STATEMENTS + HEARTBEAT_RESERVE &&
+    (await backgroundOn('scriptPrompts')) &&
+    (await readPreferences()).notifications.scriptPrompts
   ) {
     await step('script-prompts', async () => {
       const { timezone } = await readPreferences();
@@ -597,7 +615,9 @@ export async function handleScheduled(controller: ScheduledController, container
     minute === 44 &&
     (counts.due ?? 0) === 0 &&
     raised.length === 0 &&
-    container.queryBudget.remaining() >= 3 + HEARTBEAT_RESERVE
+    container.queryBudget.remaining() >= 3 + HEARTBEAT_RESERVE &&
+    (await backgroundOn('aiLearning')) &&
+    (await readPreferences()).notifications.aiLearning
   ) {
     await step('style-lessons', async () => {
       const waiting = await container.aiStyleLessons.unread(clock.now() - LESSON_LOOKBACK_MS, 1, clock.now());
@@ -630,7 +650,9 @@ export async function handleScheduled(controller: ScheduledController, container
     minute % 10 === 8 &&
     (counts.due ?? 0) === 0 &&
     raised.length === 0 &&
-    container.queryBudget.remaining() >= CONTENT_ALERTS_RESERVE + HEARTBEAT_RESERVE
+    container.queryBudget.remaining() >= CONTENT_ALERTS_RESERVE + HEARTBEAT_RESERVE &&
+    (await backgroundOn('contentAlerts')) &&
+    (await readPreferences()).notifications.contentAlerts
   ) {
     await step('content-alerts', async () => {
       const { timezone } = await readPreferences();
@@ -665,7 +687,9 @@ export async function handleScheduled(controller: ScheduledController, container
     (counts.due ?? 0) === 0 &&
     raised.length === 0 &&
     minute % AI_REVIEW_MINUTE_MOD === AI_REVIEW_MINUTE &&
-    container.queryBudget.remaining() >= AI_REVIEW_SCAN_STATEMENTS + HEARTBEAT_RESERVE
+    container.queryBudget.remaining() >= AI_REVIEW_SCAN_STATEMENTS + HEARTBEAT_RESERVE &&
+    (await backgroundOn('aiReviews')) &&
+    (await readPreferences()).notifications.aiReviews
   ) {
     await step('ai-reviews', async () => {
       const result = await runAiReviews({

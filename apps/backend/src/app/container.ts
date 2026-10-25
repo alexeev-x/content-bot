@@ -231,6 +231,8 @@ export interface Container {
   contentAlerts: ContentAlertRepository;
   /** Follower goals per platform (0048). */
   contentGoals: ContentGoalRepository;
+  /** DEV only: the Cron runs a background job only when the owner switched it on (`BACKGROUND_SWITCH`). */
+  backgroundSwitch: boolean;
   /** `ANALYTICS_TELEGRAM_CHANNEL`: the channel the analytics reads. */
   analyticsTelegramChannel: string | undefined;
   /** The daily report's forecasts and their scores (0076). */
@@ -313,6 +315,8 @@ export interface ContainerEnv {
   AI_DRAFT_LIMIT?: string;
   /** "true" on dev only: the studio may run an old announcement through the automatic publishing (a test). */
   AUTOPUBLISH_TEST?: string;
+  /** "true" on dev only: background Cron jobs follow the owner's switches (all off until switched on). */
+  BACKGROUND_SWITCH?: string;
   OWNER_TELEGRAM_ID?: string;
   /** Public username of the owner's channel; empty means content analytics skips Telegram. */
   ANALYTICS_TELEGRAM_CHANNEL?: string;
@@ -598,6 +602,9 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get contentGoals() {
       return createD1ContentGoalRepository(db());
+    },
+    get backgroundSwitch() {
+      return env?.BACKGROUND_SWITCH === 'true';
     },
     get analyticsTelegramChannel() {
       return env?.ANALYTICS_TELEGRAM_CHANNEL;

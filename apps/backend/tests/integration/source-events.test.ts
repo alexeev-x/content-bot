@@ -456,19 +456,25 @@ describe('the Cron workflow: auto-draft and one owner notice per event', () => {
     expect(requested(queue.jobs)).toEqual(['1002']);
   });
 
-  it('with the source alerts preference off the patch is drafted but never announced, and not later either', async () => {
+  it('with «Новость пришла» off the patch is drafted but never announced, and not later either', async () => {
     const messenger = fakeOwnerMessenger();
     const off = {
       warningsEnabled: true,
       publicationAlerts: true,
-      sourceAlerts: false,
+      sourceAlerts: true,
       automationAlerts: true,
       recoveryAlerts: true,
       dotaWatchlistAlerts: true,
       scheduleNotices: true,
       sentNotices: true,
       dailyReport: false,
-      dailyReportHour: 9
+      dailyReportHour: 9,
+      draftOffers: false,
+      weeklyReport: true,
+      contentAlerts: true,
+      aiReviews: true,
+      scriptPrompts: true,
+      aiLearning: true
     };
     await processDotaUpdates(deps({ messenger, readNotificationPreferences: () => Promise.resolve(off) }));
     await processDotaUpdates(deps({ messenger }));

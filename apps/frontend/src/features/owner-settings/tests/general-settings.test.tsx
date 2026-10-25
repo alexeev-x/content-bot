@@ -6,13 +6,13 @@ import { describe, expect, it } from 'vitest';
 import { errorBody, ownerOperationsSettings } from '../../../test/fixtures';
 import { server, setupMswServer } from '../../../test/msw';
 import { createTestQueryClient } from '../../../test/query-wrapper';
-import { GeneralSettingsEditor } from '../index';
+import { GeneralSettingsEditor, NotificationsSettingsEditor } from '../index';
 
 setupMswServer();
 
 type Body = { revision: number; notifications: { publicationAlerts: boolean; warningsEnabled: boolean } };
 
-describe('general settings: 409 STALE_REVISION', () => {
+describe('notification settings: 409 STALE_REVISION', () => {
   it('keeps the choice on screen and saves it on the newest revision only after «keep mine»', async () => {
     const puts: Body[] = [];
     let serverRevision = 1;
@@ -32,7 +32,7 @@ describe('general settings: 409 STALE_REVISION', () => {
     const user = userEvent.setup();
     render(
       <QueryClientProvider client={createTestQueryClient()}>
-        <GeneralSettingsEditor />
+        <NotificationsSettingsEditor />
       </QueryClientProvider>
     );
     const toggle = await screen.findByRole('switch', { name: /Ошибки публикаций/ });

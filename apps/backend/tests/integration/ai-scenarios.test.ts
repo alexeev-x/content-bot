@@ -335,7 +335,13 @@ function createWorld(kindOf: (day: number) => Kind, videos = DAYS) {
               scheduleNotices: true,
               sentNotices: true,
               dailyReport: options.dailyReport,
-              dailyReportHour: 10
+              dailyReportHour: 10,
+              draftOffers: true,
+              weeklyReport: true,
+              contentAlerts: true,
+              aiReviews: true,
+              scriptPrompts: true,
+              aiLearning: true
             }
           }
         }

@@ -30,8 +30,66 @@ export const notificationPreferencesSchema = z.object({
   /** The daily report of the six latest videos per platform, in the owner's private chat. */
   dailyReport: z.boolean().default(false),
   /** The owner-zone hour it is sent at. */
-  dailyReportHour: z.number().int().min(0).max(23).default(9)
+  dailyReportHour: z.number().int().min(0).max(23).default(9),
+  // Added 25.10.2026 (owner: «почти на каждое действие уведомление, чтобы мог выключить, кроме критических»); on as
+  // before, each its own switch.
+  /** «Новость пришла»: a source's new event with its draft and publish buttons (sourceAlerts keeps the failures). */
+  draftOffers: z.boolean().default(true),
+  /** The Monday report of the week. */
+  weeklyReport: z.boolean().default(true),
+  /** A publication off its usual curve, a source outage of the analytics. */
+  contentAlerts: z.boolean().default(true),
+  /** The AI's review of a new video. */
+  aiReviews: z.boolean().default(true),
+  /** «Снят по этому сценарию?» after a video. */
+  scriptPrompts: z.boolean().default(true),
+  /** The AI's style lessons from the owner's edits («✅ Учитывать / Нет»). */
+  aiLearning: z.boolean().default(true)
 });
+
+/**
+ * DEV only (owner, 25.10.2026: «на дев убрать кроны, чтобы не тратилось»): the Cron's background work, all off until
+ * the owner switches a job on. Publishing, reconcile and cleanup always run. Production ignores this and runs all.
+ */
+export const BACKGROUND_JOBS = [
+  'sources',
+  'gameFiles',
+  'contentAnalytics',
+  'reports',
+  'contentAlerts',
+  'aiReviews',
+  'scriptPrompts',
+  'aiLearning'
+] as const;
+export type BackgroundJob = (typeof BACKGROUND_JOBS)[number];
+export const backgroundSettingsSchema = z.object({
+  /** The master switch: off stops every job below, whatever its own switch says. */
+  enabled: z.boolean(),
+  jobs: z.object({
+    sources: z.boolean().default(false),
+    gameFiles: z.boolean().default(false),
+    contentAnalytics: z.boolean().default(false),
+    reports: z.boolean().default(false),
+    contentAlerts: z.boolean().default(false),
+    aiReviews: z.boolean().default(false),
+    scriptPrompts: z.boolean().default(false),
+    aiLearning: z.boolean().default(false)
+  })
+});
+export type BackgroundSettings = z.infer<typeof backgroundSettingsSchema>;
+export const BACKGROUND_DEFAULTS: BackgroundSettings = {
+  enabled: false,
+  jobs: {
+    sources: false,
+    gameFiles: false,
+    contentAnalytics: false,
+    reports: false,
+    contentAlerts: false,
+    aiReviews: false,
+    scriptPrompts: false,
+    aiLearning: false
+  }
+};
 
 /**
  * Valve's news published without the owner (owner, 21–22.10.2026: «он должен автоматом публиковать, ибо я спать буду»).
@@ -89,6 +147,8 @@ export const ownerOperationsSettingsSchema = z.object({
   notifications: notificationPreferencesSchema,
   // A document saved before 22.10.2026 has none: off.
   autopublish: autopublishSettingsSchema.default(AUTOPUBLISH_DEFAULTS),
+  // A document saved before 25.10.2026 has none: everything off (it only acts on DEV).
+  background: backgroundSettingsSchema.default(BACKGROUND_DEFAULTS),
   revision: z.number().int().nonnegative(),
   updatedAt: z.iso.datetime().nullable()
 });
@@ -103,7 +163,9 @@ export const updateOwnerOperationsSettingsInputSchema = z.strictObject({
   timezone: ownerTimeZoneSchema,
   notifications: notificationPreferencesSchema,
   /** Absent: kept as saved (a client from before 22.10.2026). */
-  autopublish: autopublishSettingsSchema.optional()
+  autopublish: autopublishSettingsSchema.optional(),
+  /** Absent: kept as saved. */
+  background: backgroundSettingsSchema.optional()
 });
 export type UpdateOwnerOperationsSettingsInput = z.infer<typeof updateOwnerOperationsSettingsInputSchema>;
 

@@ -105,7 +105,13 @@ async function enableOwnerSettings(now: number) {
           scheduleNotices: true,
           sentNotices: true,
           dailyReport: true,
-          dailyReportHour: 0
+          dailyReportHour: 0,
+          draftOffers: true,
+          weeklyReport: true,
+          contentAlerts: true,
+          aiReviews: true,
+          scriptPrompts: true,
+          aiLearning: true
         }
       }
     }

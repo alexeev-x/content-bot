@@ -79,6 +79,9 @@
         "AUTOPUBLISH_TEST": "true",
         // The studio's «Рубрики (DEV)»: a rubric's post from live data to the owner's chat (owner, 25.10.2026).
         "RUBRIC_SAMPLES": "true",
+        // Background Cron jobs (sources, reports, analytics…) run only when switched on in Настройки → «Фоновые задачи»
+        // (owner, 25.10.2026: «на дев, чтобы не тратилось»); publishing and cleanup always run. Never in production.
+        "BACKGROUND_SWITCH": "true",
         // The owner's keyless stats bridge on Deno Deploy (bridge/stats-bridge): STRATZ refuses Cloudflare's addresses.
         "STATS_BRIDGE_URL": "https://faded-millipede-9696.alexeev-x.deno.net",
         "ANALYTICS_TELEGRAM_CHANNEL": "alexeev_x",

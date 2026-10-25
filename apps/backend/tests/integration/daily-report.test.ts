@@ -330,7 +330,13 @@ describe('daily report on the Cron tick and the review job', () => {
             scheduleNotices: true,
             sentNotices: true,
             dailyReport: true,
-            dailyReportHour: 0
+            dailyReportHour: 0,
+            draftOffers: true,
+            weeklyReport: true,
+            contentAlerts: true,
+            aiReviews: true,
+            scriptPrompts: true,
+            aiLearning: true
           }
         }
       }

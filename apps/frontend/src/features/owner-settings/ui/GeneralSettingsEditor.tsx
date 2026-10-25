@@ -1,68 +1,13 @@
 import { ApiError } from '../../../shared/api/http-client';
 import { useNow } from '../../../shared/lib/use-now';
 import { ru } from '../../../shared/lib/ru';
-import {
-  Banner,
-  Button,
-  ErrorState,
-  Icon,
-  IconBadge,
-  type IconName,
-  Panel,
-  Select,
-  Skeleton,
-  type StatusGroup,
-  Switch,
-  VisuallyHidden
-} from '../../../shared/ui';
-import { useGeneralSettings, type SettingsPatch } from '../model/use-general-settings';
+import { Banner, Button, ErrorState, Icon, Panel, Skeleton, VisuallyHidden } from '../../../shared/ui';
+import { useGeneralSettings } from '../model/use-general-settings';
 import { AutopublishActivity } from './AutopublishActivity';
 import { AutopublishPanel } from './AutopublishPanel';
+import { BackgroundJobsPanel } from './BackgroundJobsPanel';
 import styles from './GeneralSettingsEditor.module.css';
 import { TimezoneField, TimezoneFieldSkeleton } from './TimezoneField';
-
-const SWITCHES = [
-  {
-    key: 'scheduleNotices',
-    label: ru.general.scheduleNotices,
-    description: ru.general.scheduleNoticesHint,
-    icon: 'calendar',
-    tone: 'done'
-  },
-  {
-    key: 'sentNotices',
-    label: ru.general.sentNotices,
-    description: ru.general.sentNoticesHint,
-    icon: 'send',
-    tone: 'accent'
-  },
-  {
-    key: 'publicationAlerts',
-    label: ru.general.publications,
-    description: ru.general.publicationsHint,
-    icon: 'alert',
-    tone: 'unknown'
-  },
-  { key: 'sourceAlerts', label: ru.general.sources, description: ru.general.sourcesHint, icon: 'link', tone: 'retry' },
-  {
-    key: 'recoveryAlerts',
-    label: ru.general.recovery,
-    description: ru.general.recoveryHint,
-    icon: 'retry',
-    tone: 'failed'
-  }
-] as const satisfies readonly {
-  key: keyof SettingsPatch;
-  label: string;
-  description: string;
-  icon: IconName;
-  tone: StatusGroup | 'accent';
-}[];
-
-const HOURS = Array.from({ length: 24 }, (_, hour) => ({
-  id: String(hour),
-  label: ru.general.dailyReportHourOption(hour)
-}));
 
 /** «15:32» and «UTC+3» in the chosen zone; an unknown zone shows nothing rather than the browser's time. */
 function zoneClock(now: Date, timezone: string): { time: string; offset: string } | null {
@@ -81,7 +26,7 @@ function zoneClock(now: Date, timezone: string): { time: string; offset: string 
   }
 }
 
-/** The two panels with their real titles and the height their fields fill, no request: also the route skeleton. */
+/** The time zone panel with its real title and height, no request: also the route skeleton. */
 export function GeneralSettingsSkeleton() {
   return (
     <div className={styles.page} aria-busy="true">
@@ -102,33 +47,6 @@ export function GeneralSettingsSkeleton() {
           </div>
         </div>
       </Panel>
-      <Panel
-        title={ru.general.notificationsTitle}
-        icon={<Icon name="bell" />}
-        note={ru.general.notificationsNote}
-        action={
-          <Button variant="secondary" size="sm" isDisabled>
-            {ru.general.enableAll}
-          </Button>
-        }
-      >
-        {/* The rows are static: only the switch positions wait for the settings, so they show disabled until then. */}
-        <ul className={styles.switches} aria-hidden="true">
-          {SWITCHES.map(({ key, label, description, icon }) => (
-            <li key={key} className={styles.notice}>
-              <IconBadge name={icon} tone="muted" />
-              <Switch variant="row" isDisabled isSelected={false} description={description}>
-                {label}
-              </Switch>
-            </li>
-          ))}
-        </ul>
-        <div className={styles.critical}>
-          <Banner tone="warning" title={ru.general.criticalTitle}>
-            {ru.general.criticalBody}
-          </Banner>
-        </div>
-      </Panel>
     </div>
   );
 }
@@ -136,12 +54,14 @@ export function GeneralSettingsSkeleton() {
 const STATUS_TEXT = { idle: '', saving: ru.general.saving, saved: ru.general.saved } as const;
 
 type Props = {
+  /** DEV only: the background jobs' switches (the page knows the environment). */
+  showBackground?: boolean;
   /** Enabled channels for the automatic publishing, composed by the page (features never import each other). */
   channels?: readonly { id: string; title: string }[];
 };
 
-/** One page for the time zone and the notification switches; every change saves by itself, there is no Save button. */
-export function GeneralSettingsEditor({ channels = [] }: Props) {
+/** The time zone, the automatic publishing and, on DEV, the background jobs; every change saves by itself. */
+export function GeneralSettingsEditor({ channels = [], showBackground = false }: Props) {
   const { query, view, problem, status, isFetching, change, keepMine, loadCurrent } = useGeneralSettings();
   const now = useNow();
   const clock = view ? zoneClock(now, view.timezone) : null;
@@ -200,63 +120,6 @@ export function GeneralSettingsEditor({ channels = [] }: Props) {
           ) : null}
         </div>
       </Panel>
-      <Panel
-        title={ru.general.notificationsTitle}
-        icon={<Icon name="bell" />}
-        note={ru.general.notificationsNote}
-        action={
-          <Button
-            variant="secondary"
-            size="sm"
-            isDisabled={SWITCHES.every(({ key }) => view[key])}
-            onPress={() => change(Object.fromEntries(SWITCHES.map(({ key }) => [key, true])) as SettingsPatch)}
-          >
-            {ru.general.enableAll}
-          </Button>
-        }
-      >
-        <ul className={styles.switches}>
-          {SWITCHES.map(({ key, label, description, icon, tone }) => (
-            <li key={key} className={styles.notice}>
-              <IconBadge name={icon} tone={tone} />
-              <Switch
-                variant="row"
-                isSelected={view[key]}
-                onChange={(value) => change({ [key]: value })}
-                description={description}
-              >
-                {label}
-              </Switch>
-            </li>
-          ))}
-        </ul>
-        <div className={styles.critical}>
-          <Banner tone="warning" title={ru.general.criticalTitle}>
-            {ru.general.criticalBody}
-          </Banner>
-        </div>
-      </Panel>
-      {/* Its own panel: «Включить все» never starts a daily message the owner did not choose (plan §4.3). */}
-      <Panel title={ru.general.dailyReportTitle} icon={<Icon name="chart" />}>
-        <div className={styles.report}>
-          <Switch
-            variant="row"
-            isSelected={view.dailyReport}
-            onChange={(value) => change({ dailyReport: value })}
-            description={ru.general.dailyReportHint}
-          >
-            {ru.general.dailyReport}
-          </Switch>
-          {view.dailyReport ? (
-            <Select
-              label={ru.general.dailyReportHour}
-              options={HOURS}
-              value={String(view.dailyReportHour)}
-              onChange={(id) => change({ dailyReportHour: Number(id) })}
-            />
-          ) : null}
-        </div>
-      </Panel>
       <AutopublishPanel
         enabled={view.autopublishEnabled}
         destinationId={view.autopublishDestinationId}
@@ -265,6 +128,9 @@ export function GeneralSettingsEditor({ channels = [] }: Props) {
         change={change}
       />
       <AutopublishActivity />
+      {showBackground ? (
+        <BackgroundJobsPanel enabled={view.backgroundEnabled} jobs={view.backgroundJobs} change={change} />
+      ) : null}
       <output className={styles.status}>{STATUS_TEXT[status]}</output>
     </div>
   );

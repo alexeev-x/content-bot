@@ -276,7 +276,13 @@ const ALL_NOTIFICATIONS_ON: OwnerOperationsSettingsDto['notifications'] = {
   scheduleNotices: true,
   sentNotices: true,
   dailyReport: false,
-  dailyReportHour: 9
+  dailyReportHour: 9,
+  draftOffers: true,
+  weeklyReport: true,
+  contentAlerts: true,
+  aiReviews: true,
+  scriptPrompts: true,
+  aiLearning: true
 };
 
 async function readPreferences(
@@ -317,7 +323,8 @@ async function alertDrafts(deps: Parameters<typeof processDotaUpdates>[0]): Prom
       claimedAt: deps.now()
     });
     if (!claimed) continue;
-    if (!notifications.sourceAlerts) {
+    // «Новость пришла» has its own switch (25.10.2026); sourceAlerts keeps the sources' failures.
+    if (!notifications.draftOffers) {
       logSkipped(deps, 'dota_draft_alert', 'ALERT_CATEGORY_DISABLED');
       continue;
     }
