@@ -210,7 +210,9 @@ hours come more often, weak ones less, with some posts still trying other hours 
 and the weekly limits above always hold. The research found the hour barely changes views in other channels, so our
 own numbers decide.
 
-Rubric pictures are layered (owner, 25.10.2026: the image model repeats one character from one photo exactly, but
+Almost every rubric post is a picture plus a short text of 2–4 lines (owner, 25.10.2026: «разбавляй картинками где
+можно», e.g. a top of heroes as a nice picture with a small description); the picture does the work, the text only
+explains. Rubric pictures are layered (owner, 25.10.2026: the image model repeats one character from one photo exactly, but
 mixes up five characters with text): the owner's template per rubric (1536×768 PNG with empty slots, in
 `design-refs/<rubric>/`), Valve's real hero (256×144), item (88×64) and ability (128×128) icons placed in the slots by
 code, and the words in the post's text rather than on the picture. The model draws only scenes without exact
