@@ -210,9 +210,11 @@ hours come more often, weak ones less, with some posts still trying other hours 
 and the weekly limits above always hold. The research found the hour barely changes views in other channels, so our
 own numbers decide.
 
-A rubric post has a picture only where the picture is the content — tops, builds, tier lists, «VS», new items, the
-rebus — with a short text of 2–4 lines (owner, 25.10.2026: «разбавляй картинками где можно», then «не должны везде
-картинки пихать»); the rest are a short text or a bare poll, and the mix keeps the feed varied. Rubric pictures are layered (owner, 25.10.2026: the image model repeats one character from one photo exactly, but
+Each rubric has a picture rule (owner, 25.10.2026: «разбавляй картинками где можно», then «не должны везде картинки
+пихать», «понять, где картинка обязательно, а где нет»): mandatory where the picture is the content (several heroes
+or items, «VS», a look to rate, a picture-riddle, a visual joke); optional for one or two heroes or one ability, and
+the scheduler alternates picture and text; forbidden where it gives a quiz answer away; not needed for a number, a
+text joke or a poll. The text stays 2–4 lines. Rubric pictures are layered (owner, 25.10.2026: the image model repeats one character from one photo exactly, but
 mixes up five characters with text): the owner's template per rubric (1536×768 PNG with empty slots, in
 `design-refs/<rubric>/`), Valve's real hero (256×144), item (88×64) and ability (128×128) icons placed in the slots by
 code, and the words in the post's text rather than on the picture. The model draws only scenes without exact
