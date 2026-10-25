@@ -190,8 +190,9 @@ Dota channels, and so are plain-Russian patch breakdowns and game-file finds.
 
 Chosen with the owner (25.10.2026): the game only, no esports for now; giveaways are the owner's own, by hand.
 Many rubrics, dosed (owner, 25.10.2026: «много идей, но давать в канал дозированно»): one pool and one weekly
-budget for all of them; the next post rotates to the rubric that has rested longest and has material, so none repeats
-soon, and news always comes first. Every interactive post stands alone, at most one a day and 3–4 a week; a poll always closes (`open_period`), and a
+budget for all of them; a rubric rests about two weeks between its posts (owner: «1 идея раз в 2 недели, чтобы людям не
+наскучало»; a per-rubric setting), the next post goes to the rubric that has rested longest and has material, and news
+always comes first. Every interactive post stands alone, at most one a day and 3–4 a week; a poll always closes (`open_period`), and a
 rubric with few participants pauses itself.
 - Step 1, from data we already have:
   1. «Что сломали в патче»: after a patch, who was buffed or killed, then the next day a poll «Кто теперь имба?».
@@ -206,8 +207,8 @@ rubric with few participants pauses itself.
   «Баттл героев» (an A-or-B poll for 24 hours), Dota's online records and a new #1 on Valve's leaderboard, item
   timings and counters (what Dota2ProTracker and Dotabuff show; both forbid scraping and have no API).
   «Оцени сет из мастерской» (owner, 25.10.2026: «если появились там»): a set that has just appeared in the Steam
-  Workshop and is rising there goes out for a rating with a link to its Workshop page (owner, 25.10.2026), at most
-  twice a week (Steam Web API `QueryFiles` with the
+  Workshop and is rising there goes out for a rating with a link to its Workshop page (owner, 25.10.2026), under the
+  same two-week rest (Steam Web API `QueryFiles` with the
   owner's `STEAM_WEB_API_KEY`; not checked yet).
   «Антисборка недели» (the item with the worst winrate on a hero, in the spirit of the owner's «Учу фидить»),
   «Забытый герой» (rarely picked, wins above average), «Цифра дня» (one surprising number), «Было / стало» (how an
