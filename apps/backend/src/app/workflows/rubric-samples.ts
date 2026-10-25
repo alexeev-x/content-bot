@@ -85,14 +85,14 @@ function rubricSources(gameFilesRepo: GitHubRepoApi | null, stratzToken: string 
   };
 }
 
-function sourceErrorCode(error: unknown): string | null {
+function sourceError(error: unknown): { code: string; status: number | null } | null {
   if (
     error instanceof DotaConstantsError ||
     error instanceof DatafeedError ||
     error instanceof SteamPublicError ||
     error instanceof StratzError
   ) {
-    return error.code;
+    return { code: error.code, status: error.httpStatus };
   }
   return null;
 }
@@ -130,10 +130,14 @@ export async function sendRubricSample(
       now: deps.now
     });
   } catch (error) {
-    const code = sourceErrorCode(error);
-    if (code !== null) {
-      log('failed', code);
-      throw new AppError('UNAVAILABLE', 'A data source did not answer', { reason: code });
+    const source = sourceError(error);
+    if (source !== null) {
+      log('failed', source.code);
+      // The source's HTTP status tells a wrong key (401) from a refused address (403).
+      throw new AppError('UNAVAILABLE', 'A data source did not answer', {
+        reason: source.code,
+        ...(source.status === null ? {} : { status: String(source.status) })
+      });
     }
     if (error instanceof AppError) log('failed', error.details?.['reason'] ?? error.code);
     throw error;

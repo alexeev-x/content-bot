@@ -64,7 +64,8 @@ export function RubricSamplesButton() {
     send.error === null
       ? null
       : send.error instanceof ApiError && send.error.reason !== undefined
-        ? (REASONS[send.error.reason] ?? `${send.error.message} (${send.error.reason})`)
+        ? (REASONS[send.error.reason] ??
+          `${send.error.message} (${send.error.reason}${send.error.details?.['status'] ? `, HTTP ${send.error.details['status']}` : ''})`)
         : send.error.message;
   return (
     <>
