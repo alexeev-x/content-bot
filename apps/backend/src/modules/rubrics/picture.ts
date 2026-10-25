@@ -46,9 +46,31 @@ ${extraCss}
 </style></head><body><div class="mark">ALEXEEV</div><main class="main">${body}</main></body></html>`;
 }
 
-/** The page over a drawn background (base64 JPEG), slightly darkened so the text and icons on it read well. */
+const plainText = (html: string) =>
+  html
+    .replace(/<[^>]+>/g, '')
+    .replace(/&lt;/g, '<')
+    .replace(/&gt;/g, '>')
+    .replace(/&quot;/g, '"')
+    .replace(/&#39;/g, "'")
+    .replace(/&amp;/g, '&')
+    .replace(/\s+/g, ' ')
+    .trim();
+
+/** The page's title as words and its red part (`<b>`), for the model to letter; null when the page has none. */
+export function pictureHeading(html: string): { text: string; red: string | null } | null {
+  const title = /<div class="title">([\s\S]*?)<\/div>/.exec(html)?.[1];
+  if (title === undefined) return null;
+  const red = /<b>([\s\S]*?)<\/b>/.exec(title)?.[1];
+  return { text: plainText(title), red: red === undefined ? null : plainText(red) };
+}
+
+/**
+ * The page over a drawn background (base64 JPEG), slightly darkened so the icons on it read well. The drawn picture
+ * carries the title and the mark (variant A), so the page hides its own and keeps their room.
+ */
 export function withBackground(html: string, base64: string): string {
   if (!/^[A-Za-z0-9+/=]+$/.test(base64)) return html;
-  const style = `<style>:root{--bg:linear-gradient(rgba(8,6,5,.3),rgba(8,6,5,.3)),url(data:image/jpeg;base64,${base64}) center/cover no-repeat}</style>`;
+  const style = `<style>:root{--bg:linear-gradient(rgba(8,6,5,.2),rgba(8,6,5,.2)),url(data:image/jpeg;base64,${base64}) center/cover no-repeat}.title,.mark{visibility:hidden}</style>`;
   return html.replace('</head>', `${style}</head>`);
 }

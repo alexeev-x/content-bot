@@ -14,20 +14,40 @@ const STYLE = [
   'Heroes, items and abilities sit in ornate dark-iron frames with a thin gold or red edge and a soft glow; arrows and numbers are clean and bold (red down, green up). Painted, rich but not over-detailed, no oversharpening, no cartoon look.'
 ].join('\n');
 
-const BACKGROUND_PROMPT = [
-  STYLE,
-  'Make a new wide 2:1 background in this style.',
-  'The scene is EMPTY: no heroes, characters, creatures or people, no cards, frames, icons or panels, no text, letters, numbers or labels anywhere.',
-  'Keep the middle of the picture dark and calm, with the detail at the edges, so text and icons placed on top later read well.'
-].join('\n');
+export type PictureHeading = { text: string; red: string | null };
 
-function coverPrompt(title: string): string {
+// A: the model draws the scene and the lettering (owner, 25.10.2026: «надписи может ИИ делать в варианте A»); the
+// browser puts only the exact portraits, icons and numbers into the empty lower part.
+function backgroundPrompt(heading: PictureHeading | null): string {
+  const title =
+    heading === null
+      ? 'No title: no text, letters or numbers anywhere.'
+      : `In the top quarter, centered: the small label «ALEXEEV» and under it the title «${heading.text}» in the style's lettering${
+          heading.red === null ? '' : `, the part «${heading.red}» in red`
+        }. Spell it letter by letter; no other text, letters or numbers anywhere.`;
+  return [
+    STYLE,
+    'Make a new wide 2:1 picture in this style.',
+    title,
+    'Below the title the scene stays EMPTY: no heroes, characters, creatures or people, no cards, frames, icons or panels. Keep the middle and the lower part dark and calm, with the detail at the edges: portraits and numbers are placed there later.'
+  ].join('\n');
+}
+
+// Hard rules (owner, 25.10.2026: «надо жёстче ему правила задавать»): the portraits and icons are pasted photos the
+// model frames, never repaints; their count is given so none is added or lost.
+function coverPrompt(title: string, pictures: number): string {
   return [
     STYLE,
     `Make a new Dota 2 Telegram rubric cover «${title}», a wide 2:1 banner, in this style.`,
-    'The LAST image is the content. Redraw its layout in this style: put every hero portrait, item and ability icon of the last image into an ornate frame, exactly as it is there — the same characters and the same pictures in the same order. Never invent, swap, add, redraw or restyle a portrait or an icon.',
-    'Copy every Russian word and every number of the last image letter by letter.',
-    'At the top center a small spaced label «ALEXEEV» — exactly this one word, nothing after it. No other text anywhere.'
+    'The LAST image is the content: the official game portraits and icons, the words and the numbers. Only the scene around them is yours to draw.',
+    'HARD RULES — breaking any of them makes the picture useless:',
+    `1. The last image has exactly ${pictures} portrait/icon picture(s). Your picture has exactly ${pictures}: none added, none removed, none merged, none duplicated.`,
+    '2. Treat each portrait and icon as a printed photo pasted in: copy it pixel for pixel — the same face, facial features, eyes, nose, mouth, expression, skin, hair, horns, helmet, armor, weapon, colors, pose, crop and lighting. Do NOT repaint, redraw, retouch, restyle, sharpen, blur, age, beautify, add details or "improve" it; no new scars, hair, accessories or effects on it. Do NOT distort its proportions. Do NOT change who the character is or how they look.',
+    '3. Keep their order and their grouping from left to right and top to bottom. Never swap two of them.',
+    '4. Around each one you may only add an ornate frame, a glow and a shadow; nothing may cover any part of a face or an icon.',
+    '5. Copy every Russian word and every number letter by letter, digit by digit; no other words, letters or numbers anywhere.',
+    '6. At the top center a small spaced label «ALEXEEV» — exactly this one word; never «STUDIO» or anything else after it.',
+    'If a rule and the style disagree, the rule wins: leave the portrait or icon exactly as in the last image.'
   ].join('\n');
 }
 
@@ -35,11 +55,11 @@ export type RubricVariant<T> = { kind: 'drawn'; picture: T } | { kind: 'failed';
 
 /**
  * A's background (base64 JPEG, ready for a data URL) and B's whole picture, drawn at once; each fails on its own.
- * `content` is the browser's plain layout of the rubric as a JPEG.
+ * `content` is the browser's plain layout of the rubric as a JPEG, `pictures` the number of portraits and icons on it.
  */
 export async function drawRubricVariants(
   deps: PictureDeps,
-  input: { title: string; content: Uint8Array }
+  input: { title: string; content: Uint8Array; pictures: number; heading: PictureHeading | null }
 ): Promise<{ background: RubricVariant<string>; cover: RubricVariant<Uint8Array> }> {
   const ready = await prepare(deps);
   if (ready === null) {
@@ -70,8 +90,10 @@ export async function drawRubricVariants(
     }
   };
   const [background, cover] = await Promise.all([
-    settle(draw(BACKGROUND_PROMPT, references).then((picture) => picture.base64)),
-    settle(draw(coverPrompt(input.title), [...references, input.content]).then((picture) => picture.bytes))
+    settle(draw(backgroundPrompt(input.heading), references).then((picture) => picture.base64)),
+    settle(
+      draw(coverPrompt(input.title, input.pictures), [...references, input.content]).then((picture) => picture.bytes)
+    )
   ]);
   return { background, cover };
 }

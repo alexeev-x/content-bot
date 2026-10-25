@@ -11,6 +11,7 @@ import { parseBuildMessage } from '../../modules/game-files';
 import {
   buildRubricSample,
   PICTURE_SIZE,
+  pictureHeading,
   RUBRIC_TITLES,
   type RubricKey,
   type RubricSources,
@@ -132,7 +133,12 @@ export type RubricSampleDeps = {
       poll: string | null;
       signal: AbortSignal;
     }) => Promise<string | null>;
-    variants: (input: { title: string; content: Uint8Array }) => Promise<Variants>;
+    variants: (input: {
+      title: string;
+      content: Uint8Array;
+      pictures: number;
+      heading: { text: string; red: string | null } | null;
+    }) => Promise<Variants>;
   } | null;
   telegram: TelegramSendApi;
   ownerChatId: string;
@@ -212,7 +218,13 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
       pictures.push({ bytes: plain, name: `${rubric}.jpg` });
       notes.push('ИИ не подключён: только точная картинка браузера.');
     } else {
-      const { background, cover } = await deps.ai.variants({ title, content: plain });
+      const { background, cover } = await deps.ai.variants({
+        title,
+        content: plain,
+        // Every portrait, item, ability and medal on the layout is one <img>.
+        pictures: (sample.picture.html.match(/<img\b/g) ?? []).length,
+        heading: pictureHeading(sample.picture.html)
+      });
       if (background.kind === 'drawn') {
         await wait(renderedAt + BROWSER_GAP_MS - Date.now());
         try {
@@ -236,7 +248,7 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
   const both =
     pictures.some((each) => each.name.endsWith('-a.png')) && pictures.some((each) => each.name.endsWith('-b.jpg'));
   const header = [
-    `«${title}»${both ? ': A — фон рисует ИИ, иконки и текст ставит браузер (точные); B — всю картинку рисует ИИ.' : ''}`,
+    `«${title}»${both ? ': A — сцену и заголовок рисует ИИ, героев, предметы и цифры ставит браузер (точные); B — всю картинку рисует ИИ.' : ''}`,
     ...notes
   ].join('\n');
 

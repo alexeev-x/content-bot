@@ -1,5 +1,5 @@
 export { buildRubricSample, RUBRIC_KEYS, RUBRIC_TITLES, type RubricKey } from './samples';
-export { PICTURE_SIZE, withBackground } from './picture';
+export { PICTURE_SIZE, pictureHeading, withBackground } from './picture';
 export type {
   AbilityDetail,
   HeroBracketStat,

@@ -76,13 +76,24 @@ export async function patchBroken(context: RubricContext): Promise<RubricSample>
       : balance < 0
         ? '<span class="down">▼</span>'
         : '<span class="mid">◆</span>';
+  // Each hero's biggest change by size, «было → стало» (owner, 25.10.2026: «непонятно, насколько их понизили»).
+  const details = await Promise.all(top.map((each) => context.sources.heroDetail(each.hero.id).catch(() => null)));
+  const biggest = top.map((each, index) => {
+    const change = patch.changes.filter((one) => one.heroId === each.hero.id).sort((a, b) => b.size - a.size)[0];
+    if (change === undefined) return null;
+    const ability = details[index]?.abilities.find((one) => one.id === change.abilityId)?.name ?? null;
+    return { ...change, what: ability === null ? change.stat : `${ability}: ${change.stat.toLowerCase()}` };
+  });
   const cards = top
-    .map(
-      (
-        each
-      ) => `<div class="card">${arrow(each.balance)}<img class="portrait" src="${heroImage(each.hero.name)}" alt="">
-<div class="name">${escapeHtml(each.hero.localizedName)}</div></div>`
-    )
+    .map((each, index) => {
+      const change = biggest[index];
+      return `<div class="card">${arrow(each.balance)}<img class="portrait" src="${heroImage(each.hero.name)}" alt="">
+<div class="name">${escapeHtml(each.hero.localizedName)}</div>${
+        change === null || change === undefined
+          ? ''
+          : `<div class="was">${escapeHtml(change.from)} → <span class="${change.buff ? 'up' : 'down'}">${escapeHtml(change.to)}</span></div>`
+      }</div>`;
+    })
     .join('');
   const html = picturePage(
     `<div class="title">Что сломали в патче <b>${escapeHtml(patch.version)}</b></div><div class="cards">${cards}</div>`,
@@ -90,14 +101,19 @@ export async function patchBroken(context: RubricContext): Promise<RubricSample>
 .card{display:flex;flex-direction:column;align-items:center;gap:12px;width:240px}
 .card .portrait{width:240px;height:135px}
 .up,.down,.mid{font-size:56px;line-height:1}.up{color:#7fd18f}.down{color:#e46a5a}.mid{color:#e8b04a}
-.name{font-weight:800;font-size:28px;text-align:center}`
+.name{font-weight:800;font-size:28px;text-align:center}
+.was{font-weight:800;font-size:30px;color:#cbbfae}.was .up,.was .down{font-size:30px}`
   );
-  const buffed = top.filter((each) => each.balance > 0).map((each) => each.hero.localizedName);
-  const nerfed = top.filter((each) => each.balance < 0).map((each) => each.hero.localizedName);
   const lines = [`Патч ${patch.version}: больше всего правок у этих героев.`];
-  if (buffed.length > 0) lines.push(`Усилили: ${buffed.join(', ')}.`);
-  if (nerfed.length > 0) lines.push(`Ослабили: ${nerfed.join(', ')}.`);
-  lines.push('Кого сломали сильнее всех — пишите в комментарии.');
+  // One line per hero, its biggest change: the post shows how much, not only who.
+  top.forEach((each, index) => {
+    const change = biggest[index];
+    if (change !== null && change !== undefined)
+      lines.push(
+        `${change.buff ? '▲' : '▼'} ${each.hero.localizedName} — ${change.what}: ${change.from} → ${change.to}`
+      );
+  });
+  lines.push('Играете на ком-то из них? Кого сломали сильнее всех — пишите в комментарии.');
   return { picture: { html, ...PICTURE_SIZE }, text: lines.join('\n'), poll: null };
 }
 
