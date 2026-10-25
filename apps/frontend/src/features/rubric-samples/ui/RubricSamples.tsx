@@ -53,8 +53,8 @@ const REASONS: Record<string, string> = {
 };
 
 /**
- * DEV only (owner, 25.10.2026): each press builds a rubric's post from live data — the picture from Valve's real icons,
- * the text and the poll — and the bot sends it to the owner's chat, the way subscribers would see it.
+ * DEV only (owner, 25.10.2026): each press queues the chosen rubric — live data, the AI writer's text, pictures A and B —
+ * and the bot sends it to the owner's chat within minutes, the way subscribers would see it, for the owner to compare.
  */
 export function RubricSamplesButton() {
   const [open, setOpen] = useState(false);
@@ -76,7 +76,7 @@ export function RubricSamplesButton() {
         isOpen={open}
         onOpenChange={setOpen}
         title="Рубрики (DEV)"
-        description="Пост из живых данных придёт вам в чат с ботом — как его увидят подписчики. В канал ничего не уходит."
+        description="Собирается только выбранная рубрика: живые данные, текст пишет ИИ, две картинки — A и B, чтобы сравнить. Придёт вам в чат с ботом через 1–3 минуты. В канал ничего не уходит."
       >
         <ul className={styles.list}>
           {RUBRICS.map((rubric) => (
@@ -105,11 +105,11 @@ export function RubricSamplesButton() {
         </ul>
         <output className={styles.status}>
           {send.isPending
-            ? 'Собираю пост…'
+            ? 'Ставлю в очередь…'
             : failure !== null
               ? `Не отправлено: ${failure}`
               : send.data
-                ? `Отправлено: ${RUBRICS.find((each) => each.key === send.data.rubric)?.label ?? send.data.rubric} — смотрите чат с ботом.`
+                ? `В работе: ${RUBRICS.find((each) => each.key === send.data.rubric)?.label ?? send.data.rubric} — придёт в чат с ботом через 1–3 минуты.`
                 : ''}
         </output>
       </Dialog>

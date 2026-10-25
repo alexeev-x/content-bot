@@ -23,6 +23,8 @@ export { hotfixWorthPost } from './hotfix-check';
 export { condensePatchNotes } from './patch-condense';
 export { drawHotfixPicture, drawPatchPicture, type PatchPictureResult } from './patch-picture';
 export { enhancePicture, type EnhanceResult } from './picture-enhance';
+export { drawRubricVariants, type RubricVariant } from './rubric-picture';
+export { writeRubricCaption } from './rubric-writer';
 export {
   ACTIVE_HYPOTHESES_MAX,
   createD1HypothesesRepository,

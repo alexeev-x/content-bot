@@ -1,4 +1,4 @@
-import { AI_FEEDBACK_KINDS, AI_FEEDBACK_NOTE_MAX } from '@alexeev/contracts';
+import { AI_FEEDBACK_KINDS, AI_FEEDBACK_NOTE_MAX, rubricSampleKeySchema } from '@alexeev/contracts';
 import { z } from 'zod';
 
 // One model call of the bot's AI writer, sent through the AI_JOBS queue (docs/backend/bot.md «AI writer»):
@@ -133,6 +133,8 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
   }),
   /** One read of Steam's product info of Dota's apps (migration 0108): the early signal of an update. */
   z.object({ id: z.uuid(), kind: z.literal('steam_watch'), chatId: z.number().int() }),
+  /** DEV only (owner, 25.10.2026): the rubric the owner pressed, written by the AI with pictures A and B to compare. */
+  z.object({ id: z.uuid(), kind: z.literal('rubric_sample'), rubric: rubricSampleKeySchema }),
   /**
    * A build of the game's files with changes a player may care about (owner, 24.10.2026): checked by a cheap call,
    * then written and published like Cron's event draft. `diff` is the build's condensed changes.
@@ -205,6 +207,7 @@ export type WriterJob =
       {
         kind:
           | 'daily_review'
+          | 'rubric_sample'
           | 'style_lessons'
           | 'hypotheses'
           | 'source_event'

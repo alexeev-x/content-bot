@@ -20,7 +20,7 @@ import {
 import type { RubricContext, RubricSample } from './types';
 
 // The 32 rubrics of `.logs/rubrics-best.html` (owner, 25.10.2026: «мне надо все рубрики»), each built from live data
-// the way the channel would show it. The texts are templates over real numbers, not the AI writer yet.
+// the way the channel would show it. The texts are drafts over real numbers; the AI writer rewrites them (app/workflows).
 
 export const RUBRIC_KEYS = [
   'patch_broken',
@@ -57,6 +57,42 @@ export const RUBRIC_KEYS = [
   'whose_build'
 ] as const;
 export type RubricKey = (typeof RUBRIC_KEYS)[number];
+
+/** Each rubric's name as the channel shows it; the writer gets it with the facts. */
+export const RUBRIC_TITLES: Record<RubricKey, string> = {
+  patch_broken: 'Что сломали в патче',
+  who_is_imba: 'Кто теперь имба?',
+  nerf_or_buff: 'Нерф или баф?',
+  whose_ability: 'Чья способность?',
+  files_dont_lie: 'Файлы не врут',
+  who_gets_nerfed: 'Кого понерфят?',
+  valve_seriously: 'Valve, ты серьёзно?',
+  valve_time: 'Валв-тайм',
+  rate_it: 'Оцениваем',
+  who_beats_whom: 'Кто кого перебьёт?',
+  guess_by_numbers: 'Угадай героя по цифрам',
+  guess_winrate: 'Угадай винрейт',
+  ban_or_pick: 'Бан или пик?',
+  rank_meta: 'Мета по рангам',
+  poison_for_low: 'Яд для низов',
+  daily_record: 'Рекорд недели',
+  hero_peak: 'Когда герой сильнее всего',
+  anti_build: 'Антисборка',
+  forgotten_hero: 'Забытый герой',
+  did_you_know: 'А вы знали?',
+  item_exam: 'Предметный экзамен',
+  tier_list: 'Тир-лист по-русски',
+  carry_on_five: 'Керри на пятой',
+  combo_math: 'Комбо-расчёт',
+  horoscope: 'Дота-гороскоп',
+  workshop_set: 'Оцени сет из мастерской',
+  rebus: 'Ребус',
+  guess_streak: 'Угадай-серия',
+  tier_list_vote: 'Тир-лист голосованием',
+  guess_match: 'Угадай матч',
+  fake_item: 'Шемелис недели',
+  whose_build: 'Чья сборка?'
+};
 
 const BUILDERS: Record<RubricKey, (context: RubricContext) => Promise<RubricSample>> = {
   patch_broken: patchBroken,

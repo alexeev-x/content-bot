@@ -1,4 +1,4 @@
-import { apiErrorSchema } from '@alexeev/contracts';
+import { apiErrorSchema, sendRubricSampleResponseSchema } from '@alexeev/contracts';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { createApi, fakeClock, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
 
@@ -10,7 +10,7 @@ beforeEach(async () => {
   await seedSession({ token: OWNER_TOKEN, expiresAt: START + 24 * 60 * 60 * 1000 });
 });
 
-// The samples call OpenDota, the browser and Telegram, so these cases stop before any of them.
+// The samples call live sources, the AI, the browser and Telegram from a queued job; these cases stop at the queue.
 describe('POST /api/v1/rubric-samples', () => {
   it('is refused where RUBRIC_SAMPLES is not "true" (production)', async () => {
     const response = await send(createApi({ clock: fakeClock() }), { rubric: 'rank_meta' });
@@ -28,5 +28,13 @@ describe('POST /api/v1/rubric-samples', () => {
     expect(apiErrorSchema.parse(await response.json())).toMatchObject({
       error: { code: 'UNAVAILABLE', details: { reason: 'BOT_NOT_CONFIGURED' } }
     });
+  });
+
+  it('queues the pressed rubric alone and answers 202', async () => {
+    const dev = createApi({ clock: fakeClock(), env: { RUBRIC_SAMPLES: 'true' } });
+    const response = await send(dev, { rubric: 'rank_meta' });
+    expect(response.status).toBe(202);
+    expect(sendRubricSampleResponseSchema.parse(await response.json())).toEqual({ rubric: 'rank_meta', queued: true });
+    expect(dev.aiJobs.sent).toEqual([expect.objectContaining({ kind: 'rubric_sample', rubric: 'rank_meta' })]);
   });
 });

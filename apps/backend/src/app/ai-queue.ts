@@ -27,6 +27,7 @@ import {
 import { runSeriesPublishStep } from './workflows/autopublish-series';
 import { runTreasureWatch } from './workflows/treasure-watch';
 import { gameFilesExternalId, prepareGameFilesPost, runGameFilesWatch, runQuietBuild } from './workflows/game-files';
+import { runRubricSampleJob } from './workflows/rubric-samples';
 import { runSteamWatch } from './workflows/steam-watch';
 import { getOwnerOperationsSettings } from '../modules/settings';
 import { escapeHtml } from './notifications/notice-template';
@@ -409,6 +410,17 @@ async function handleAiQueueMessages(batch: MessageBatch<unknown>, container: Co
     }
     if (job.kind === 'patch_publish') {
       await runPatchPublishJob(job, container, token, requestId, onError);
+      message.ack();
+      continue;
+    }
+    if (job.kind === 'rubric_sample') {
+      // Claimed once: the pictures and the caption are paid calls.
+      try {
+        if (await container.aiWriter.claimJob(job.id, container.clock.now()))
+          await runRubricSampleJob(container, token, job.rubric, requestId, onError);
+      } catch (error) {
+        onError(error);
+      }
       message.ack();
       continue;
     }

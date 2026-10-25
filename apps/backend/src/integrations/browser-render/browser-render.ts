@@ -11,7 +11,7 @@ export interface BrowserBinding {
     params: {
       html: string;
       viewport: { width: number; height: number; deviceScaleFactor?: number };
-      screenshotOptions: { type: 'png' };
+      screenshotOptions: { type: 'png' } | { type: 'jpeg'; quality: number };
       gotoOptions: { waitUntil: 'networkidle0'; timeout: number };
     }
   ): Promise<Response>;
@@ -31,13 +31,13 @@ export class BrowserRenderError extends Error {
 }
 
 export interface PictureRenderer {
-  /** A PNG of the page at exactly this size. */
-  render(html: string, size: { width: number; height: number }): Promise<Uint8Array>;
+  /** A PNG of the page at exactly this size; a JPEG with `jpeg` (the image model takes JPEG references). */
+  render(html: string, size: { width: number; height: number }, format?: 'png' | 'jpeg'): Promise<Uint8Array>;
 }
 
 export function createBrowserPictureRenderer(binding: BrowserBinding): PictureRenderer {
   return {
-    async render(html, { width, height }) {
+    async render(html, { width, height }, format = 'png') {
       let timer: ReturnType<typeof setTimeout> | undefined;
       const timeout = new Promise<never>((_, reject) => {
         timer = setTimeout(() => reject(new BrowserRenderError('BROWSER_TIMEOUT')), BROWSER_RENDER_TIMEOUT_MS);
@@ -48,7 +48,7 @@ export function createBrowserPictureRenderer(binding: BrowserBinding): PictureRe
           binding.quickAction('screenshot', {
             html,
             viewport: { width, height },
-            screenshotOptions: { type: 'png' },
+            screenshotOptions: format === 'png' ? { type: 'png' } : { type: 'jpeg', quality: 90 },
             // The page fetches Valve's icons and the font itself; the shot waits until the network is quiet.
             gotoOptions: { waitUntil: 'networkidle0', timeout: BROWSER_RENDER_TIMEOUT_MS - 5_000 }
           }),
@@ -65,9 +65,9 @@ export function createBrowserPictureRenderer(binding: BrowserBinding): PictureRe
         throw new BrowserRenderError(response.status === 429 ? 'BROWSER_RATE' : 'BROWSER_FAILED', response.status);
       }
       const bytes = new Uint8Array(await response.arrayBuffer());
-      // A PNG starts with its 8-byte signature; anything else (an error page) is not a picture.
-      const png = [0x89, 0x50, 0x4e, 0x47];
-      if (bytes.byteLength > MAX_PNG_BYTES || png.some((value, index) => bytes[index] !== value)) {
+      // A PNG starts with its 8-byte signature, a JPEG with FF D8 FF; anything else (an error page) is not a picture.
+      const signature = format === 'png' ? [0x89, 0x50, 0x4e, 0x47] : [0xff, 0xd8, 0xff];
+      if (bytes.byteLength > MAX_PNG_BYTES || signature.some((value, index) => bytes[index] !== value)) {
         throw new BrowserRenderError('BROWSER_SHAPE');
       }
       return bytes;

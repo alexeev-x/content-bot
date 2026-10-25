@@ -45,10 +45,9 @@ export const rubricSampleKeySchema = z.enum([
 export type RubricSampleKey = z.infer<typeof rubricSampleKeySchema>;
 export const sendRubricSampleInputSchema = z.strictObject({ rubric: rubricSampleKeySchema });
 export type SendRubricSampleInput = z.infer<typeof sendRubricSampleInputSchema>;
+/** 202: the sample is queued; the bot sends the AI's post with pictures A and B to the owner within minutes. */
 export const sendRubricSampleResponseSchema = z.object({
   rubric: rubricSampleKeySchema,
-  /** Telegram messages sent: a picture or text, then a poll when the rubric has one. */
-  messages: z.number().int().min(1).max(3),
-  picture: z.boolean()
+  queued: z.literal(true)
 });
 export type SendRubricSampleResponse = z.infer<typeof sendRubricSampleResponseSchema>;
