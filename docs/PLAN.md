@@ -203,6 +203,10 @@ rubric with few participants pauses itself.
   Workshop and is rising there goes out for a rating with a link to its Workshop page (owner, 25.10.2026), at most
   twice a week (Steam Web API `QueryFiles` with the
   owner's `STEAM_WEB_API_KEY`; not checked yet).
+  «Кто кого перебьёт?» (owner, 25.10.2026): two heroes, each with six items, on one picture; an A-or-B poll and the
+  comments («я бы добавил…»). The builds come from OpenDota's popular items per hero; the picture is composed from
+  Valve's real hero and item icons, never AI-drawn (a drawn icon would be wrong); how to compose it for $0 (e.g.
+  Cloudflare Images overlays on the free tier) is checked first.
 - Later: «Какой ролик снять?» every two weeks (the owner films the winner). STRATZ (the only free source for the
   Immortal bracket) needs the owner's sign-up.
 
