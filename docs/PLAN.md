@@ -183,18 +183,27 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
 Many repeatable rubrics the AI drafts from the sources on its own schedule; the owner approves or edits. Their results
 show in Аналитика → «Рубрики Telegram».
 
-Idea, kept for later (owner, 24.10.2026): twice a week a new set from the Steam Workshop for the subscribers to rate
-(«вот новый сет из мастерской»), e.g. as a poll.
+Research of 25.10.2026 (about 200 Telegram channels, sources, Telegram's features; reports in `.logs/handoff/research-*.md`):
+the post's format barely moves views; an explicit ask («оцениваем», «голосуй») gives about 1.6× reactions; short
+image-first channels at about 3 posts a day hold the best reach; named rubrics, polls and quizzes are almost absent in
+Dota channels, and so are plain-Russian patch breakdowns and game-file finds.
 
-Ideas from Liquipedia, kept for later (owner, 22.10.2026: recorded, not chosen):
-- «Чей сет?»: a treasure set's image without the hero and a poll with four heroes; the answer the next day, or a
-  Telegram quiz poll (our polls are regular only today).
-- «Что сломали в патче»: after a patch, short posts on who was buffed or killed from the heroes' changelogs, then a
-  poll «кто теперь имба?».
-- Transfers of the week: who moved where, in the owner's voice.
-- «Этот день в Доте»: which tournament was won on this date years ago.
-- «Кто победит?»: a poll before a big match and the result after it; harder, it needs the tournament brackets parsed.
-- Open question: does the channel want esports (the last three) or only the game itself.
+Chosen with the owner (25.10.2026): the game only, no esports for now; giveaways are the owner's own, by hand.
+Every interactive post stands alone, at most one a day and 3–4 a week; a poll always closes (`open_period`), and a
+rubric with few participants pauses itself.
+- Step 1, from data we already have:
+  1. «Что сломали в патче»: after a patch, who was buffed or killed, then the next day a poll «Кто теперь имба?».
+  2. «Оцениваем»: a reaction vote on a new set, arcana or hero change.
+  3. «Чей сет?»: a treasure set's image without the hero, a quiz poll with four heroes and the answer inside the poll.
+  4. «Угадай героя по способности»: a quiz poll from the game files.
+- Step 2, from OpenDota and Steam (free, no key; checked 25.10.2026): «Мета недели» (who rose and fell by winrate),
+  «Баттл героев» (an A-or-B poll for 24 hours), Dota's online records and a new #1 on Valve's leaderboard, item
+  timings and counters (what Dota2ProTracker and Dotabuff show; both forbid scraping and have no API).
+  «Оцени сет из мастерской» (owner, 25.10.2026: «если появились там»): a set that has just appeared in the Steam
+  Workshop and is rising there goes out for a rating, at most twice a week (Steam Web API `QueryFiles` with the
+  owner's `STEAM_WEB_API_KEY`; not checked yet).
+- Later: «Какой ролик снять?» every two weeks (the owner films the winner). STRATZ (the only free source for the
+  Immortal bracket) needs the owner's sign-up.
 
 ## 3. News
 
