@@ -77,6 +77,7 @@ Accepted decisions that are in force. An agent does not propose an alternative t
 ## Process and environments
 | Date | Decision | Details |
 |---|---|---|
+| 25.10.2026 | Releases in batches with a version (owner: «по мелким задачам мы не ходим кроме критов»): after each release `develop` raises the minor version and collects work until the next `develop → main`; only a critical bug goes out alone as a `hotfix/…` from `main` with a patch version. Production is 0.1.0 (released 24.10.2026), `develop` is 0.2.0 | skill `orchestrate` |
 | 14.10.2026 | Git: agents commit and push to `develop` or branches from it; `main` is forbidden for agents (release PR `develop → main` by the owner)| `AGENTS.md` § Git |
 | 14.10.2026 | CI deploys after green checks: `develop` → Worker `dev`, `main` → Worker `app`; each environment owns its D1 and vars; DEV applies pending D1 migrations automatically before the deploy, production migrations stay a manual owner run (replaces 05.10.2026 «remote migrations manual») | `.github/workflows/ci.yml`, `apps/backend/wrangler.jsonc` |
 | 07.10.2026 | Everything is tested only in DEV; production is not prepared or released until the owner says DEV is ready | — |

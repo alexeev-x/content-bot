@@ -1,6 +1,6 @@
 ---
 name: orchestrate
-description: "Main-session playbook: when to do the work yourself vs delegate, risk gate, task packets, repair loop, commit and push to develop. Use for any task spanning several areas or steps."
+description: "Main-session playbook: when to do the work yourself vs delegate, risk gate, task packets, repair loop, commit and push to develop, batched releases and hotfixes. Use for any task spanning several areas or steps."
 ---
 # Orchestrate a task
 
@@ -43,3 +43,7 @@ A failure goes back to its owner with only the failing lines and file. Same firs
 
 ## Deliver
 Commit (conventional message), push `develop`/branch (CI applies DEV migrations before deploying), then the final message from root `AGENTS.md`. Never touch `main`.
+
+## Releases and hotfixes (owner, 25.10.2026)
+- Work piles up on `develop`; small tasks never go to production alone. After a release (the owner's `develop → main`), the first `develop` commit raises the minor version (`0.2.0 → 0.3.0`) in the root and `apps/contracts` `package.json`.
+- Only a critical production bug (posts lost, duplicated or wrong in the channel, the bot or the studio down, data loss, a security hole) gets a hotfix: branch `hotfix/…` from `main`, the fix and a patch version (`0.1.0 → 0.1.1`), a PR into `main` for the owner to merge, then `main` merged back into `develop`.
