@@ -248,8 +248,8 @@ list with each one's picture is `.logs/rubrics-plan.html` (local, not in Git).
   comments («я бы добавил…»). The builds come from OpenDota's popular items per hero; the picture is composed from
   Valve's real hero and item icons, never AI-drawn (a drawn icon would be wrong); how to compose it for $0 (e.g.
   Cloudflare Images overlays on the free tier) is checked first.
-- Later: «Какой ролик снять?» every two weeks (the owner films the winner). STRATZ (the only free source for the
-  Immortal bracket) needs the owner's sign-up.
+- Later: STRATZ (the only free source for the Immortal bracket) needs the owner's sign-up. The owner's own formats
+  («Какой ролик снять?», «Мой пик недели») are set aside for now (owner, 25.10.2026).
 
 ## 3. News
 
