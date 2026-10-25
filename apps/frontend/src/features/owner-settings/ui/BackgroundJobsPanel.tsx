@@ -19,7 +19,7 @@ export function BackgroundJobsPanel({ enabled, jobs, change }: Props) {
   return (
     <Panel title={ru.background.title} icon={<Icon name="zap" />} note={ru.background.note}>
       <ul className={styles.switches}>
-        <li className={styles.notice}>
+        <li className={styles.plain}>
           <Switch
             variant="row"
             isSelected={enabled}
@@ -32,7 +32,7 @@ export function BackgroundJobsPanel({ enabled, jobs, change }: Props) {
         {BACKGROUND_JOBS.map((job) => {
           const [label, description] = ru.background.jobs[job];
           return (
-            <li key={job} className={styles.notice}>
+            <li key={job} className={styles.plain}>
               <Switch
                 variant="row"
                 isSelected={jobs[job]}

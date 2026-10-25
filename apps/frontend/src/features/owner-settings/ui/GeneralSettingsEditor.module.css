@@ -91,3 +91,14 @@
 .limitRow > button {
   margin-top: var(--space-5);
 }
+/* A row without an icon (notifications, background jobs): the switch spans the row, an extra field sits under it. */
+.plain {
+  display: grid;
+  gap: var(--space-2);
+}
+.plain + .plain {
+  border-top: 1px solid var(--color-border-subtle);
+}
+.plain > :not(:first-child) {
+  padding-bottom: var(--space-3);
+}

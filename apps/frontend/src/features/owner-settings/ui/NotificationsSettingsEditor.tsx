@@ -99,7 +99,7 @@ export function NotificationsSettingsEditor() {
             {group.keys.map((key) => {
               const [label, description] = ru.notifications.items[key];
               return (
-                <li key={key} className={styles.notice}>
+                <li key={key} className={styles.plain}>
                   <Switch
                     variant="row"
                     isSelected={view[key]}
