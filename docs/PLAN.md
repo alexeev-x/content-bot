@@ -195,6 +195,11 @@ budget for all of them; a rubric rests about two weeks between its posts (owner:
 always comes first. Every interactive post stands alone, at most one a day and 3–4 a week; a poll always closes (`open_period`), and a
 rubric with few participants pauses itself.
 
+The AI writer learns the community's memes to joke with them in any post (owner, 25.10.2026: «чтобы ты шутки мог
+строить, типо про маму Габена»): мама Габена, Valve time and «Гейб считает до трёх», zxc and «1000-7», «12 танго»,
+«шаманчик, связывай», «первый скилл и третий», toxic chat lines, rank and role jokes (рекруты, «керри на пятой»);
+crude humor and мат are allowed. They are vocabulary, not rubrics; the glossary is `.logs/handoff/research-humor.md`.
+
 In the bot, rubrics live under their own command `/rubrics` (owner, 25.10.2026), apart from posts and the editor:
 the rubrics with their state and next turn, a pause or a resume, and the banks to approve (e.g. «Ребус»).
 
