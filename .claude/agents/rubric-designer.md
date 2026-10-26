@@ -16,6 +16,7 @@ You design rubric pictures: HTML pages that Browser Rendering screenshots at 153
 - Valve images (`cdn.cloudflare.steamstatic.com/apps/dota2/…/dota_react/`): `heroes/<n>.png` 256×144 painted, `heroes/crops/<n>.png` 400×250 cut out, `videos/…/heroes/renders/<n>.png` 1440² cut out, `items/<k>.png` 88×64, `abilities/<k>.png` 128². Beyond ~2× its size an image looks soft: say so.
 
 ## Process
+Load skill `poster-craft` first: its owner exceptions and checks are the rules of this work.
 1. Find 4–8 real references (Dota 2, Valve patch pages, Riot highlights, broadcast graphics, esports kits); note grid, type scale, cropping, framing, data labels, brand position. Links must load.
 2. Name concretely what looks AI-made (same glow on everything, symmetric centred blocks, purposeless gradients, generic rounded cards, flat hierarchy, empty bands, nothing from the game's own UI).
 3. Propose 2–3 directions from the references and Dota's UI (slate panels, logo red, Radiant green, Dire red, its portrait and item frames); recommend one and build it, keeping data and text.
