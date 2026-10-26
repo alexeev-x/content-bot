@@ -290,6 +290,7 @@ export const REVIEW_MISSING: Record<string, string> = {
   AI_TIMEOUT: 'модель не ответила вовремя',
   AI_NUMBERS_UNVERIFIED: 'в ответе модели были цифры не из отчёта — не показываю',
   AI_BAD_FORMAT: 'модель ответила не в том формате',
+  AI_TRUNCATED: 'ответ модели оборвался на лимите длины',
   AI_NO_MODEL: 'не выбрана модель ИИ',
   AI_NO_PRICE: 'у модели ИИ нет цены',
   AI_TOO_LONG: 'разбор не влез в сообщение'

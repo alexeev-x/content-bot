@@ -618,7 +618,9 @@ describe('an order hidden in the owner text, a title or a script stays data', ()
       provider: 'openai',
       complete: (request) => {
         seen.push({ instructions: request.instructions, input: request.input });
-        return Promise.resolve({ text: '{}', model: 'gpt-6.1-sol', usage: USAGE });
+        // A well-formed empty review: a malformed one would be asked again (26.10.2026).
+        const review = { main: '', points: [], question: '', steps: [], names: [] };
+        return Promise.resolve({ text: JSON.stringify(review), model: 'gpt-6.1-sol', usage: USAGE });
       }
     };
     await writeAnalyticsReview(

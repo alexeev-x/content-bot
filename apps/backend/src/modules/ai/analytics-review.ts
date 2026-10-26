@@ -9,8 +9,13 @@ import { assertAiReady, type BudgetEvent, readAiSettings, recordAiUsage } from '
 // computes every number and comparison; the model only explains them (plan §5). It sees the facts block alone, may
 // only repeat numbers of the videos it names (checked here), and names videos by their key, never retyped.
 
-/** Room for a reasoning model's thinking before a short structured answer. */
-const MAX_OUTPUT_TOKENS = 4000;
+/**
+ * Room for a reasoning model's thinking before the structured answer. The week thinks over far more facts: with 4000
+ * its answer was cut off (owner, 26.10.2026: «Разбор недоступен: модель ответила не в том формате»).
+ */
+const MAX_OUTPUT_TOKENS = { day: 4000, week: 16000 } as const;
+/** A cut or malformed answer gets one more try with twice the room. */
+const REVIEW_ATTEMPTS = 2;
 const MAIN_MAX = 200;
 /** A conclusion is two or three short sentences; the whole review must leave room for the tables (4096). */
 const POINT_MAX = 280;
@@ -231,35 +236,62 @@ export async function writeAnalyticsReview(
   const settings = await readAiSettings(deps.repo);
   // The draft model, as for the owner's scripts: the review is read every day (owner: quality first).
   const { provider, model } = await assertAiReady(deps, settings, settings.draftModel ?? settings.cheapModel);
-  let result;
-  try {
-    result = await provider.complete({
-      model,
-      instructions: `${INSTRUCTIONS}\n${PERIOD[period]}\n${NAMING}`,
-      input: `ДАННЫЕ:\n${input.facts}${namingList}`,
-      maxOutputTokens: MAX_OUTPUT_TOKENS,
-      jsonSchema: ANALYTICS_REVIEW_JSON_SCHEMA,
-      signal: input.signal
-    });
-  } catch (error) {
-    if (!(error instanceof AiProviderError)) throw error;
-    return { review: null, names: [], errorCode: error.code, model: null, usageId: null, budgetEvents: [] };
+  // A cut or malformed answer is asked once more at once, with twice the room (owner, 26.10.2026: the week's review
+  // comes once a week, «если он не придёт, мне ждать ещё неделю»). Each answered call is counted in the budget.
+  let usageId: string | null = null;
+  let budgetEvents: BudgetEvent[] = [];
+  let failed: { errorCode: string; model: string } | null = null;
+  let review: AnalyticsReview | null = null;
+  let answeredModel = model;
+  for (let attempt = 0; attempt < REVIEW_ATTEMPTS && review === null; attempt += 1) {
+    let result;
+    try {
+      result = await provider.complete({
+        model,
+        instructions: `${INSTRUCTIONS}
+${PERIOD[period]}
+${NAMING}`,
+        input: `ДАННЫЕ:
+${input.facts}${namingList}`,
+        maxOutputTokens: MAX_OUTPUT_TOKENS[period] * 2 ** attempt,
+        jsonSchema: ANALYTICS_REVIEW_JSON_SCHEMA,
+        signal: input.signal
+      });
+    } catch (error) {
+      if (!(error instanceof AiProviderError)) throw error;
+      return { review: null, names: [], errorCode: error.code, model: null, usageId, budgetEvents };
+    }
+    usageId = deps.newId();
+    answeredModel = result.model;
+    budgetEvents = [
+      ...budgetEvents,
+      ...(await recordAiUsage(deps, {
+        id: usageId,
+        kind: 'other',
+        provider: result.provider ?? provider.provider,
+        model: result.model,
+        usage: result.usage,
+        settings
+      }))
+    ];
+    // A cut answer is no JSON; it is named as cut, not as a wrong format.
+    if (result.truncated === true) failed = { errorCode: 'AI_TRUNCATED', model: result.model };
+    else
+      try {
+        review = analyticsReviewSchema.parse(JSON.parse(result.text));
+      } catch {
+        failed = { errorCode: 'AI_BAD_FORMAT', model: result.model };
+      }
   }
-  const usageId = deps.newId();
-  const budgetEvents = await recordAiUsage(deps, {
-    id: usageId,
-    kind: 'other',
-    provider: result.provider ?? provider.provider,
-    model: result.model,
-    usage: result.usage,
-    settings
-  });
-  let review: AnalyticsReview;
-  try {
-    review = analyticsReviewSchema.parse(JSON.parse(result.text));
-  } catch {
-    return { review: null, names: [], errorCode: 'AI_BAD_FORMAT', model: result.model, usageId, budgetEvents };
-  }
+  if (review === null)
+    return {
+      review: null,
+      names: [],
+      errorCode: failed?.errorCode ?? 'AI_BAD_FORMAT',
+      model: failed?.model ?? null,
+      usageId,
+      budgetEvents
+    };
   const names = shortNames(review.names ?? [], naming, taken);
   const { names: _named, ...reviewed } = review;
   // The day says no main line, question or steps (owner, 22.10.2026): whatever the model put there is dropped.
@@ -287,8 +319,8 @@ export async function writeAnalyticsReview(
   };
   if (unverifiedNumbers(review, input.facts).length > 0)
     // The names are kept even then: they are checked on their own and are no facts.
-    return { review: null, names, errorCode: 'AI_NUMBERS_UNVERIFIED', model: result.model, usageId, budgetEvents };
-  return { review, names, errorCode: null, model: result.model, usageId, budgetEvents };
+    return { review: null, names, errorCode: 'AI_NUMBERS_UNVERIFIED', model: answeredModel, usageId, budgetEvents };
+  return { review, names, errorCode: null, model: answeredModel, usageId, budgetEvents };
 }
 
 /** The names the review gave: only for listed ids, short, and never one name for two videos. */
