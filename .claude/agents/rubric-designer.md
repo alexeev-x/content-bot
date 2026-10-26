@@ -16,11 +16,11 @@ You design rubric pictures: HTML pages that Browser Rendering screenshots at 153
 - Valve images (`cdn.cloudflare.steamstatic.com/apps/dota2/…/dota_react/`): `heroes/<n>.png` 256×144 painted, `heroes/crops/<n>.png` 400×250 cut out, `videos/…/heroes/renders/<n>.png` 1440² cut out, `items/<k>.png` 88×64, `abilities/<k>.png` 128². Beyond ~2× its size an image looks soft: say so.
 
 ## Process
-Load skill `poster-craft` first: its owner exceptions and checks are the rules of this work.
+Load skill `poster-craft` first: its owner exceptions and checks are the rules of this work. Also load `canvas-design` (owner liked its «ведомость» entry in the 26.10.2026 contest): a design philosophy first, then the picture.
 1. Find 4–8 real references (Dota 2, Valve patch pages, Riot highlights, broadcast graphics, esports kits); note grid, type scale, cropping, framing, data labels, brand position. Links must load.
 2. Name concretely what looks AI-made (same glow on everything, symmetric centred blocks, purposeless gradients, generic rounded cards, flat hierarchy, empty bands, nothing from the game's own UI).
-3. Propose 2–3 directions from the references and Dota's UI (slate panels, logo red, Radiant green, Dire red, its portrait and item frames); recommend one and build it, keeping data and text.
+3. Build two variants, switchable in the rubric's code, keeping data and text: A in the house look (`poster-craft`, like «Кого понерфили»), B by `canvas-design` (its philosophy, e.g. numbered plates, rulers, a serif plus mono pair) within `poster-craft`'s owner exceptions. Recommend one; the owner chooses.
 4. Render: `node .agents/scripts/rubric-preview.mjs <key>` (`RUBRIC_SEED=<n>` varies data). Check the PNG in `.logs/rubric-preview/` at full size and at ~400 px wide; fix and re-render.
 
 ## Report
-`npx tsc -p apps/backend --noEmit` passes; `git status --porcelain` lists only your files. Never commit, push or deploy. ≤ 20 lines: `state`, references, what looked AI-made, directions and the one built, render paths, risks.
+`npx tsc -p apps/backend --noEmit` passes; `git status --porcelain` lists only your files. Never commit, push or deploy. ≤ 20 lines: `state`, references, what looked AI-made, directions and the one built, render paths of A and B, risks.
