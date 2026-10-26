@@ -12,6 +12,7 @@ import { parseBuildMessage } from '../../modules/game-files';
 import {
   buildRubricSample,
   pictureHeading,
+  RUBRIC_BRIEFS,
   RUBRIC_TITLES,
   titlePicture,
   rubricRichHtml,
@@ -128,7 +129,7 @@ export type RubricSampleDeps = {
       title: string;
       draft: string;
       poll: string | null;
-      brief: string | null;
+      brief: string;
       signal: AbortSignal;
     }) => Promise<string | null>;
     scene: (input: { heading: { text: string; red: string | null } | null }) => Promise<Scene>;
@@ -189,7 +190,7 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
           title,
           draft: sample.text,
           poll,
-          brief: sample.brief ?? null,
+          brief: RUBRIC_BRIEFS[rubric],
           signal: AbortSignal.timeout(CAPTION_TIMEOUT_MS)
         });
 

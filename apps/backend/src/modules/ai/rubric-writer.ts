@@ -21,16 +21,17 @@ const ANSWER_SCHEMA = {
 // A photo caption holds 1024 characters.
 const answerSchema = z.object({ text: z.string().trim().min(20).max(900) });
 
-const INSTRUCTIONS = [
+const RULES = [
   'Ты пишешь пост рубрики для русскоязычного Telegram-канала про Dota 2, в голосе автора: коротко, по-свойски, с иронией, сленг игроков, можно грубый юмор и мат.',
   'Тебе дают название рубрики, черновик с фактами из живых данных и опрос, если он есть. Перепиши черновик в живой пост: вступление в 1–2 строки, список, если он есть, и концовка.',
   'Все цифры, проценты, способности и предметы из черновика сохрани ровно как есть; ничего не добавляй от себя и не выдумывай фактов.',
-  'Строки черновика вида «Название: было → стало» (иногда со знаком ▲ или ▼ в начале) — это таблица: оставь каждую отдельной строкой, в том же порядке, с теми же знаками, названиями и цифрами; только героя в них можно назвать так, как его зовут игроки. Не пиши, усилили это или ослабили, если черновик сам этого не говорит.',
-  'Концовка — живой вопрос к подписчикам, чтобы хотелось ответить в комментариях (играют ли они на этих героях, кого теперь пикать, кто страдает больше всех).',
-  'Если есть опрос — не называй правильный ответ и не подсказывай его; закончи призывом проголосовать или написать в комментарии.',
   'Шутка — только если она прямо про эти факты и понятна любому игроку с первого прочтения; лучше без шутки, чем непонятная или притянутая. Не вставляй мемы ради мемов.',
   'Героев называй так, как говорят игроки (Котл, Пудж, ЦМка). Только русский текст, английские только имена; без хэштегов, ссылок и эмодзи-простыней; пост самостоятельный, не ссылайся на другие посты.'
-].join('\n');
+];
+// The rules every rubric gets: the channel's voice and the facts. How a post is built and how it ends is the
+// rubric's own task (owner, 26.10.2026: «общее все получают, а уже детали рубрики — каждая свою инструкцию»),
+// modules/rubrics/briefs.ts, given in the instructions too so it is never outweighed.
+const instructionsFor = (brief: string) => [...RULES, `Задание этой рубрики:\n${brief}`].join('\n');
 
 const draftNumbers = (text: string) => text.match(/\d+(?:[.,]\d+)?/g) ?? [];
 const URL_PATTERN = /https?:\/\/\S+/g;
@@ -42,8 +43,8 @@ export async function writeRubricCaption(
     title: string;
     draft: string;
     poll: string | null;
-    /** The rubric's own task for the writer, over the general rules where they differ. */
-    brief?: string | null;
+    /** The rubric's own task: how its post is built and how it ends. */
+    brief: string;
     signal: AbortSignal;
   }
 ): Promise<string | null> {
@@ -61,11 +62,10 @@ export async function writeRubricCaption(
   try {
     result = await ready.provider.complete({
       model: ready.model,
-      instructions: INSTRUCTIONS,
+      instructions: instructionsFor(input.brief),
       input: [
         `Рубрика: ${input.title}`,
         `Черновик:\n${draft}`,
-        ...(input.brief ? [`Задание этой рубрики (важнее общих правил, где они расходятся):\n${input.brief}`] : []),
         input.poll === null ? 'Опроса нет.' : `Опрос под постом: ${input.poll}`
       ].join('\n\n'),
       // Room for a reasoning model's thinking.
