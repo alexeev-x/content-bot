@@ -277,4 +277,4 @@ The AI turns new source events into news posts in the owner's voice: what happen
 
 ## Next: video
 
-Once 1–3 are done (owner, 20.10.2026): video. Planned with the owner when it starts.
+Planned with the owner on 26.10.2026: `docs/VIDEO_PLAN.md`.
