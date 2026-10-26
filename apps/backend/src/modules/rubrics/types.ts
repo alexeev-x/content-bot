@@ -104,6 +104,8 @@ export interface RubricSample {
   picture: { html: string; width: number; height: number } | null;
   /** Plain text: the caption under the picture, or the message itself. */
   text: string;
+  /** This rubric's own task for the AI writer (how to retell the draft), when the general rules are not enough. */
+  brief?: string;
   poll: {
     question: string;
     options: string[];

@@ -38,7 +38,14 @@ const URL_PATTERN = /https?:\/\/\S+/g;
 /** The AI's caption, or null when the AI is off, out of budget, failed, or dropped a number of the draft. */
 export async function writeRubricCaption(
   deps: { repo: AiRepository; clock: Clock; timezone: string; newId: () => string; provider: AiTextProvider | null },
-  input: { title: string; draft: string; poll: string | null; signal: AbortSignal }
+  input: {
+    title: string;
+    draft: string;
+    poll: string | null;
+    /** The rubric's own task for the writer, over the general rules where they differ. */
+    brief?: string | null;
+    signal: AbortSignal;
+  }
 ): Promise<string | null> {
   // A link (a Workshop page) is kept by code under the text: the writer never sees or writes an address.
   const links = input.draft.match(URL_PATTERN) ?? [];
@@ -58,6 +65,7 @@ export async function writeRubricCaption(
       input: [
         `Рубрика: ${input.title}`,
         `Черновик:\n${draft}`,
+        ...(input.brief ? [`Задание этой рубрики (важнее общих правил, где они расходятся):\n${input.brief}`] : []),
         input.poll === null ? 'Опроса нет.' : `Опрос под постом: ${input.poll}`
       ].join('\n\n'),
       // Room for a reasoning model's thinking.

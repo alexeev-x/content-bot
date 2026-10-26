@@ -128,6 +128,7 @@ export type RubricSampleDeps = {
       title: string;
       draft: string;
       poll: string | null;
+      brief: string | null;
       signal: AbortSignal;
     }) => Promise<string | null>;
     scene: (input: { heading: { text: string; red: string | null } | null }) => Promise<Scene>;
@@ -184,7 +185,13 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
   const caption =
     deps.ai === null
       ? Promise.resolve(null)
-      : deps.ai.caption({ title, draft: sample.text, poll, signal: AbortSignal.timeout(CAPTION_TIMEOUT_MS) });
+      : deps.ai.caption({
+          title,
+          draft: sample.text,
+          poll,
+          brief: sample.brief ?? null,
+          signal: AbortSignal.timeout(CAPTION_TIMEOUT_MS)
+        });
 
   const notes: string[] = [];
   let picture: Uint8Array | null = null;

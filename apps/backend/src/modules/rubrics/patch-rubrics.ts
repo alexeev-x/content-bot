@@ -239,6 +239,9 @@ function imbaPicture(version: string, heroes: { hero: HeroInfo; percent: number 
   );
 }
 
+/** Six portraits still read on a phone in one row; more would shrink every face. */
+const IMBA_HEROES_MAX = 6;
+
 export async function whoIsImba(context: RubricContext): Promise<RubricSample> {
   const patch = await latestPatch(context);
   // Heroes who came out stronger than they were (owner, 26.10.2026: «кто стал сильнее, чем был — это важно»): the sum of
@@ -247,7 +250,7 @@ export async function whoIsImba(context: RubricContext): Promise<RubricSample> {
   const own = (heroId: number) => patch.changes.filter((change) => change.heroId === heroId);
   const sum = (changes: Change[]) => changes.reduce((total, change) => total + change.size, 0);
   const biggestOf = (changes: Change[]) => [...changes].sort((a, b) => b.size - a.size)[0];
-  const top = patch.scored
+  const ranked = patch.scored
     .map((each) => {
       const changes = own(each.hero.id);
       const buffs = changes.filter((change) => change.buff);
@@ -263,8 +266,11 @@ export async function whoIsImba(context: RubricContext): Promise<RubricSample> {
       };
     })
     .filter((each) => each.net > 0 && each.biggest !== undefined)
-    .sort((a, b) => b.net - a.net)
-    .slice(0, 6);
+    .sort((a, b) => b.net - a.net);
+  // As many heroes as really came out stronger (owner, 26.10.2026: «важно, сколько героев реально усилили»); the
+  // picture holds six at most, the text tells the real count when there are more.
+  const stronger = ranked.length;
+  const top = ranked.slice(0, IMBA_HEROES_MAX);
   if (top.length < 2) throw noData('heroes who came out stronger');
   // In words, no «было → стало» table (owner, 26.10.2026: «хватит таблиц, тут просто словами»): no arrow, so the rich
   // message makes no table of it; the AI writer retells it in the channel's voice. A nerf beside the buff is said too.
@@ -283,7 +289,19 @@ export async function whoIsImba(context: RubricContext): Promise<RubricSample> {
   );
   return {
     picture: { html: imbaPicture(patch.version, top), ...PICTURE_SIZE },
-    text: [`После патча ${patch.version} эти герои стали сильнее, чем были:`, ...lines, 'Кто теперь имба?'].join('\n'),
+    text: [
+      stronger > top.length
+        ? `После патча ${patch.version} сильнее, чем были, стали ${stronger} ${plural(stronger, 'герой', 'героя', 'героев')}, вот ${top.length} самых заметных:`
+        : `После патча ${patch.version} эти герои стали сильнее, чем были:`,
+      ...lines
+    ].join('\n'),
+    // The writer retells it in words, with humour (owner, 26.10.2026: «просто словами … теперь пиздячка будет больше»).
+    brief: [
+      'Строки героев — не таблица: перескажи каждую одной живой смешной фразой своими словами — что герою подняли и что это значит в игре (бьёт больнее, мана почти не нужна, быстрее фармит, дольше живёт).',
+      'Цифры из строки вставь в эту фразу как есть («было … стало …» не пиши), героя называй как игроки. Каждый герой — отдельной строкой.',
+      'Если у героя есть «зато порезали», скажи и это, коротко и с подколкой.',
+      'Без вопроса в конце и без призыва голосовать или писать в комментарии: опрос под постом спросит сам. Закончи последним героем или короткой фразой без вопроса.'
+    ].join('\n'),
     poll: poll(
       `Кто имба после ${patch.version}?`,
       withJoke(
