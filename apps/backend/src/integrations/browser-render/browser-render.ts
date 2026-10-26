@@ -3,6 +3,8 @@
 // items and words come out exactly; no model draws them. Only the binding's one call is typed here.
 
 export const BROWSER_RENDER_TIMEOUT_MS = 30_000;
+/** The attribute a page sets on <html> once its web fonts are loaded; the shot waits for it. */
+export const FONTS_READY = 'data-fonts-ready';
 const MAX_PNG_BYTES = 8_000_000;
 
 export interface BrowserBinding {
@@ -13,6 +15,7 @@ export interface BrowserBinding {
       viewport: { width: number; height: number; deviceScaleFactor?: number };
       screenshotOptions: { type: 'png' } | { type: 'jpeg'; quality: number };
       gotoOptions: { waitUntil: 'networkidle0'; timeout: number };
+      waitForSelector?: { selector: string; timeout: number };
     }
   ): Promise<Response>;
 }
@@ -50,7 +53,10 @@ export function createBrowserPictureRenderer(binding: BrowserBinding): PictureRe
             viewport: { width, height },
             screenshotOptions: format === 'png' ? { type: 'png' } : { type: 'jpeg', quality: 90 },
             // The page fetches Valve's icons and the font itself; the shot waits until the network is quiet.
-            gotoOptions: { waitUntil: 'networkidle0', timeout: BROWSER_RENDER_TIMEOUT_MS - 5_000 }
+            gotoOptions: { waitUntil: 'networkidle0', timeout: BROWSER_RENDER_TIMEOUT_MS - 5_000 },
+            // A quiet network is not enough: a page with no images went quiet before its fonts came, and the shot had
+            // no text at all (26.10.2026, «Чья способность?»). The page marks itself once its fonts are in.
+            waitForSelector: { selector: `[${FONTS_READY}]`, timeout: 12_000 }
           }),
           timeout
         ]);

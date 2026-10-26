@@ -11,10 +11,11 @@
 // Light steps run at once; heavy ones (tsc, test pools, build) run one after another alongside them, because
 // all of them together exhaust a 16 GB laptop's memory and macOS starts force-quitting apps.
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runCommandAsync, commandOutput } from './run-command.mjs';
+import { treeHash } from '../hooks/verify-on-stop.mjs';
 
 // The frontend build bundles the Worker too, so it also proves the backend still deploys. Plain `vite build`:
 // the typecheck steps already run tsc.
@@ -179,6 +180,7 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
     );
   }
   steps = selectSteps(steps, process.argv, STEPS);
+  const hashBefore = treeHash(root);
   const runStep = async ([name, [cmd, ...args]]) => {
     const started = Date.now();
     const run = await runCommandAsync(cmd, args, { cwd: root });
@@ -208,6 +210,15 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const failed = runs.filter((r) => r.status !== 0).length;
   mkdirSync(join(root, '.logs'), { recursive: true });
   writeFileSync(join(root, '.logs/verify.log'), log);
+  // A green --changed run on an unchanged tree is remembered, so the stop hook does not run the same checks again
+  // (owner, 26.10.2026: the hook re-ran ~2 minutes after every reply and spent tokens).
+  const full = !process.argv.includes('--only') && !process.argv.includes('--skip');
+  if (!failed && process.argv.includes('--changed') && full && treeHash(root) === hashBefore) {
+    const stateFile = join(root, '.agent-metrics', 'verify-state.json');
+    const state = existsSync(stateFile) ? JSON.parse(readFileSync(stateFile, 'utf8')) : { blocks: {} };
+    mkdirSync(join(root, '.agent-metrics'), { recursive: true });
+    writeFileSync(stateFile, JSON.stringify({ ...state, lastGreen: hashBefore, coverage: 'verify:changed' }));
+  }
   console.log(failed ? `verify: ${failed} step(s) failed — full log: .logs/verify.log` : 'verify: all green');
   process.exit(failed ? 1 : 0);
 }

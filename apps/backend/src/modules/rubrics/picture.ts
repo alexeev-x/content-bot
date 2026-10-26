@@ -23,6 +23,13 @@ export const abilityImage = (abilityKey: string) => `${CDN}/abilities/${imageKey
 export const rankMedalImage = (bracket: number) =>
   `https://www.opendota.com/assets/images/dota2/rank_icons/rank_icon_${Math.min(Math.max(Math.trunc(bracket), 1), 8)}.png`;
 
+// The page marks <html data-fonts-ready> once its web fonts are loaded (or after 8 s, so a font outage still gives a
+// picture), and the screenshot waits for that mark (integrations/browser-render, FONTS_READY): a quiet network alone
+// let a page without images be shot before its fonts came, with no text at all (26.10.2026).
+const FONTS_SCRIPT = `<script>(()=>{const done=()=>document.documentElement.setAttribute('data-fonts-ready','');
+Promise.all(['800 60px Tektur','600 20px Manrope','800 20px Manrope'].map((font)=>document.fonts.load(font)))
+.then(()=>document.fonts.ready).then(done,done);setTimeout(done,8000);})();</script>`;
+
 export function picturePage(body: string, extraCss = ''): string {
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -56,7 +63,7 @@ border:1px solid var(--line);background:var(--panel);padding:10px 22px;font-weig
 .main::after{content:'';margin-top:auto}
 .mark{position:absolute;top:30px;left:82px;font-weight:800;font-size:15px;letter-spacing:7px;color:var(--muted)}
 ${extraCss}
-</style></head><body><div class="mark">ALEXEEV</div><main class="main">${body}</main></body></html>`;
+</style></head><body><div class="mark">ALEXEEV</div><main class="main">${body}</main>${FONTS_SCRIPT}</body></html>`;
 }
 
 const plainText = (html: string) =>
