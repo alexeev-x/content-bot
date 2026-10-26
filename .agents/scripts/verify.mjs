@@ -2,7 +2,8 @@
 // The full output goes to .logs/verify.log, which agents read only when the summary is not enough.
 // Nothing is filtered from the log itself, so no error line is ever lost.
 //
-// `--changed` checks only what the current changes touch (pre-push hook, agent stop hook, CI):
+// `--changed` checks only what the current changes touch (pre-push hook, agent stop hook, CI), and runs only the
+// tests named after the changed files:
 // commits not yet pushed + uncommitted work locally; CI can pass `--base <sha>` for its exact push/PR range.
 // `--only a,b` / `--skip a,b` filter either the full plan or the changed-file plan. CI runs the slow test
 // suites in its own steps of the same job and keeps the rest of the affected verification here.
@@ -73,10 +74,31 @@ export function planSteps(files, { existingFiles = files } = {}) {
   if (backend) steps.push(['backend-typecheck', ['npm', 'run', 'typecheck', '-w', '@alexeev/backend']]);
   if (frontend) steps.push(['frontend-typecheck', ['npm', 'run', 'typecheck', '-w', '@alexeev/frontend']]);
   if (backend || frontend) steps.push(['architecture', ['npm', 'run', 'depcruise']]);
-  if (backend) steps.push(['backend-tests', ['npm', 'run', 'test', '-w', '@alexeev/backend']]);
-  if (frontend) steps.push(['frontend-tests', ['npm', 'run', 'test', '-w', '@alexeev/frontend']]);
+  if (backend) steps.push(['backend-tests', tests('backend', contracts, existingFiles)]);
+  if (frontend) steps.push(['frontend-tests', tests('frontend', contracts, existingFiles)]);
   if (backend || frontend) steps.push(BUILD);
   return steps;
+}
+
+// Only the tests named after what changed (owner, 26.10.2026: a DEV push must take seconds, not minutes of the whole
+// suite). An import graph does not narrow it: almost every test loads the app's container and through it every module.
+// The filters are the changed files' names and their module folder («rubrics» → every test path with «rubric»).
+// A contract change still runs a package's whole suite; CI runs every suite for main and PRs.
+function tests(pkg, contracts, existingFiles) {
+  const prefix = `apps/${pkg}/`;
+  const own = existingFiles.filter((f) => f.startsWith(prefix) && LINT_FILES.test(f));
+  if (contracts || own.length === 0) return ['npm', 'run', 'test', '-w', `@alexeev/${pkg}`];
+  const names = new Set();
+  for (const file of own) {
+    const base = file
+      .split('/')
+      .pop()
+      .replace(/\.(test\.)?[cm]?[jt]sx?$/, '');
+    names.add(base);
+    const module = /\/(?:modules|features|integrations)\/([^/]+)\//.exec(file)?.[1];
+    if (module) names.add(module.replace(/s$/, ''));
+  }
+  return ['npm', 'exec', '-w', `@alexeev/${pkg}`, '--', 'vitest', 'run', '--passWithNoTests', ...names];
 }
 
 const RELEVANT =
