@@ -260,7 +260,9 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
           question: sample.poll.question,
           options: sample.poll.options,
           type: sample.poll.type,
+          // One answer, the options in a random order for each voter (owner, 26.10.2026).
           allows_multiple_answers: false,
+          shuffle_options: true,
           ...(sample.poll.correctOption === null ? {} : { correct_option_ids: [sample.poll.correctOption] }),
           ...(sample.poll.explanation === null ? {} : { explanation: sample.poll.explanation })
         },

@@ -160,6 +160,26 @@ export const quiz = (
   explanation: explanation.slice(0, 200)
 });
 
+// A rubric's regular poll gets one joke option in the owner's own words (owner, 26.10.2026: «рубрики должны весёлые
+// ещё быть», «только 1 из этого»). Never for a quiz: it would break the correct answer.
+const JOKE_OPTIONS = [
+  'Ой, да пошёл ты нахуй',
+  'Нахуй мне эта инфа',
+  'Ты что, уебан?',
+  'Пиздёж',
+  'У тебя хуй воняет',
+  'Покажи член',
+  'Мне похуй, я на Пудже',
+  'Имба тут только я',
+  'Удали доту'
+] as const;
+
+/** The options with one random joke option added at the end (the poll is shuffled for each voter). */
+export const withJoke = (options: string[], random: () => number): string[] => [
+  ...options,
+  JOKE_OPTIONS[Math.floor(random() * JOKE_OPTIONS.length)] ?? JOKE_OPTIONS[0]
+];
+
 export const poll = (question: string, options: string[]): RubricSample['poll'] => ({
   question: question.slice(0, 300),
   options: options.map((option) => option.slice(0, 100)),

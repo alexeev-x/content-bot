@@ -8,7 +8,7 @@ import styles from './RubricSamples.module.css';
 type Need = 'ready' | 'stratz' | 'later';
 const RUBRICS: { key: RubricSampleKey; label: string; note: string; need: Need }[] = [
   { key: 'patch_broken', label: '1. Кого понерфили', note: 'картинка: ослабленные герои патча', need: 'ready' },
-  { key: 'who_is_imba', label: '2. Кто теперь имба?', note: 'опрос', need: 'ready' },
+  { key: 'who_is_imba', label: '2. Кто теперь имба?', note: 'картинка + опрос', need: 'ready' },
   { key: 'nerf_or_buff', label: '3. Нерф или баф?', note: 'картинка + викторина', need: 'ready' },
   { key: 'whose_ability', label: '4. Чья способность?', note: 'викторина по цифрам', need: 'ready' },
   { key: 'files_dont_lie', label: '5. Файлы не врут', note: 'текст, нужен GITHUB_TOKEN', need: 'ready' },

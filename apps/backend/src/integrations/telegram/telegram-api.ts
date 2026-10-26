@@ -57,6 +57,8 @@ export interface TelegramPollParams extends TelegramSendFlags {
   options: string[];
   type: 'regular' | 'quiz';
   allows_multiple_answers: boolean;
+  /** Each voter sees the options in their own random order. */
+  shuffle_options?: boolean;
   correct_option_ids?: number[];
   explanation?: string;
 }

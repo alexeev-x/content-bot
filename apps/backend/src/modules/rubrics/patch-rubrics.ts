@@ -1,13 +1,24 @@
 import { abilityImage, escapeHtml, heroImage, heroPortraitImage, PICTURE_SIZE, picturePage } from './picture';
-import { type HeroInfo, noData, pick, plural, poll, quiz, type RubricContext, type RubricSample } from './types';
+import {
+  type HeroInfo,
+  noData,
+  pick,
+  plural,
+  poll,
+  quiz,
+  type RubricContext,
+  type RubricSample,
+  withJoke
+} from './types';
 
 // Rubrics over Valve's latest patch notes (Russian datafeed). A note «X увеличен с 60 до 65» is read as a buff or a
 // nerf by the stat's name: for a cooldown, a cost or a cast time less is better, for the rest more is better.
 
 const CHANGE =
   /^(.+?)\s+(увеличен[аоы]?|повышен[аоы]?|уменьшен[аоы]?|снижен[аоы]?|понижен[аоы]?)\s+с\s+([\d.,/%\s]+?)\s+до\s+([\d.,/%\s]+?)\.?$/iu;
+// «Расход маны» too (26.10.2026: Power Cogs' mana cost 75 → 90 passed for a buff).
 const LESS_IS_BETTER =
-  /перезарядк|затрат|стоимост|время применения|время каста|время возрождения|задержк|урон по себе/iu;
+  /перезарядк|затрат|стоимост|расход|время применения|время каста|время возрождения|задержк|урон по себе/iu;
 
 interface Change {
   heroId: number;
@@ -138,17 +149,148 @@ export async function patchBroken(context: RubricContext): Promise<RubricSample>
   return { picture: { html, ...PICTURE_SIZE }, text: lines.join('\n'), poll: null };
 }
 
+// «Кто теперь имба?» is 01's pair (buffs instead of nerfs) but must not look like it (owner, 26.10.2026: «дизайн все же
+// отличался между рубриками»). Two looks, switched here: 'A' — the heroes are too big for their cards, Valve's full
+// renders break out above a row of tall cards under a wide Unbounded title; 'B' — a measuring plate, each portrait raised
+// over a ruled scale by its biggest buff, in % of the old value (a cooldown cut counts too) (owner: «не понятно, что за правок»; in a small patch
+// every hero has one buff, so a count would stand them all level), an accent Tektur title only (owner, 26.10.2026), the labels and figures in the page's plain Manrope.
+const IMBA_LOOK: 'A' | 'B' = 'B';
+
+/** Valve's 1440² cut-out render: sharp even at full card height, unlike the 400×250 crop. */
+const heroRender = (heroName: string) => {
+  const key = heroName.replace(/^npc_dota_hero_/, '');
+  return `https://cdn.cloudflare.steamstatic.com/apps/dota2/videos/dota_react/heroes/renders/${/^[a-z0-9_]{1,80}$/.test(key) ? key : 'default'}.png`;
+};
+
+// A: cards share one row (grid columns by count, so 2…6 heroes fill the width); the render's clip is open at the top,
+// so heads rise over the card's edge, and the card bottom crops the legs. 01's frame: 10 px radius, 1 px light border.
+const IMBA_A_CSS = `body{display:block;padding:0;background:#0b0c0e}body::before,body::after{content:none}
+.main{position:absolute;inset:0;display:block;padding:0}.main::after{content:none}
+.mark{top:44px;left:72px;color:#6b6f76}
+.title{position:absolute;margin:0;left:72px;top:82px;font-family:Unbounded,sans-serif;font-weight:900;font-size:64px;
+line-height:1;letter-spacing:-.01em}.title::after{content:none}
+.plate{position:absolute;top:44px;right:72px;display:block;border:0;border-radius:0;background:none;padding:0;
+text-align:right;font-family:Unbounded,sans-serif;font-weight:700;font-size:48px;line-height:1;color:#f1ebe0}
+.plate small{display:block;margin-bottom:14px;font-family:Manrope,sans-serif;font-weight:800;font-size:18px;
+letter-spacing:8px;color:#d63a22}
+.heroes{position:absolute;left:72px;right:72px;top:176px;bottom:56px;display:grid;grid-auto-flow:column;
+grid-auto-columns:1fr;gap:14px}
+.tile{position:relative;container-type:size}
+.card{position:absolute;left:0;right:0;bottom:0;top:136px;border-radius:10px;border:1px solid rgba(255,255,255,.14);
+background:linear-gradient(#1d232b,#13171d)}
+.fig{position:absolute;inset:0;clip-path:inset(0 1px 1px 1px round 0 0 9px 9px)}
+.fig img{position:absolute;left:50%;top:0;height:max(132cqh,118cqw);transform:translateX(-50%)}`;
+
+// B: a ruled plate; one rule per tenth of the top hero's growth, every fifth stronger, so a portrait's height over the base line can be counted.
+// The heroes stand from the smallest buff to the biggest, left to right: the row climbs.
+const IMBA_B_CSS = `body{display:block;padding:0;background:#0d0d0e}body::before,body::after{content:none}
+.main{position:absolute;inset:0;display:block;padding:0}.main::after{content:none}
+.mark{top:44px;left:72px;color:#6b6f76}
+.title{position:absolute;margin:0;left:68px;top:84px;font-family:Tektur,sans-serif;font-weight:800;font-style:normal;
+font-size:96px;line-height:1;letter-spacing:-.01em;text-transform:none}.title::after{content:none}
+.plate{position:absolute;left:72px;right:auto;top:212px;display:block;border:0;border-radius:0;background:none;padding:0;
+font-family:Manrope,sans-serif;font-weight:600;font-size:26px;color:#8a929e}
+.scale{position:absolute;left:72px;right:72px;bottom:96px;height:calc(var(--max) * var(--unit));
+background:repeating-linear-gradient(to top,rgba(255,255,255,.2) 0 1px,transparent 1px calc(var(--unit) * 5)),
+repeating-linear-gradient(to top,rgba(255,255,255,.09) 0 1px,transparent 1px var(--unit))}
+.base{position:absolute;left:72px;right:72px;bottom:95px;height:2px;background:#f1ebe0}
+.heroes{position:absolute;left:72px;right:72px;bottom:96px;height:600px;display:grid;grid-auto-flow:column;
+grid-auto-columns:1fr;gap:24px;align-items:end}
+.tile{position:relative;display:flex;flex-direction:column;align-items:center;height:calc(var(--n) * var(--unit))}
+.tile::after{content:'';position:absolute;top:0;bottom:0;left:50%;width:2px;margin-left:-1px;background:#f1ebe0}
+.face{position:absolute;bottom:100%;width:min(100%,360px);aspect-ratio:16/9;object-fit:cover;border-radius:10px;
+border:1px solid rgba(255,255,255,.14);background:#1d2229}
+.num{position:absolute;top:calc(100% + 16px);font-family:Manrope,sans-serif;font-weight:800;font-size:28px;
+font-variant-numeric:tabular-nums;color:#f1ebe0}`;
+
+function imbaPicture(version: string, heroes: { hero: HeroInfo; percent: number }[]): string {
+  if (IMBA_LOOK === 'A') {
+    const tiles = heroes
+      .map(
+        (each) =>
+          `<div class="tile"><div class="card"></div><div class="fig"><img src="${heroRender(each.hero.name)}" alt=""></div></div>`
+      )
+      .join('');
+    return picturePage(
+      `<div class="title">Кто теперь <b>имба?</b></div>
+<div class="heroes">${tiles}</div>
+<div class="plate"><small>ПАТЧ</small>${escapeHtml(version)}</div>`,
+      IMBA_A_CSS
+    );
+  }
+  const climbing = [...heroes].sort((a, b) => a.percent - b.percent);
+  // Ten rules for the tallest; the others stand in proportion (at least one rule, so no portrait sits on the line).
+  const top = Math.max(...climbing.map((each) => each.percent));
+  const steps = (percent: number) => Math.max(1, Math.round((percent / top) * 10));
+  const max = 10;
+  const tiles = climbing
+    .map(
+      (each) =>
+        `<div class="tile" style="--n:${steps(each.percent)}"><img class="face" src="${heroPortraitImage(each.hero.name)}" alt=""><div class="num">на ${each.percent}%</div></div>`
+    )
+    .join('');
+  return picturePage(
+    `${googleFont('Tektur:wght@800')}
+<div class="title">Кто теперь <b>имба?</b></div>
+<div class="plate">Самое крупное усиление каждого героя в патче ${escapeHtml(version)}</div>
+<div class="scale" style="--max:${max};--unit:${Math.floor(260 / max)}px"></div>
+<div class="heroes" style="--unit:${Math.floor(260 / max)}px">${tiles}</div><div class="base"></div>`,
+    IMBA_B_CSS
+  );
+}
+
 export async function whoIsImba(context: RubricContext): Promise<RubricSample> {
   const patch = await latestPatch(context);
-  const options = patch.scored
-    .filter((each) => each.balance > 0)
-    .slice(0, 6)
-    .map((each) => each.hero.localizedName);
-  if (options.length < 2) throw noData('buffed heroes');
+  // Heroes who came out stronger than they were (owner, 26.10.2026: «кто стал сильнее, чем был — это важно»): the sum of
+  // their buffs in % beats the sum of their nerfs, so a small nerf beside a huge buff still counts («убрать силу, но очень
+  // усилить ульту»). The strongest total first.
+  const own = (heroId: number) => patch.changes.filter((change) => change.heroId === heroId);
+  const sum = (changes: Change[]) => changes.reduce((total, change) => total + change.size, 0);
+  const biggestOf = (changes: Change[]) => [...changes].sort((a, b) => b.size - a.size)[0];
+  const top = patch.scored
+    .map((each) => {
+      const changes = own(each.hero.id);
+      const buffs = changes.filter((change) => change.buff);
+      const nerfs = changes.filter((change) => !change.buff);
+      const biggest = biggestOf(buffs);
+      // The picture's scale: the hero's biggest buff in % of the old value.
+      return {
+        hero: each.hero,
+        net: sum(buffs) - sum(nerfs),
+        biggest,
+        nerf: biggestOf(nerfs),
+        percent: Math.round(100 * (biggest?.size ?? 0))
+      };
+    })
+    .filter((each) => each.net > 0 && each.biggest !== undefined)
+    .sort((a, b) => b.net - a.net)
+    .slice(0, 6);
+  if (top.length < 2) throw noData('heroes who came out stronger');
+  // In words, no «было → стало» table (owner, 26.10.2026: «хватит таблиц, тут просто словами»): no arrow, so the rich
+  // message makes no table of it; the AI writer retells it in the channel's voice. A nerf beside the buff is said too.
+  const details = await Promise.all(top.map((each) => context.sources.heroDetail(each.hero.id).catch(() => null)));
+  const said = (change: Change, index: number) => {
+    const ability = details[index]?.abilities.find((one) => one.id === change.abilityId)?.name;
+    const what = ability === undefined ? change.stat : `${ability}, ${change.stat.toLowerCase()}`;
+    return `${what} — было ${change.from}, стало ${change.to}`;
+  };
+  const lines = top.flatMap((each, index) =>
+    each.biggest === undefined
+      ? []
+      : [
+          `${each.hero.localizedName}: ${said(each.biggest, index)}${each.nerf === undefined ? '' : `; зато порезали: ${said(each.nerf, index)}`}`
+        ]
+  );
   return {
-    picture: null,
-    text: `После патча ${patch.version} этих героев усилили сильнее всех. Кто теперь имба?`,
-    poll: poll(`Кто имба после ${patch.version}?`, options)
+    picture: { html: imbaPicture(patch.version, top), ...PICTURE_SIZE },
+    text: [`После патча ${patch.version} эти герои стали сильнее, чем были:`, ...lines, 'Кто теперь имба?'].join('\n'),
+    poll: poll(
+      `Кто имба после ${patch.version}?`,
+      withJoke(
+        top.map((each) => each.hero.localizedName),
+        context.random
+      )
+    )
   };
 }
 

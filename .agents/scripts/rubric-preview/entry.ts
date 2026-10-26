@@ -94,6 +94,12 @@ const chrome = process.env.CHROME ?? 'C:/Program Files/Google/Chrome/Application
 for (const key of RUBRIC_KEYS.filter((k) => process.argv.length < 4 || process.argv.slice(3).includes(k))) {
   try {
     const sample = await buildRubricSample(key, { sources, random: rnd, now: Date.now() });
+    // The draft text and the poll next to the picture (before the AI writer retells the text).
+    const poll =
+      sample.poll === null
+        ? ''
+        : `\n\n[${sample.poll.question}]\n${sample.poll.options.map((o) => `- ${o}`).join('\n')}`;
+    writeFileSync(`${out}/${key}.txt`, `${sample.text}${poll}\n`);
     if (sample.picture === null) {
       console.log('none', key);
       continue;
