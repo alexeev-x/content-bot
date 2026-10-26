@@ -26,7 +26,7 @@ export const rankMedalImage = (bracket: number) =>
 export function picturePage(body: string, extraCss = ''): string {
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;800&amp;family=Unbounded:wght@700;900&amp;display=block&amp;subset=cyrillic" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;800&amp;family=Tektur:wght@800&amp;family=Unbounded:wght@700;900&amp;display=block&amp;subset=cyrillic" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{--panel:#131820;--line:rgba(255,255,255,.08);--red:#d63a22;--good:#6fbf5a;--text:#f1ebe0;--muted:#8a929e;
@@ -39,7 +39,7 @@ display:flex;flex-direction:column;align-items:center;padding:60px 72px 40px 82p
 body::before{content:'';position:absolute;inset:0;pointer-events:none;
 background:repeating-linear-gradient(135deg,rgba(255,255,255,.018) 0 2px,transparent 2px 14px)}
 body::after{content:'';position:absolute;left:0;top:0;bottom:0;width:10px;background:var(--red)}
-.title{align-self:flex-start;margin-bottom:auto;font-family:Unbounded,Arial,sans-serif;font-weight:900;font-size:60px;letter-spacing:-1px;
+.title{align-self:flex-start;margin-bottom:auto;font-family:Tektur,Arial,sans-serif;font-weight:800;font-size:60px;letter-spacing:0;
 text-transform:uppercase;line-height:1.05;color:var(--text)}
 .title b{color:var(--red)}
 .title::after{content:'';display:block;width:120px;height:3px;background:var(--red);margin-top:18px}

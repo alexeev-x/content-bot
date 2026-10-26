@@ -91,9 +91,9 @@ const googleFont = (family: string) =>
 const BROKEN_CSS = `body{display:block;padding:0;background:#0a0a0b}body::before,body::after{content:none}
 .main{position:absolute;inset:0;display:block;padding:0}.main::after{content:none}
 .mark{top:44px;left:64px;color:#6b6f76}
-.title{position:absolute;margin:0;left:58px;top:82px;font-family:Oswald,sans-serif;font-weight:700;font-size:172px;
+.title{position:absolute;margin:0;left:58px;top:82px;font-family:Tektur,sans-serif;font-weight:800;font-size:150px;
 line-height:.86;letter-spacing:0;text-transform:uppercase}.title::after{content:none}
-.title b{display:block;font-size:110px;line-height:1.04}
+.title b{display:block;font-size:84px;line-height:1.1}
 .plate{position:absolute;left:64px;right:auto;top:auto;bottom:52px;display:block;gap:0;border:0;border-radius:0;
 background:none;padding:0;font-family:Oswald,sans-serif;font-weight:500;font-size:136px;line-height:.9;color:transparent;
 -webkit-text-stroke:3px #f1ebe0}
