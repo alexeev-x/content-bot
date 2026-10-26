@@ -215,8 +215,8 @@ Each rubric has a picture rule (owner, 25.10.2026: «разбавляй карт
 or items, «VS», a look to rate, a picture-riddle, a visual joke); optional for one or two heroes or one ability, and
 the scheduler alternates picture and text; forbidden where it gives a quiz answer away; not needed for a number, a
 text joke or a poll. The text stays 2–4 lines. Rubric pictures are layered (owner, 25.10.2026: the image model repeats one character from one photo exactly, but
-mixes up five characters with text): the owner's template per rubric (1536×768 PNG with empty slots, in
-`design-refs/<rubric>/`), Valve's real hero (256×144), item (88×64) and ability (128×128) icons placed in the slots by
+mixes up five characters with text): a simple HTML layout per rubric drawn by code (owner, 26.10.2026: no image templates, «простые как сейчас»;
+what each shows: `design-refs/rubrics/<NN>-<key>/README.md`), Valve's real hero, item and ability images placed in it by
 code. The model draws only scenes without exact characters, or one hero per call from one reference. The layers are
 composed by Cloudflare Browser Rendering (free plan, 10 browser minutes a day; owner, 25.10.2026: «давай попробуем»):
 the picture is an HTML page with Valve's real icons and real text, screenshotted, so numbers on it are exact too.

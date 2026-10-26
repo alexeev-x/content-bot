@@ -1,6 +1,8 @@
-# Rubric picture templates
+# Rubric pictures
 
-One folder per rubric, all 32 (owner, 25.10.2026: «под каждую рубрику свой шаблон», «пусть ИИ рисует для всех»), named
-`<number>-<rubric key>` as in «Рубрики (DEV)». The owner drops the rubric's template here: a 1536×768 PNG with empty
-places for the heroes, items and numbers, which code fills with Valve's exact images. Until a folder has a template,
-the rubric uses the common style of `design-refs/rubric-style`. Each folder's README says what the rubric is and what its picture shows now. Rubrics are reworked one at a time.
+One folder per rubric, all 32, named `<number>-<rubric key>` as in «Рубрики (DEV)». Each folder's README says what the
+rubric is, what its picture shows now and, once the owner approves it, its status.
+
+Pictures are drawn by code alone as simple HTML pages with Valve's exact images (owner, 26.10.2026: «будем делать простые
+как сейчас»); no image templates are dropped here. A rubric is reworked one at a time with the `rubric-designer` agent
+and its preview script (`node .agents/scripts/rubric-preview.mjs <key>`).
