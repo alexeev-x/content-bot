@@ -267,9 +267,8 @@ export async function whoIsImba(context: RubricContext): Promise<RubricSample> {
     })
     .filter((each) => each.net > 0 && each.biggest !== undefined)
     .sort((a, b) => b.net - a.net);
-  // As many heroes as really came out stronger (owner, 26.10.2026: «важно, сколько героев реально усилили»); the
-  // picture holds six at most, the text tells the real count when there are more.
-  const stronger = ranked.length;
+  // As many heroes as really came out stronger (owner, 26.10.2026: «важно, сколько героев реально усилили»), six at
+  // most: the picture holds no more.
   const top = ranked.slice(0, IMBA_HEROES_MAX);
   if (top.length < 2) throw noData('heroes who came out stronger');
   // In words, no «было → стало» table (owner, 26.10.2026: «хватит таблиц, тут просто словами»): no arrow, so the rich
@@ -289,12 +288,8 @@ export async function whoIsImba(context: RubricContext): Promise<RubricSample> {
   );
   return {
     picture: { html: imbaPicture(patch.version, top), ...PICTURE_SIZE },
-    text: [
-      stronger > top.length
-        ? `После патча ${patch.version} сильнее, чем были, стали ${stronger} ${plural(stronger, 'герой', 'героя', 'героев')}, вот ${top.length} самых заметных:`
-        : `После патча ${patch.version} эти герои стали сильнее, чем были:`,
-      ...lines
-    ].join('\n'),
+    // A plain opening, no count of the rest (owner, 26.10.2026: «просто: после 7.41f этих героев больше всего усилили»).
+    text: [`После патча ${patch.version} сильнее всех усилили этих героев:`, ...lines].join('\n'),
     poll: poll(
       `Кто имба после ${patch.version}?`,
       withJoke(
