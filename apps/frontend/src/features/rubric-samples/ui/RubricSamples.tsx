@@ -7,9 +7,8 @@ import styles from './RubricSamples.module.css';
 
 type Need = 'ready' | 'stratz' | 'later';
 // Rubrics the owner approved leave the list (owner, 26.10.2026: «убирай те рубрики, которые мы утвердили»):
-// 1 «Кого понерфили», 2 «Кто теперь имба?», 3 «Нерф или баф?», 4 «Чья способность?».
+// 1 «Кого понерфили», 2 «Кто теперь имба?», 3 «Нерф или баф?», 4 «Чья способность?», 5 «Утечка недели».
 const RUBRICS: { key: RubricSampleKey; label: string; note: string; need: Need }[] = [
-  { key: 'files_dont_lie', label: '5. Утечка недели', note: 'находки в файлах за 7 дней', need: 'ready' },
   { key: 'who_gets_nerfed', label: '6. Кого понерфят?', note: 'опрос', need: 'ready' },
   { key: 'valve_seriously', label: '7. Valve, ты серьёзно?', note: 'текст', need: 'ready' },
   { key: 'valve_time', label: '8. Валв-тайм', note: 'текст', need: 'ready' },
