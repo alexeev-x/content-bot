@@ -5,6 +5,7 @@ import { BackgroundJobsEditor, useOwnerTimezone } from '../../features/owner-set
 import { RubricSamplesList } from '../../features/rubric-samples';
 import { ru } from '../../shared/lib/ru';
 import { PageHeader, Tab, TabList, TabPanel, Tabs } from '../../shared/ui';
+import styles from './LabPage.module.css';
 
 type LabTab = 'rubrics' | 'autopublish' | 'background';
 
@@ -23,32 +24,34 @@ export function LabPage() {
 
   return (
     <Tabs selectedKey={tab} onSelectionChange={(key) => show(key as LabTab)}>
-      <div className="reading-width">
+      <div className={`reading-width ${styles.page}`}>
         <PageHeader
           title={ru.nav.lab}
           focusHeadingOnMount
           description="Только на DEV: в прод этот раздел не попадает — ни пункт меню, ни код."
-          actions={
-            <TabList aria-label="Что тестируем">
-              <Tab id="rubrics">Рубрики</Tab>
-              <Tab id="autopublish">Автопубликация</Tab>
-              <Tab id="background">Фоновые задачи</Tab>
-            </TabList>
-          }
         />
+        <TabList aria-label="Что тестируем">
+          <Tab id="rubrics">Рубрики</Tab>
+          <Tab id="autopublish">Автопубликация</Tab>
+          <Tab id="background">Фоновые задачи</Tab>
+        </TabList>
         <TabPanel id="rubrics">
-          <p>
-            Собирается только нажатая рубрика: живые данные, текст пишет ИИ, картинку рисует код. Придёт вам в чат с
-            ботом через 1–3 минуты, в канал ничего не уходит.
-          </p>
-          <RubricSamplesList />
+          <div className={styles.panel}>
+            <p className={styles.intro}>
+              Собирается только нажатая рубрика: живые данные, текст пишет ИИ, картинку рисует код. Придёт вам в чат с
+              ботом через 1–3 минуты, в канал ничего не уходит.
+            </p>
+            <RubricSamplesList />
+          </div>
         </TabPanel>
         <TabPanel id="autopublish">
-          <p>
-            Анонс Steam без поста проходит весь автоматический путь, как будто его только что нашёл Cron: ИИ пишет,
-            проверяет факты и, если на DEV включена автопубликация, публикует без вас в канал из «Настройки → Общие».
-          </p>
-          <LabAutopublish timezone={timezone} />
+          <div className={styles.panel}>
+            <p className={styles.intro}>
+              Анонс Steam без поста проходит весь автоматический путь, как будто его только что нашёл Cron: ИИ пишет,
+              проверяет факты и, если на DEV включена автопубликация, публикует без вас в канал из «Настройки → Общие».
+            </p>
+            <LabAutopublish timezone={timezone} />
+          </div>
         </TabPanel>
         <TabPanel id="background">
           <BackgroundJobsEditor />

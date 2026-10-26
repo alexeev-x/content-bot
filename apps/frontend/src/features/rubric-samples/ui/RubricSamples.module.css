@@ -15,6 +15,11 @@
   border-bottom: 1px solid var(--color-border-subtle);
 }
 
+/* The button keeps its size; a long title wraps instead. */
+.row > :last-child {
+  flex: none;
+}
+
 .text {
   display: flex;
   flex-direction: column;
