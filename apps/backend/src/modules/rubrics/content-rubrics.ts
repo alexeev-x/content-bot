@@ -107,7 +107,7 @@ transform:rotate(-6deg)}
 .bars .ln{display:flex;align-items:center;gap:.4em}.bars em{font-style:normal;font-weight:800;font-size:calc(var(--bh) * 1.1);line-height:1;color:#c9c2b6;white-space:nowrap}
 .bars .leak em{font-weight:600;color:#8a8478;background:linear-gradient(transparent 55%,rgba(5,6,7,.55) 55%)}
 .muted{color:#8a929e}
-.egg{font-weight:600;font-size:17px;line-height:1.2;white-space:nowrap;color:#41464e}`;
+.egg{font-weight:600;font-size:20px;line-height:1.2;white-space:nowrap;color:#6a717c}`;
 
 const LEAK_CSS: Record<LeakLook, string> = {
   // A: the house look of «Кого понерфили»: a big caps title and the count on the left, the case folder on the right.
@@ -118,11 +118,11 @@ const LEAK_CSS: Record<LeakLook, string> = {
 .tabs{position:absolute;left:660px;top:64px;display:flex;align-items:flex-end;gap:6px}
 .tab{height:56px;padding:0 28px;display:flex;align-items:center;border-radius:10px 10px 0 0;background:#1b1f25;
 font-weight:800;font-size:24px;color:#8a929e}
-.tab.egg{height:42px;padding:0 20px;background:#15181d;font-weight:600;font-size:17px;color:#40464f}
+.tab.egg{height:42px;padding:0 20px;background:#15181d;font-weight:600;font-size:19px;color:#6a717c}
 .folder{position:absolute;left:660px;right:72px;top:120px;bottom:64px;background:#1b1f25;border-radius:0 10px 10px 10px;
 padding:24px 44px 48px;display:flex;flex-direction:column}
 .foot{position:absolute;left:44px;right:44px;bottom:14px;display:flex;justify-content:space-between;gap:24px}
-.foot .egg{color:#444b55}
+.foot .egg{color:#6a717c}
 .row{flex:1;display:grid;grid-template-columns:var(--numw) 104px minmax(0,1fr);column-gap:24px;align-items:center;
 border-top:1px solid rgba(255,255,255,.08)}.row:first-child{border-top:0}
 .row .num{font-size:var(--num);color:#f1ebe0}.row .day{font-weight:800;font-size:26px;color:#8a929e}
@@ -140,12 +140,12 @@ border-right:0;border-bottom:0;border-radius:12px 0 0 0;overflow:hidden}
 .tabs{display:flex;height:60px;background:#0e1014;border-bottom:1px solid rgba(255,255,255,.08)}
 .tabs span{display:flex;align-items:center;padding:0 22px;font-weight:800;font-size:22px;color:#6b7280;
 border-right:1px solid rgba(255,255,255,.06);font-variant-numeric:tabular-nums}
-.tabs span.now{background:#12151a;color:#f1ebe0}.tabs span.dim{font-weight:600;font-size:18px;color:#3b414a}
+.tabs span.now{background:#12151a;color:#f1ebe0}.tabs span.dim{font-weight:600;font-size:20px;color:#6a717c}
 .code{padding:22px 0 0}.ln{display:flex;align-items:center;height:var(--lh);padding:0 44px;font-weight:600;
 font-size:var(--fs);color:#8a929e;white-space:nowrap}
 .ln.c{color:#5f6875}.ln.in{padding-left:88px}.ln i{display:block;margin:0 5px;height:calc(var(--fs) * .78);background:#2b313b;border-radius:2px}
 .ln q{color:#5f6875;quotes:none}.ln.hit{background:rgba(214,58,34,.14);box-shadow:inset 4px 0 0 var(--red);color:#f1ebe0}
-.ln.hit b{font-weight:800}.ln.dim,.ln.dim q{color:#353a43}`,
+.ln.hit b{font-weight:800}.ln.dim,.ln.dim q{color:#5f6672}`,
   // D: an evidence board: each find a pinned card, the red string running through them in time order.
   E: `.title{font-size:96px;text-transform:none}
 .count{position:absolute;right:72px;top:96px;display:flex;align-items:baseline;gap:16px}
@@ -154,13 +154,13 @@ font-size:var(--fs);color:#8a929e;white-space:nowrap}
 .win{position:absolute;left:72px;right:72px;top:232px;bottom:56px;background:#12151a;border:1px solid rgba(255,255,255,.1);
 border-radius:10px;display:grid;grid-template-columns:340px 1fr;grid-template-rows:64px 1fr;overflow:hidden}
 .path{grid-column:1 / -1;display:flex;align-items:center;gap:48px;padding:0 28px;border-bottom:1px solid rgba(255,255,255,.08);
-font-weight:600;font-size:24px;color:#8a929e}.path .egg{color:#3b414a}
+font-weight:600;font-size:24px;color:#8a929e}.path .egg{color:#6a717c}
 .side{padding:24px 0;border-right:1px solid rgba(255,255,255,.08);display:flex;flex-direction:column;gap:6px}
 .side span{display:flex;align-items:center;gap:14px;height:44px;padding-left:calc(28px + var(--d) * 30px);font-weight:600;
 font-size:24px;color:#aab0b9;white-space:nowrap}
 .side span::before{content:'';flex:none;width:24px;height:18px;border-radius:2px 4px 4px 4px;background:#5a6270;
 clip-path:polygon(0 0,40% 0,50% 18%,100% 18%,100% 100%,0 100%)}
-.side span.dim{font-size:17px;color:#40464f}.side span.dim::before{background:#2c313a}
+.side span.dim{font-size:20px;color:#6a717c}.side span.dim::before{background:#2c313a}
 .side span.hid::before{width:16px;height:20px;border-radius:1px;background:#2c313a;clip-path:polygon(0 0,70% 0,100% 26%,100% 100%,0 100%)}
 .pane{position:relative;display:grid;grid-template-columns:repeat(var(--cols),1fr);grid-template-rows:repeat(var(--rows),1fr);
 padding:24px 28px}
@@ -194,7 +194,7 @@ function leakA(cases: LeakCase[], since: number, now: number, eggs: Slots): stri
 ${leakTitle(false)}
 <div class="count"><div class="line"><span class="num">${cases.length}</span><span class="w">${plural(cases.length, 'находка', 'находки', 'находок')}</span></div><span class="week muted">${dayMonth(since)} — ${dayMonth(now)}</span></div>
 <div class="tabs"><div class="tab">Дело № ${escapeHtml(last?.build ?? '')}</div>${egged(tab, (egg) => `<div class="tab egg">${escapeHtml(eggFile(egg, 'txt'))}</div>`)}</div>
-<div class="folder${cases.length === 1 ? ' single' : ''}">${rows}<div class="foot">${egged(who, (egg) => `<span class="egg">следователь: ${escapeHtml(egg)}</span>`)}</div></div><div class="stamp">Секретно</div>`;
+<div class="folder${cases.length === 1 ? ' single' : ''}">${rows}<div class="foot">${egged(who, (egg) => `<span class="egg">${escapeHtml(egg)}</span>`)}</div></div><div class="stamp">Секретно</div>`;
 }
 
 function leakC(cases: LeakCase[], eggs: Slots): string {
@@ -261,7 +261,7 @@ function leakE(cases: LeakCase[], eggs: Slots): string {
   // The eggs as a folder in the tree, a badly redacted line in the newest file, and the owner's name on the path bar.
   return `<style>:root{--cols:${cols};--rows:${rows};--dw:${dw}px;--dh:${dh}px;--fs:${fs}px;--bh:${bh}px;--gap:${gap}px}</style>
 ${leakTitle(true)}<div class="count"><span class="num">${n}</span><span class="w">${plural(n, 'находка', 'находки', 'находок')}</span></div>
-<div class="win"><div class="path">game/dota/pak01_dir${egged(owner, (egg) => `<span class="egg">владелец: ${escapeHtml(egg)}</span>`)}</div>
+<div class="win"><div class="path">game/dota/pak01_dir${egged(owner, (egg) => `<span class="egg">${escapeHtml(egg)}</span>`)}</div>
 <div class="side"><span style="--d:0">scripts</span><span style="--d:1">npc</span><span style="--d:0">resource</span><span style="--d:1">localization</span>${egged(folder, (egg) => `<span class="dim" style="--d:1">${escapeHtml(eggFile(egg))}</span>`)}<span style="--d:0">patchnotes</span></div>
 <div class="pane">${files}</div></div><div class="stamp">Секретно</div>`;
 }
@@ -278,7 +278,6 @@ function leakPicture(look: LeakLook, cases: LeakCase[], since: number, now: numb
 // «Утечка недели» (owner, 26.10.2026): the week's finds in the game's files go to the writer as they are; it picks the
 // one detail worth telling (modules/rubrics/briefs.ts). No finds, no rubric.
 export async function filesDontLie(context: RubricContext): Promise<RubricSample> {
-  const look = pick([...LEAK_LOOKS], context.random);
   // Two eggs in two of the look's three places, picked at random (owner, 26.10.2026: «в каждом две… в разных местах»).
   const [one, two] = shuffled([...LEAK_EGGS], context.random);
   const eggs: Slots = shuffled([one, two, undefined], context.random);
@@ -303,6 +302,9 @@ export async function filesDontLie(context: RubricContext): Promise<RubricSample
       day: dayMonth(find.committedAt),
       text: find.text ?? find.note ?? ''
     }));
+  // The file explorer looks empty with one or two documents (owner, 26.10.2026: «скудно»): the case folder or the code
+  // window take those weeks.
+  const look = pick<LeakLook>(cases.length <= 2 ? ['A', 'C'] : [...LEAK_LOOKS], context.random);
   return {
     picture: { html: leakPicture(look, cases, since, context.now, eggs), ...PICTURE_SIZE },
     text: `Находки в файлах игры за неделю:\n\n${blocks.join('\n\n')}`,
