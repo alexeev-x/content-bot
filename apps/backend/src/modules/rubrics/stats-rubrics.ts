@@ -77,10 +77,10 @@ export async function rankMeta(context: RubricContext): Promise<RubricSample> {
 .cards{display:flex;gap:18px;align-items:flex-end}
 .card{display:flex;flex-direction:column;align-items:center;gap:12px;width:228px}
 .card .portrait{width:228px;height:128px}
-.card.first .portrait{border-color:#e8b04a;width:244px;height:137px}
-.place{font-weight:900;font-size:52px;color:#e8b04a}
+.card.first .portrait{border-color:var(--red);width:244px;height:137px}
+.place{font-weight:900;font-size:52px;color:var(--red)}
 .name{font-weight:800;font-size:28px;text-align:center}
-.value{font-weight:600;font-size:26px;color:${worst ? '#e46a5a' : '#7fd18f'}}`
+.value{font-weight:600;font-size:26px;color:${worst ? 'var(--red)' : 'var(--good)'}}`
   );
   const names = top.map((each) => each.hero.localizedName).join(', ');
   return {
@@ -112,7 +112,7 @@ export async function guessWinrate(context: RubricContext): Promise<RubricSample
 <img class="medal" src="${rankMedalImage(bracket)}" alt=""></div><div class="sub">${escapeHtml(chosen.hero.localizedName)} · ${rank(bracket).name}</div>`,
     `.row{display:flex;align-items:center;gap:40px;margin-top:48px}
 .portrait.big{width:576px;height:324px}
-.on{font-weight:900;font-size:56px;color:#e8b04a}
+.on{font-weight:900;font-size:56px;color:var(--red)}
 .medal{width:240px;height:240px}
 .sub{font-size:34px;font-weight:800;margin-top:22px}`
   );
@@ -138,7 +138,7 @@ export async function banOrPick(context: RubricContext): Promise<RubricSample> {
 <div class="names"><span>${escapeHtml(first.hero.localizedName)}</span><span>${escapeHtml(second.hero.localizedName)}</span></div>`,
     `.row{display:flex;align-items:center;gap:48px;margin-top:48px}
 .portrait.big{width:480px;height:270px}
-.vs{font-weight:900;font-size:100px;color:#e8b04a}
+.vs{font-weight:900;font-size:100px;color:var(--red)}
 .names{display:flex;justify-content:space-between;width:1100px;font-weight:800;font-size:34px;margin-top:16px}`
   );
   return {
@@ -180,10 +180,10 @@ export async function forgottenHero(context: RubricContext): Promise<RubricSampl
 }
 
 const TIERS = [
-  { name: 'ЛЕГ', min: 0.53, color: '#e8b04a' },
-  { name: 'НОРМ', min: 0.5, color: '#7fd18f' },
-  { name: 'НОЛЬ', min: 0.47, color: '#cbbfae' },
-  { name: 'РАК', min: 0, color: '#e46a5a' }
+  { name: 'ЛЕГ', min: 0.53, color: 'var(--tier-s)' },
+  { name: 'НОРМ', min: 0.5, color: 'var(--tier-a)' },
+  { name: 'НОЛЬ', min: 0.47, color: 'var(--tier-b)' },
+  { name: 'РАК', min: 0, color: 'var(--tier-c)' }
 ];
 
 export async function tierList(context: RubricContext): Promise<RubricSample> {
@@ -198,7 +198,7 @@ export async function tierList(context: RubricContext): Promise<RubricSample> {
     return { tier, heroes };
   });
   const html = picturePage(
-    `<div class="title">Тир-лист <b>${rank(bracket).on}</b></div><div class="tiers">${rows
+    `<div class="title">Тир-лист на <b>${rank(bracket).on}</b></div><div class="tiers">${rows
       .map(
         (row) => `<div class="tier"><div class="label" style="background:${row.tier.color}">${row.tier.name}</div>
 ${row.heroes.map((each) => `<img class="portrait small" src="${heroImage(each.hero.name)}" alt="">`).join('')}</div>`
@@ -206,7 +206,7 @@ ${row.heroes.map((each) => `<img class="portrait small" src="${heroImage(each.he
       .join('')}</div>`,
     `.tiers{display:flex;flex-direction:column;gap:12px;margin-top:28px}
 .tier{display:flex;align-items:center;gap:12px}
-.label{width:150px;height:88px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:34px;color:#1c0d0b}
+.label{width:150px;height:88px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:34px;color:#0b0e13}
 .portrait.small{width:156px;height:88px;border-width:2px}`
   );
   return {
@@ -250,7 +250,7 @@ export async function whoBeatsWhom(context: RubricContext): Promise<RubricSample
 .name{font-weight:800;font-size:32px}
 .slots{display:grid;grid-template-columns:repeat(3,132px);gap:12px}
 .slots .item{width:132px;height:96px}
-.vs{font-weight:900;font-size:110px;color:#e8b04a}`
+.vs{font-weight:900;font-size:110px;color:var(--red)}`
   );
   return {
     picture: { html, ...PICTURE_SIZE },
@@ -278,7 +278,7 @@ export async function whoseBuild(context: RubricContext): Promise<RubricSample> 
     `.row{display:flex;align-items:center;gap:64px;margin-top:56px}
 .slots{display:grid;grid-template-columns:repeat(3,176px);gap:16px}
 .slots .item{width:176px;height:128px}
-.q{width:320px;height:300px;border:5px dashed #e8b04a;border-radius:16px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:200px;color:#e8b04a}`
+.q{width:320px;height:300px;border:5px dashed var(--red);border-radius:16px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:200px;color:var(--red)}`
   );
   return {
     picture: { html, ...PICTURE_SIZE },
@@ -341,9 +341,9 @@ export async function heroPeak(context: RubricContext): Promise<RubricSample> {
 .portrait.big{width:448px;height:252px}
 .bars{display:flex;flex-direction:column;gap:28px}
 .bar{display:flex;flex-direction:column}
-.bar span{font-weight:600;font-size:32px;color:#cbbfae}
+.bar span{font-weight:600;font-size:32px;color:var(--muted)}
 .bar b{font-weight:900;font-size:88px}
-.good{color:#7fd18f}.bad{color:#e46a5a}`
+.good{color:var(--good)}.bad{color:var(--red)}`
     );
     const verdict = longRate > shortRate ? 'Тяните игру.' : 'Заканчивайте быстро.';
     return {
@@ -388,13 +388,13 @@ export async function antiBuild(context: RubricContext): Promise<RubricSample> {
         `.row{display:flex;align-items:center;gap:48px;margin-top:56px}
 .portrait{width:320px;height:180px}
 .itemwrap{position:relative}
-.bigitem{width:220px;height:160px;border-radius:12px;border:4px solid #3a2a20}
-.cross{position:absolute;inset:-8px;background:linear-gradient(35deg,transparent 46%,#d4382a 46%,#d4382a 54%,transparent 54%),linear-gradient(-35deg,transparent 46%,#d4382a 46%,#d4382a 54%,transparent 54%)}
+.bigitem{width:220px;height:160px;border-radius:12px;border:1px solid var(--line)}
+.cross{position:absolute;inset:-8px;background:linear-gradient(35deg,transparent 46%,var(--red) 46%,var(--red) 54%,transparent 54%),linear-gradient(-35deg,transparent 46%,var(--red) 46%,var(--red) 54%,transparent 54%)}
 .facts{display:flex;flex-direction:column;gap:16px}
 .fact{display:flex;flex-direction:column}
-.fact span{font-weight:600;font-size:30px;color:#cbbfae}
+.fact span{font-weight:600;font-size:30px;color:var(--muted)}
 .fact b{font-weight:900;font-size:76px}
-.good{color:#7fd18f}.bad{color:#e46a5a}`
+.good{color:var(--good)}.bad{color:var(--red)}`
       );
       return {
         picture: { html, ...PICTURE_SIZE },

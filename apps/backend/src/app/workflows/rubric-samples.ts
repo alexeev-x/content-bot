@@ -196,14 +196,15 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
       throw new AppError('UNAVAILABLE', 'Browser Rendering is not bound here', { reason: 'BROWSER_NOT_BOUND' });
     }
     let html: string | null = page.html;
-    if (deps.ai === null) notes.push('ИИ не подключён: картинка без нарисованной сцены.');
-    else {
+    // A rubric with a layout of its own is drawn by code alone on the flat style (owner, 26.10.2026); only a rubric
+    // with no layout gets the model's scene under its title.
+    if (sample.picture === null && deps.ai !== null) {
       const scene = await deps.ai.scene({ heading: pictureHeading(page.html) });
       if (scene.kind === 'drawn') html = withBackground(page.html, scene.base64);
-      else if (sample.picture === null) {
+      else {
         html = null;
         notes.push(`Сцена не нарисована (${scene.reason}): пост без картинки.`);
-      } else notes.push(`Сцена не нарисована (${scene.reason}): картинка без неё.`);
+      }
     }
     if (html !== null)
       try {

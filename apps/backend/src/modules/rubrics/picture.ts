@@ -1,7 +1,7 @@
 // HTML pages a browser turns into a rubric's picture (owner, 25.10.2026: heroes and items must not be distorted).
 // Every hero, item, ability and rank medal is Valve's or OpenDota's own image, placed by layout; the words are real
-// text in a font. The look follows the owner's references (design-refs/rubric-style): serif metal titles, a red word,
-// the small «ALEXEEV» mark on top (never «studio»). `--bg` takes a drawn background; without it a dark plain one.
+// text in a font. The look follows Riot's patch graphics in Dota's colours (owner, 26.10.2026): a flat dark background,
+// a modern sans title with one red word, a red bar on the left, no gold frames. `--bg` takes a drawn background.
 
 export const PICTURE_SIZE = { width: 1536, height: 768 } as const;
 
@@ -12,8 +12,9 @@ export const escapeHtml = (text: string) => text.replace(/[&<>"']/g, (char) => E
 
 const imageKey = (key: string) => (/^[a-z0-9_]{1,80}$/.test(key) ? key : 'default');
 
-/** `npc_dota_hero_juggernaut` → Valve's 256×144 portrait. */
-export const heroImage = (heroName: string) => `${CDN}/heroes/${imageKey(heroName.replace(/^npc_dota_hero_/, ''))}.png`;
+/** `npc_dota_hero_juggernaut` → Valve's 400×250 portrait crop, sharper than the 256×144 one when shown large. */
+export const heroImage = (heroName: string) =>
+  `${CDN}/heroes/crops/${imageKey(heroName.replace(/^npc_dota_hero_/, ''))}.png`;
 export const itemImage = (itemKey: string) => `${CDN}/items/${imageKey(itemKey)}.png`;
 export const abilityImage = (abilityKey: string) => `${CDN}/abilities/${imageKey(abilityKey)}.png`;
 export const rankMedalImage = (bracket: number) =>
@@ -22,26 +23,35 @@ export const rankMedalImage = (bracket: number) =>
 export function picturePage(body: string, extraCss = ''): string {
   return `<!doctype html><html lang="ru"><head><meta charset="utf-8">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@600;800;900&amp;family=Playfair+Display+SC:wght@900&amp;display=block&amp;subset=cyrillic" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Manrope:wght@600;800&amp;family=Unbounded:wght@700;900&amp;display=block&amp;subset=cyrillic" rel="stylesheet">
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
+:root{--panel:#131820;--line:rgba(255,255,255,.08);--red:#d63a22;--good:#6fbf5a;--text:#f1ebe0;--muted:#8a929e;
+--tier-s:#d63a22;--tier-a:#e08a2c;--tier-b:#d6b84a;--tier-c:#5e6a78;--tier-d:#3d4450}
 html,body{width:${PICTURE_SIZE.width}px;height:${PICTURE_SIZE.height}px;overflow:hidden}
-body{font-family:Montserrat,Arial,sans-serif;color:#f3eee6;
-background:var(--bg,radial-gradient(ellipse at 50% 0%,#5a1712 0%,#1c0d0b 55%,#0b0807 100%));position:relative;
-display:flex;flex-direction:column;align-items:center;padding:40px 64px 32px}
-.title{font-family:'Playfair Display SC',Georgia,serif;font-weight:900;font-size:68px;letter-spacing:1px;
-text-transform:uppercase;text-align:center;line-height:1.05;color:#ece4d8;
-background:linear-gradient(180deg,#fbf6ee 0%,#d9cdbb 55%,#9c8f7d 100%);-webkit-background-clip:text;background-clip:text;
--webkit-text-fill-color:transparent;filter:drop-shadow(0 4px 10px rgba(0,0,0,.85))}
-.title b{background:linear-gradient(180deg,#ff6a4a 0%,#d62a1c 55%,#8e140c 100%);-webkit-background-clip:text;background-clip:text}
-.sub{font-weight:600;font-size:28px;color:#cbbfae;margin-top:10px;text-align:center}
-.portrait{display:block;width:256px;height:144px;border-radius:10px;border:3px solid #7a5a32;
-box-shadow:0 0 0 1px #140d09,0 0 22px rgba(214,42,28,.28),0 10px 30px rgba(0,0,0,.6);object-fit:cover}
-.item{display:block;width:88px;height:64px;border-radius:6px;border:2px solid #7a5a32;box-shadow:0 6px 14px rgba(0,0,0,.5)}
-.main{flex:1;display:flex;flex-direction:column;align-items:center;justify-content:center;width:100%;padding-bottom:12px}
-.mark{position:absolute;top:14px;left:0;right:0;display:flex;align-items:center;justify-content:center;gap:16px;
-font-weight:800;font-size:15px;letter-spacing:8px;color:#a39686}
-.mark::before,.mark::after{content:'';width:90px;height:1px;background:linear-gradient(90deg,transparent,#a3968680,transparent)}
+body{font-family:Manrope,Arial,sans-serif;color:var(--text);position:relative;
+background:var(--bg,radial-gradient(ellipse 70% 90% at 100% 0%,#1a2029 0%,transparent 60%),
+radial-gradient(ellipse 50% 60% at 0% 100%,rgba(214,58,34,.16) 0%,transparent 70%),#0b0e13);
+display:flex;flex-direction:column;align-items:center;padding:60px 72px 40px 82px}
+body::before{content:'';position:absolute;inset:0;pointer-events:none;
+background:repeating-linear-gradient(135deg,rgba(255,255,255,.018) 0 2px,transparent 2px 14px)}
+body::after{content:'';position:absolute;left:0;top:0;bottom:0;width:10px;background:var(--red)}
+.title{align-self:flex-start;margin-bottom:auto;font-family:Unbounded,Arial,sans-serif;font-weight:900;font-size:60px;letter-spacing:-1px;
+text-transform:uppercase;line-height:1.05;color:var(--text)}
+.title b{color:var(--red)}
+.title::after{content:'';display:block;width:120px;height:3px;background:var(--red);margin-top:18px}
+.vs,.q,.place,.nums,.total,.plus,.on,.label,.tiers span{font-family:Unbounded,Arial,sans-serif}
+.sub{font-weight:600;font-size:28px;color:var(--muted);margin-top:10px;text-align:center}
+.portrait{display:block;width:256px;height:144px;border-radius:8px;border:1px solid var(--line);
+box-shadow:0 14px 30px rgba(0,0,0,.55);object-fit:cover}
+.item{display:block;width:88px;height:64px;border-radius:8px;border:1px solid var(--line);box-shadow:0 8px 18px rgba(0,0,0,.5)}
+.plate{position:absolute;top:60px;right:72px;display:flex;align-items:center;gap:14px;border-radius:8px;
+border:1px solid var(--line);background:var(--panel);padding:10px 22px;font-weight:800;font-size:30px}
+.plate small{font-size:14px;letter-spacing:4px;color:var(--muted)}
+.main{flex:1;display:flex;flex-direction:column;align-items:center;width:100%;padding-bottom:12px}
+/* The title sits on top; the auto margins centre the rest in the room below it. */
+.main::after{content:'';margin-top:auto}
+.mark{position:absolute;top:30px;left:82px;font-weight:800;font-size:15px;letter-spacing:7px;color:var(--muted)}
 ${extraCss}
 </style></head><body><div class="mark">ALEXEEV</div><main class="main">${body}</main></body></html>`;
 }

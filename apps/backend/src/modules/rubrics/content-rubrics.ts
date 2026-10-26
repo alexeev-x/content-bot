@@ -44,7 +44,7 @@ export async function rateIt(context: RubricContext): Promise<RubricSample> {
   if (latest === undefined || latest.imageUrl === null) throw noData('announcement picture');
   const html = picturePage(
     `<div class="title"><b>Оцениваем</b></div><img class="shot" src="${escapeHtml(latest.imageUrl)}" alt="">`,
-    `.shot{margin-top:28px;max-width:1200px;max-height:520px;border-radius:14px;border:4px solid #3a2a20;box-shadow:0 14px 40px rgba(0,0,0,.6);object-fit:contain}`
+    `.shot{margin-top:28px;max-width:1200px;max-height:520px;border-radius:14px;border:1px solid var(--line);box-shadow:0 14px 40px rgba(0,0,0,.6);object-fit:contain}`
   );
   return {
     picture: { html, ...PICTURE_SIZE },
@@ -60,7 +60,7 @@ export async function workshopSet(context: RubricContext): Promise<RubricSample>
   const html = picturePage(
     `<div class="title">Сет из <b>мастерской</b></div><img class="shot" src="${escapeHtml(set.previewUrl)}" alt="">
 <div class="sub">${escapeHtml(set.title)}</div>`,
-    `.shot{margin-top:28px;max-width:1000px;max-height:470px;border-radius:14px;border:4px solid #3a2a20;object-fit:contain}
+    `.shot{margin-top:28px;max-width:1000px;max-height:470px;border-radius:14px;border:1px solid var(--line);object-fit:contain}
 .sub{font-size:30px;font-weight:800;margin-top:18px}`
   );
   return {
@@ -96,8 +96,8 @@ export async function rebus(context: RubricContext): Promise<RubricSample> {
     `<div class="title"><b>Ребус</b></div><div class="row">${icons}<div class="plus">=</div><div class="q">?</div></div>`,
     `.row{display:flex;align-items:center;gap:36px;margin-top:56px}
 .emoji{width:260px;height:260px}
-.plus{font-weight:900;font-size:96px;color:#e8b04a}
-.q{font-weight:900;font-size:200px;color:#e8b04a}`
+.plus{font-weight:900;font-size:96px;color:var(--muted)}
+.q{font-weight:900;font-size:200px;color:var(--red)}`
   );
   return {
     picture: { html, ...PICTURE_SIZE },
@@ -135,8 +135,8 @@ export async function tierListVote(context: RubricContext): Promise<RubricSample
     `.portrait.big{width:512px;height:288px;margin-top:24px}
 .sub{font-size:36px;font-weight:800;margin-top:14px}
 .tiers{display:flex;gap:16px;margin-top:18px}
-.tiers span{width:72px;height:72px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:40px;color:#1c0d0b}
-.s{background:#e8b04a}.a{background:#7fd18f}.b{background:#8fb8e8}.c{background:#cbbfae}.d{background:#e46a5a}`
+.tiers span{width:72px;height:72px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:40px;color:#0b0e13}
+.s{background:var(--tier-s)}.a{background:var(--tier-a)}.b{background:var(--tier-b)}.c{background:var(--tier-c)}.d{background:var(--tier-d)}`
   );
   return {
     picture: { html, ...PICTURE_SIZE },
@@ -167,12 +167,12 @@ export async function fakeItem(context: RubricContext): Promise<RubricSample> {
     `<div class="title">Шемелис <b>недели</b></div>
 <div class="card"><img class="item big" src="${itemImage(looks.key)}" alt=""><div class="facts"><div class="name">${escapeHtml(name)}</div>
 ${stats.map((stat) => `<div class="stat">${escapeHtml(stat)}</div>`).join('')}<div class="fake">выдумка</div></div></div>`,
-    `.card{display:flex;align-items:center;gap:48px;margin-top:48px;padding:32px 48px;border:3px solid #3a2a20;border-radius:18px;background:rgba(0,0,0,.35)}
+    `.card{display:flex;align-items:center;gap:48px;margin-top:48px;padding:32px 48px;border:1px solid var(--line);border-radius:18px;background:rgba(0,0,0,.35)}
 .item.big{width:264px;height:192px;border-radius:12px}
 .facts{display:flex;flex-direction:column;gap:10px}
-.name{font-weight:900;font-size:52px;color:#e8b04a}
+.name{font-weight:900;font-size:52px;color:var(--red)}
 .stat{font-weight:600;font-size:30px}
-.fake{margin-top:8px;align-self:flex-start;font-weight:800;font-size:22px;letter-spacing:2px;text-transform:uppercase;color:#1c0d0b;background:#e46a5a;padding:4px 12px;border-radius:8px}`
+.fake{margin-top:8px;align-self:flex-start;font-weight:800;font-size:22px;letter-spacing:2px;text-transform:uppercase;color:#fff;background:var(--red);padding:4px 12px;border-radius:8px}`
   );
   return {
     picture: { html, ...PICTURE_SIZE },

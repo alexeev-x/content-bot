@@ -221,7 +221,7 @@ code. The model draws only scenes without exact characters, or one hero per call
 composed by Cloudflare Browser Rendering (free plan, 10 browser minutes a day; owner, 25.10.2026: «давай попробуем»):
 the picture is an HTML page with Valve's real icons and real text, screenshotted, so numbers on it are exact too.
 Built on DEV 25.10.2026: «Рубрики (DEV)» on «Источники» sends a rubric's post from live data to the owner's chat
-(`POST /api/v1/rubric-samples`; the pressed rubric only, its caption by the AI writer, pictures A and B after the owner's ten references in `design-refs/rubric-style` for the owner to compare per rubric), all 32 rubrics listed. OpenDota's
+(`POST /api/v1/rubric-samples`; the pressed rubric only, its caption by the AI writer, a rubric with a layout of its own drawn by code alone in the flat style the owner chose 26.10.2026 after Riot's patch graphics, a rubric without one as the model's scene under its title), all 32 rubrics listed. OpenDota's
 API answers 429 to Cloudflare's shared addresses, so the game data comes from dotaconstants on GitHub and Valve's
 datafeed; pick, win, build, game-length and position rates come from STRATZ (`STRATZ_TOKEN`, owner's free sign-up,
 chosen 25.10.2026) through the owner's stats bridge, since STRATZ refuses Cloudflare (`bridge/stats-bridge`). 31 rubrics work; «Угадай матч» has no source of recent high-rank matches yet (STRATZ's live list

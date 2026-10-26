@@ -143,8 +143,8 @@ export async function itemExam(context: RubricContext): Promise<RubricSample> {
       `<div class="title">Во что <b>превратится?</b></div><div class="row">${icons}<div class="plus">=</div><div class="q">?</div></div>`,
       `.row{display:flex;align-items:center;gap:24px;margin-top:64px}
 .item.big{width:176px;height:128px;border-radius:10px}
-.plus{font-weight:900;font-size:72px;color:#e8b04a}
-.q{width:176px;height:128px;border:4px dashed #e8b04a;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:90px;color:#e8b04a}`
+.plus{font-weight:900;font-size:72px;color:var(--muted)}
+.q{width:176px;height:128px;border:4px dashed var(--red);border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:90px;color:var(--red)}`
     );
     return {
       picture: { html, ...PICTURE_SIZE },
@@ -208,9 +208,9 @@ export async function comboMath(context: RubricContext): Promise<RubricSample> {
 <div class="total">${total}</div></div><div class="sub">урона на максимальном уровне</div>`,
       `.row{display:flex;align-items:center;gap:22px;margin-top:48px}
 .portrait.big{width:384px;height:216px}
-.ability{width:160px;height:160px;border-radius:12px;border:3px solid #3a2a20}
-.plus{font-weight:900;font-size:64px;color:#e8b04a}
-.total{font-weight:900;font-size:110px;color:#e46a5a}
+.ability{width:160px;height:160px;border-radius:12px;border:1px solid var(--line)}
+.plus{font-weight:900;font-size:64px;color:var(--muted)}
+.total{font-weight:900;font-size:110px;color:var(--red)}
 .sub{font-size:30px}`
     );
     return {

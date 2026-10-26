@@ -70,12 +70,6 @@ export async function patchBroken(context: RubricContext): Promise<RubricSample>
   const patch = await latestPatch(context);
   const top = patch.scored.slice(0, 5);
   if (top.length < 3) throw noData('patch heroes');
-  const arrow = (balance: number) =>
-    balance > 0
-      ? '<span class="up">▲</span>'
-      : balance < 0
-        ? '<span class="down">▼</span>'
-        : '<span class="mid">◆</span>';
   // Each hero's biggest change by size, «было → стало» (owner, 25.10.2026: «непонятно, насколько их понизили»).
   const details = await Promise.all(top.map((each) => context.sources.heroDetail(each.hero.id).catch(() => null)));
   const biggest = top.map((each, index) => {
@@ -84,25 +78,13 @@ export async function patchBroken(context: RubricContext): Promise<RubricSample>
     const ability = details[index]?.abilities.find((one) => one.id === change.abilityId)?.name ?? null;
     return { ...change, what: ability === null ? change.stat : `${ability}: ${change.stat.toLowerCase()}` };
   });
-  const cards = top
-    .map((each, index) => {
-      const change = biggest[index];
-      return `<div class="card">${arrow(each.balance)}<img class="portrait" src="${heroImage(each.hero.name)}" alt="">
-<div class="name">${escapeHtml(each.hero.localizedName)}</div>${
-        change === null || change === undefined
-          ? ''
-          : `<div class="was">${escapeHtml(change.from)} → <span class="${change.buff ? 'up' : 'down'}">${escapeHtml(change.to)}</span></div>`
-      }</div>`;
-    })
-    .join('');
+  // Portraits only (owner, 26.10.2026): players know heroes by face, and the post's lines carry «было → стало».
+  const portraits = top.map((each) => `<img class="portrait" src="${heroImage(each.hero.name)}" alt="">`).join('');
   const html = picturePage(
-    `<div class="title">Что сломали в патче <b>${escapeHtml(patch.version)}</b></div><div class="cards">${cards}</div>`,
-    `.cards{display:flex;gap:22px;margin-top:56px}
-.card{display:flex;flex-direction:column;align-items:center;gap:12px;width:240px}
-.card .portrait{width:240px;height:135px}
-.up,.down,.mid{font-size:56px;line-height:1}.up{color:#7fd18f}.down{color:#e46a5a}.mid{color:#e8b04a}
-.name{font-weight:800;font-size:28px;text-align:center}
-.was{font-weight:800;font-size:30px;color:#cbbfae}.was .up,.was .down{font-size:30px}`
+    `<div class="title">Что <b>сломали</b> в патче</div><div class="plate"><small>ПАТЧ</small>${escapeHtml(patch.version)}</div>
+<div class="cards">${portraits}</div>`,
+    `.cards{display:flex;gap:22px;margin-top:72px}
+.cards .portrait{width:258px;height:145px}`
   );
   const lines = [`Патч ${patch.version}: больше всего правок у этих героев.`];
   // One line per hero, its biggest change: the post shows how much, not only who.
@@ -173,7 +155,7 @@ export async function nerfOrBuff(context: RubricContext): Promise<RubricSample> 
       `.row{display:flex;align-items:center;gap:56px;margin-top:48px}
 .portrait.big{width:448px;height:252px}
 .facts{display:flex;flex-direction:column;gap:14px;max-width:640px}
-.hero{font-weight:800;font-size:52px}.stat{font-weight:600;font-size:34px;color:#cbbfae}`
+.hero{font-weight:800;font-size:52px}.stat{font-weight:600;font-size:34px;color:var(--muted)}`
     );
     return {
       picture: { html, ...PICTURE_SIZE },
@@ -210,10 +192,10 @@ export async function nerfOrBuff(context: RubricContext): Promise<RubricSample> 
 <div class="facts"><div class="hero">${escapeHtml(subject)}</div><div class="stat">${escapeHtml(change.stat)}</div>
 <div class="nums">${escapeHtml(change.from)} → ${escapeHtml(change.to)}</div></div></div>`,
           `.row{display:flex;align-items:center;gap:56px;margin-top:48px}
-.ability{width:256px;height:256px;border-radius:16px;border:4px solid #7a5a32;box-shadow:0 14px 40px rgba(0,0,0,.6)}
+.ability{width:256px;height:256px;border-radius:16px;border:1px solid var(--line);box-shadow:0 14px 40px rgba(0,0,0,.6)}
 .facts{display:flex;flex-direction:column;gap:14px;max-width:760px}
-.hero{font-weight:800;font-size:40px}.stat{font-weight:600;font-size:32px;color:#cbbfae}
-.nums{font-weight:900;font-size:84px;color:#e8b04a}`
+.hero{font-weight:800;font-size:40px}.stat{font-weight:600;font-size:32px;color:var(--muted)}
+.nums{font-weight:900;font-size:84px;color:var(--red)}`
         );
   return {
     picture: html === null ? null : { html, ...PICTURE_SIZE },
