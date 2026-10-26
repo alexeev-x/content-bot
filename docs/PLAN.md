@@ -228,7 +228,7 @@ chosen 25.10.2026) through the owner's stats bridge, since STRATZ refuses Cloudf
 was empty). The rubric list
 with each one's picture is `.logs/rubrics-best.html` (local, not in Git).
 - Step 1, from data we already have:
-  1. «Что сломали в патче»: after a patch, who was buffed or killed, then the next day a poll «Кто теперь имба?».
+  1. «Кого понерфили» (renamed from «Что сломали в патче» 26.10.2026): after a patch, the heroes weakened most, then the next day a poll «Кто теперь имба?».
   2. «Оцениваем»: a reaction vote on a new set, arcana or hero change.
   3. «Чей сет?»: a treasure set's image without the hero, a quiz poll with four heroes and the answer inside the poll.
   4. «Чья способность?»: a quiz poll from the game files; the whole icon is too easy (owner, 25.10.2026: «важна

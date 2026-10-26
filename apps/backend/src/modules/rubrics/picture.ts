@@ -15,6 +15,9 @@ const imageKey = (key: string) => (/^[a-z0-9_]{1,80}$/.test(key) ? key : 'defaul
 /** `npc_dota_hero_juggernaut` → Valve's 400×250 portrait crop, sharper than the 256×144 one when shown large. */
 export const heroImage = (heroName: string) =>
   `${CDN}/heroes/crops/${imageKey(heroName.replace(/^npc_dota_hero_/, ''))}.png`;
+/** Valve's 256×144 portrait with its own painted background. */
+export const heroPortraitImage = (heroName: string) =>
+  `${CDN}/heroes/${imageKey(heroName.replace(/^npc_dota_hero_/, ''))}.png`;
 export const itemImage = (itemKey: string) => `${CDN}/items/${imageKey(itemKey)}.png`;
 export const abilityImage = (abilityKey: string) => `${CDN}/abilities/${imageKey(abilityKey)}.png`;
 export const rankMedalImage = (bracket: number) =>

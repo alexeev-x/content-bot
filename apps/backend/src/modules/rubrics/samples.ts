@@ -60,7 +60,7 @@ export type RubricKey = (typeof RUBRIC_KEYS)[number];
 
 /** Each rubric's name as the channel shows it; the writer gets it with the facts. */
 export const RUBRIC_TITLES: Record<RubricKey, string> = {
-  patch_broken: 'Что сломали в патче',
+  patch_broken: 'Кого понерфили',
   who_is_imba: 'Кто теперь имба?',
   nerf_or_buff: 'Нерф или баф?',
   whose_ability: 'Чья способность?',

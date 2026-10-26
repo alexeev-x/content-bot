@@ -1,4 +1,4 @@
-import { abilityImage, escapeHtml, heroImage, PICTURE_SIZE, picturePage } from './picture';
+import { abilityImage, escapeHtml, heroImage, heroPortraitImage, PICTURE_SIZE, picturePage } from './picture';
 import { type HeroInfo, noData, pick, plural, poll, quiz, type RubricContext, type RubricSample } from './types';
 
 // Rubrics over Valve's latest patch notes (Russian datafeed). A note «X увеличен с 60 до 65» is read as a buff or a
@@ -66,36 +66,75 @@ async function latestPatch(context: RubricContext) {
   return { version: latest.version, timestamp: latest.timestamp, changes, scored, byId };
 }
 
+// «Кого понерфили» as a patch-notes poster (owner chose it 26.10.2026 from three looks): a huge condensed title stacked
+// on the left, the patch number as outlined numerals under it, the faces as a mosaic on the right. The rubric's own CSS
+// replaces the shared page's look: no diagonal stripes, red glow, rounded plate or soft shadows.
+
+/** A Google Font stylesheet in the page body (the shared head loads Manrope and Unbounded only). */
+const googleFont = (family: string) =>
+  `<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=${family}&amp;display=block">`;
+
+// Tiles keep the portrait's 16:9 (owner: «картинки как будто порезанные»): two columns, an odd last face centred, so
+// 3, 4 and 5 heroes (the rubric's range) all fill the right side. Cards: a 10 px radius and a thin light border (owner
+// chose it 26.10.2026 from five card styles).
+const BROKEN_CSS = `body{display:block;padding:0;background:#0a0a0b}body::before,body::after{content:none}
+.main{position:absolute;inset:0;display:block;padding:0}.main::after{content:none}
+.mark{top:44px;left:64px;color:#6b6f76}
+.title{position:absolute;margin:0;left:58px;top:82px;font-family:Oswald,sans-serif;font-weight:700;font-size:172px;
+line-height:.86;letter-spacing:0;text-transform:uppercase}.title::after{content:none}
+.title b{display:block;font-size:110px;line-height:1.04}
+.plate{position:absolute;left:64px;right:auto;top:auto;bottom:52px;display:block;gap:0;border:0;border-radius:0;
+background:none;padding:0;font-family:Oswald,sans-serif;font-weight:500;font-size:136px;line-height:.9;color:transparent;
+-webkit-text-stroke:3px #f1ebe0}
+.plate small{display:block;margin-bottom:12px;font-family:Manrope,sans-serif;font-weight:800;font-size:18px;
+letter-spacing:8px;color:#d63a22;-webkit-text-stroke:0}
+.heroes{position:absolute;right:0;top:0;bottom:0;width:836px;display:grid;grid-template-columns:repeat(2,411px);
+grid-auto-rows:231px;align-content:center;gap:14px}
+.tile{position:relative;overflow:hidden;background:#1d2229;border-radius:10px;border:1px solid rgba(255,255,255,.14)}
+.tile:last-child:nth-child(odd){grid-column:1 / -1;justify-self:center;width:411px}
+.face{display:block;width:100%;height:100%;object-fit:cover}.cut .face{object-position:50% 25%}`;
+
 export async function patchBroken(context: RubricContext): Promise<RubricSample> {
   const patch = await latestPatch(context);
-  const top = patch.scored.slice(0, 5);
-  if (top.length < 3) throw noData('patch heroes');
-  // Each hero's biggest change by size, «было → стало» (owner, 25.10.2026: «непонятно, насколько их понизили»).
+  // «Кого понерфили» (owner, 26.10.2026): heroes weakened on balance, the most nerfs first.
+  const nerfs = (heroId: number) => patch.changes.filter((one) => one.heroId === heroId && !one.buff);
+  const top = patch.scored
+    .filter((each) => each.balance < 0)
+    .sort((a, b) => nerfs(b.hero.id).length - nerfs(a.hero.id).length)
+    .slice(0, 5);
+  if (top.length < 3) throw noData('nerfed heroes');
+  // Each hero's biggest nerf by size, «было → стало» (owner, 25.10.2026: «непонятно, насколько их понизили»).
   const details = await Promise.all(top.map((each) => context.sources.heroDetail(each.hero.id).catch(() => null)));
   const biggest = top.map((each, index) => {
-    const change = patch.changes.filter((one) => one.heroId === each.hero.id).sort((a, b) => b.size - a.size)[0];
+    const change = nerfs(each.hero.id).sort((a, b) => b.size - a.size)[0];
     if (change === undefined) return null;
     const ability = details[index]?.abilities.find((one) => one.id === change.abilityId)?.name ?? null;
     return { ...change, what: ability === null ? change.stat : `${ability}: ${change.stat.toLowerCase()}` };
   });
   // Portraits only (owner, 26.10.2026): players know heroes by face, and the post's lines carry «было → стало».
-  const portraits = top.map((each) => `<img class="portrait" src="${heroImage(each.hero.name)}" alt="">`).join('');
+  // Every hero keeps a background, one of two looks at random («1 раз так, другой так»): Valve's portrait with its
+  // painted background, or the large cut-out crop on a dark backdrop.
+  const painted = context.random() < 0.5;
+  const faces = top
+    .map(
+      (each) =>
+        `<div class="tile"><img class="face" src="${painted ? heroPortraitImage(each.hero.name) : heroImage(each.hero.name)}" alt=""></div>`
+    )
+    .join('');
   const html = picturePage(
-    `<div class="title">Что <b>сломали</b> в патче</div><div class="plate"><small>ПАТЧ</small>${escapeHtml(patch.version)}</div>
-<div class="cards">${portraits}</div>`,
-    `.cards{display:flex;gap:22px;margin-top:72px}
-.cards .portrait{width:258px;height:145px}`
+    `${googleFont('Oswald:wght@500;700')}<div class="title">Кого <b>понерфили</b></div>
+<div class="heroes${painted ? '' : ' cut'}">${faces}</div>
+<div class="plate"><small>ПАТЧ</small>${escapeHtml(patch.version)}</div>`,
+    BROKEN_CSS
   );
-  const lines = [`Патч ${patch.version}: больше всего правок у этих героев.`];
-  // One line per hero, its biggest change: the post shows how much, not only who.
+  const lines = [`Патч ${patch.version}: этих героев ослабили сильнее всех.`];
+  // One line per hero, its biggest nerf: the post shows how much, not only who.
   top.forEach((each, index) => {
     const change = biggest[index];
     if (change !== null && change !== undefined)
-      lines.push(
-        `${change.buff ? '▲' : '▼'} ${each.hero.localizedName} — ${change.what}: ${change.from} → ${change.to}`
-      );
+      lines.push(`${each.hero.localizedName} — ${change.what}: ${change.from} → ${change.to}`);
   });
-  lines.push('Играете на ком-то из них? Кого сломали сильнее всех — пишите в комментарии.');
+  lines.push('Играете на ком-то из них? Кого порезали сильнее всех — пишите в комментарии.');
   return { picture: { html, ...PICTURE_SIZE }, text: lines.join('\n'), poll: null };
 }
 
