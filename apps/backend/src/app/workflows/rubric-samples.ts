@@ -183,8 +183,10 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
   const title = RUBRIC_TITLES[rubric];
   const poll = sample.poll === null ? null : `${sample.poll.question} — ${sample.poll.options.join(' / ')}`;
   // The caption is written while the scene is drawn.
+  // A rubric that is one poll with its picture has no text to write.
+  const pollOnly = sample.pictureInPoll === true && sample.poll !== null;
   const caption =
-    deps.ai === null
+    deps.ai === null || pollOnly
       ? Promise.resolve(null)
       : deps.ai.caption({
           title,
@@ -224,7 +226,7 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
       }
   }
   const written = await caption.catch(() => null);
-  if (deps.ai !== null && written === null) notes.push('Текст — шаблон: ИИ его не написал.');
+  if (deps.ai !== null && !pollOnly && written === null) notes.push('Текст — шаблон: ИИ его не написал.');
   const text = written ?? sample.text;
 
   try {
@@ -236,8 +238,11 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
         { ...FLAGS, entities: [] },
         signal()
       );
-    const rich = rubricRichHtml(text, picture !== null);
-    if (rich !== null) {
+    const rich = pollOnly ? null : rubricRichHtml(text, picture !== null);
+    if (pollOnly) {
+      // The picture goes inside the poll (Bot API 10.3), no post before it (owner, 26.10.2026: «вся информация на
+      // картинке и сразу опрос»).
+    } else if (rich !== null) {
       await deps.telegram.sendRichMessage(
         deps.ownerChatId,
         {
@@ -272,7 +277,10 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
           allows_multiple_answers: false,
           shuffle_options: true,
           ...(sample.poll.correctOption === null ? {} : { correct_option_ids: [sample.poll.correctOption] }),
-          ...(sample.poll.explanation === null ? {} : { explanation: sample.poll.explanation })
+          ...(sample.poll.explanation === null ? {} : { explanation: sample.poll.explanation }),
+          ...(pollOnly && picture !== null
+            ? { media: { type: 'photo' as const, media: new InputFile(picture, `${rubric}.png`) } }
+            : {})
         },
         signal()
       );

@@ -104,6 +104,8 @@ export interface RubricSample {
   picture: { html: string; width: number; height: number } | null;
   /** Plain text: the caption under the picture, or the message itself. */
   text: string;
+  /** The rubric is one poll message with the picture inside it: no text post, no AI caption. */
+  pictureInPoll?: boolean;
   poll: {
     question: string;
     options: string[];
@@ -174,11 +176,21 @@ const JOKE_OPTIONS = [
   'Удали доту'
 ] as const;
 
+/** «Нерф или баф?»'s third option (owner, 26.10.2026: «не еби мозги, не заёбывай и т. д. в этом русле»). */
+export const DONT_BOTHER_JOKES = [
+  'Не еби мозги',
+  'Не заёбывай',
+  'Отъебись со своим патчем',
+  'Да мне похуй, я на нём не играю',
+  'Иди нахуй со своими цифрами'
+] as const;
+
 /** The options with one random joke option added at the end (the poll is shuffled for each voter). */
-export const withJoke = (options: string[], random: () => number): string[] => [
-  ...options,
-  JOKE_OPTIONS[Math.floor(random() * JOKE_OPTIONS.length)] ?? JOKE_OPTIONS[0]
-];
+export const withJoke = (
+  options: string[],
+  random: () => number,
+  jokes: readonly string[] = JOKE_OPTIONS
+): string[] => [...options, jokes[Math.floor(random() * jokes.length)] ?? JOKE_OPTIONS[0]];
 
 export const poll = (question: string, options: string[]): RubricSample['poll'] => ({
   question: question.slice(0, 300),

@@ -8,6 +8,7 @@ import {
   quiz,
   type RubricContext,
   type RubricSample,
+  DONT_BOTHER_JOKES,
   withJoke
 } from './types';
 
@@ -315,6 +316,179 @@ export async function whoGetsNerfed(context: RubricContext): Promise<RubricSampl
   };
 }
 
+// «Нерф или баф?» is one poll whose picture carries everything (owner, 26.10.2026): the hero, each change «было → стало»
+// with the ability's name and icon, the patch and the title. The lines stay neutral: no red or green, no ▲/▼; the old
+// value is muted only because it is the past. Two looks the owner chose of five (26.10.2026), alternating at random from
+// post to post, each unlike 01's poster and 02's measuring plate: 'A' a hero panel on the left and a ruled list; 'C' a
+// wide close-up band over the lines. Valve's 1440² render keeps the large hero sharp.
+const NERF_LOOKS = ['A', 'C'] as const;
+type NerfLook = (typeof NERF_LOOKS)[number];
+
+interface NerfRow {
+  /** Valve's ability key for its icon; null for a base stat. */
+  icon: string | null;
+  ability: string | null;
+  stat: string;
+  from: string;
+  to: string;
+}
+
+/**
+ * One way to lay a look out: `size` is the hero panel's width (C: the band's height), `width` one column of lines,
+ * `height` the list's room, `pad` the least room a line takes beyond its text. Per-level values («70/140/210/280») can
+ * be wider than a line, so after the frames with a large hero each look offers a roomier one with a narrow hero: rare
+ * (eight changes come only in big patches) but never cut.
+ */
+interface NerfFrame {
+  size: number;
+  cols: number;
+  width: number;
+  height: number;
+  pad: number;
+}
+
+const nerfFrame = (size: number, cols: number, width: number, height: number, pad: number): NerfFrame => ({
+  size,
+  cols,
+  width,
+  height,
+  pad
+});
+
+const NERF_FRAMES: Record<NerfLook, (count: number) => NerfFrame[]> = {
+  A: () =>
+    [
+      [560, 1],
+      [560, 2],
+      [400, 1],
+      [280, 1]
+    ].map(([size = 0, cols = 1]) =>
+      nerfFrame(size, cols, (1536 - size - 136 - 48 * (cols - 1)) / cols, 468, size === 280 ? 12 : 20)
+    ),
+  C: () =>
+    [
+      [380, 1],
+      [340, 1],
+      [320, 1],
+      [320, 2],
+      [280, 2]
+    ].map(([size = 0, cols = 1]) => nerfFrame(size, cols, (1392 - 64 * (cols - 1)) / cols, 768 - size - 72, 16))
+};
+
+const nerfLabel = (row: NerfRow) => (row.ability === null ? row.stat : `${row.ability}: ${row.stat}`);
+
+/**
+ * The largest type at which every line fits its frame, from Manrope's glyph widths (≈ 0.56 em a letter, 0.6 em a
+ * figure): a label may wrap to two lines; each value stays on one line.
+ */
+function nerfFit(rows: NerfRow[], frame: NerfFrame, trap: boolean) {
+  const icons = rows.some((row) => row.icon !== null);
+  const perCol = Math.ceil(rows.length / frame.cols);
+  let last = { scale: 0, label: 26, num: 28, icon: icons ? 40 : 0, stack: true };
+  for (let scale = 1; scale >= 0.25; scale -= 0.03) {
+    const size = Math.max(26, Math.round(46 * scale));
+    const icon = trap ? 160 : icons ? Math.min(80, Math.max(40, Math.round(size * 1.6))) : 0;
+    const text = frame.width - (icon === 0 ? 0 : icon + 24);
+    // Values beside the label, or under it when they don't fit: then a line of their own, as large as the widest pair
+    // lets them, up to 96 px; the trap's single line runs under the big icon too.
+    const widest = Math.max(...rows.map((row) => (row.from.length + row.to.length) * 0.6 + 1.4));
+    const valueRoom = trap ? frame.width : text;
+    for (const stack of trap ? [true] : [false, true]) {
+      const num = Math.max(28, Math.min(Math.round(96 * scale), stack ? Math.floor(valueRoom / widest) : 96));
+      // A label never outweighs its figures.
+      const label = Math.min(size, Math.max(26, num));
+      let fits = true;
+      const heights = rows.map((row) => {
+        const labelWidth = nerfLabel(row).length * label * 0.56;
+        const valuesWidth = (row.from.length + row.to.length) * num * 0.6 + num * 1.4;
+        const room = stack ? text : text - valuesWidth - 24;
+        const lines = Math.ceil(labelWidth / Math.max(room, 1));
+        if (room < text * (stack ? 1 : 0.3) || lines > 2 || valuesWidth > (trap ? frame.width : text)) fits = false;
+        if (trap) return Math.max(icon, lines * label * 1.15) + 24 + num + frame.pad;
+        const body = stack ? lines * label * 1.15 + 10 + num : Math.max(lines * label * 1.15, num);
+        return Math.max(body, icon) + frame.pad;
+      });
+      const columns = Array.from({ length: frame.cols }, (_, col) =>
+        heights.slice(col * perCol, (col + 1) * perCol).reduce((sum, each) => sum + each, 0)
+      );
+      last = { scale, label, num, icon, stack };
+      if (fits && Math.max(...columns) <= frame.height) return { ...last, fits: true };
+    }
+  }
+  return { ...last, fits: false };
+}
+
+const NERF_BASE = `body{display:block;padding:0;background:#0c0d0f}body::before,body::after{content:none}
+.main{position:absolute;inset:0;display:block;padding:0}.main::after{content:none}
+.mark{top:40px;left:72px;color:#6b6f76;z-index:3}
+.title{position:absolute;margin:0;z-index:2;font-family:Tektur,sans-serif;font-weight:800;font-size:80px;line-height:1;
+letter-spacing:-.01em;text-transform:none}.title::after{content:none}
+.fig{position:absolute;overflow:hidden;background:linear-gradient(#1e242d,#111419)}
+.fig img{position:absolute;left:50%;transform:translateX(-50%)}
+.who{position:absolute;display:flex;align-items:baseline;gap:20px}
+.name{font-weight:800;color:#f1ebe0;line-height:1}.patch{font-weight:600;font-size:30px;color:#8a929e;line-height:1}
+.list{position:absolute;display:grid;grid-template-columns:repeat(var(--cols),minmax(0,1fr));
+grid-template-rows:repeat(var(--rows),1fr);grid-auto-flow:column;column-gap:var(--gap,48px)}
+.row{display:grid;grid-template-columns:auto minmax(0,1fr) auto;align-items:center;column-gap:24px}
+.ic{width:var(--icon);height:var(--icon)}
+.ic img{display:block;width:100%;height:100%;border-radius:6px;border:1px solid rgba(255,255,255,.14)}
+.what{font-weight:600;font-size:var(--label);line-height:1.15;color:#f1ebe0}.what b{font-weight:800}
+.vals{display:flex;align-items:baseline;gap:.3em;white-space:nowrap;font-weight:800;font-size:var(--num);line-height:1;
+font-variant-numeric:tabular-nums}
+.was{color:#8a929e}.now{color:#f1ebe0}.to::before{content:'→';font-weight:600;color:#5b616b}
+.inline .vals{justify-content:flex-end}
+.stack .row{grid-template-columns:auto minmax(0,1fr);row-gap:10px;align-content:center}
+.stack .ic{grid-row:span 2}.stack .vals{grid-column:2}
+.noicons .ic{display:none}.noicons .row{grid-template-columns:minmax(0,1fr) auto}
+.noicons.stack .row{grid-template-columns:minmax(0,1fr)}.noicons.stack .vals{grid-column:1}
+.trap .row{row-gap:24px}.trap .ic{grid-row:auto}.trap .vals{grid-column:1 / -1}`;
+
+const NERF_CSS: Record<NerfLook, string> = {
+  // A: a full-height hero panel on the left under a caps title; the lines a ruled list.
+  A: `.fig{left:0;top:0;bottom:0;width:var(--size)}.fig img{top:24px;height:1000px}
+.mark{left:calc(var(--size) + 64px)}
+.title{left:calc(var(--size) + 60px);top:72px;font-size:80px;text-transform:uppercase}
+.who{left:calc(var(--size) + 64px);right:72px;top:180px}.name{font-size:44px}
+.list{left:calc(var(--size) + 64px);right:72px;top:252px;bottom:48px}
+.row{border-top:1px solid rgba(255,255,255,.12)}`,
+  // C: a letterbox close-up across the top, the title on its calm left; the lines below in one or two columns.
+  C: `.fig{left:0;right:0;top:0;height:var(--size)}.fig img{left:auto;right:0;transform:none;top:-8px;height:calc(var(--size) + 48px)}
+.title{left:68px;top:72px;font-size:88px}
+.who{left:72px;top:192px}.name{font-size:48px}
+.list{left:72px;right:72px;top:calc(var(--size) + 32px);bottom:40px;--gap:64px}
+.row{border-bottom:1px solid rgba(255,255,255,.12)}`
+};
+
+function nerfPicture(look: NerfLook, version: string, hero: HeroInfo, rows: NerfRow[], trap: boolean): string {
+  // The first frame that keeps the type large enough for a phone, else the one with the largest type.
+  const tries = NERF_FRAMES[look](rows.length).map((each) => ({ frame: each, fit: nerfFit(rows, each, trap) }));
+  const fitting = tries.filter((each) => each.fit.fits);
+  const best =
+    fitting.find((each) => each.fit.scale >= 0.6) ??
+    [...fitting].sort((a, b) => b.fit.scale - a.fit.scale)[0] ??
+    tries[tries.length - 1];
+  if (best === undefined) throw noData('a picture frame');
+  const { frame, fit } = best;
+  const row = (each: NerfRow) => {
+    const stat = escapeHtml(each.ability === null ? each.stat : each.stat.toLowerCase());
+    const what = each.ability === null ? stat : `<b>${escapeHtml(each.ability)}:</b> ${stat}`;
+    const ic = each.icon === null ? '' : `<img src="${abilityImage(each.icon)}" alt="">`;
+    return `<div class="row"><span class="ic">${ic}</span><span class="what">${what}</span><span class="vals"><span class="was">${escapeHtml(each.from)}</span><span class="to"></span><span class="now">${escapeHtml(each.to)}</span></span></div>`;
+  };
+  const list = `<div class="list">${rows.map(row).join('')}</div>`;
+  const perCol = Math.ceil(rows.length / frame.cols);
+  const vars = `:root{--label:${fit.label}px;--num:${fit.num}px;--icon:${fit.icon}px;--cols:${frame.cols};--rows:${perCol};--size:${frame.size}px}`;
+  const kind = `${fit.stack ? 'stack' : 'inline'}${fit.icon === 0 ? ' noicons' : ''}${trap ? ' trap' : ''}`;
+  return picturePage(
+    `<style>${vars}</style><div class="sheet ${kind}">
+<div class="fig"><img src="${look === 'C' ? heroImage(hero.name) : heroRender(hero.name)}" alt=""></div>
+<div class="title">Нерф <b>или</b> баф?</div>
+<div class="who"><span class="name">${escapeHtml(hero.localizedName)}</span><span class="patch">патч ${escapeHtml(version)}</span></div>
+${list}</div>`,
+    `${NERF_BASE}\n${NERF_CSS[look]}`
+  );
+}
+
 /**
  * «Нерф или баф?» must be a real question (owner, 25.10.2026: «тут явный нерф, было больше — стало меньше, в чём суть»).
  * First choice: a hero who got buffs and nerfs at once — all its changes without a hint, and an opinion poll on the
@@ -322,6 +496,10 @@ export async function whoGetsNerfed(context: RubricContext): Promise<RubricSampl
  */
 export async function nerfOrBuff(context: RubricContext): Promise<RubricSample> {
   const patch = await latestPatch(context);
+  // One of the two looks at random, so the rubric does not grow stale (owner, 26.10.2026: «чтобы чередовалось»).
+  const look = pick([...NERF_LOOKS], context.random);
+  // Nerf, buff and one joke of the «не еби мозги» kind (owner, 26.10.2026); the picture sits in the poll, no post.
+  const options = withJoke(['Нерф', 'Баф'], context.random, DONT_BOTHER_JOKES);
   const mixed = patch.scored.filter((each) => {
     const own = patch.changes.filter((change) => change.heroId === each.hero.id);
     return own.length >= 2 && own.length <= 8 && own.some((one) => one.buff) && own.some((one) => !one.buff);
@@ -330,33 +508,22 @@ export async function nerfOrBuff(context: RubricContext): Promise<RubricSample> 
     const { hero } = pick(mixed, context.random);
     const own = patch.changes.filter((change) => change.heroId === hero.id);
     const detail = await context.sources.heroDetail(hero.id).catch(() => null);
-    const name = (change: Change) => {
-      const ability = detail?.abilities.find((one) => one.id === change.abilityId)?.name;
-      return ability === undefined ? change.stat : `${ability}: ${change.stat.toLowerCase()}`;
-    };
-    const html = picturePage(
-      `<div class="title">Нерф <b>или</b> баф?</div>
-<div class="row"><img class="portrait big" src="${heroImage(hero.name)}" alt="">
-<div class="facts"><div class="hero">${escapeHtml(hero.localizedName)}</div>
-<div class="stat">${own.length} ${plural(own.length, 'правка', 'правки', 'правок')} в патче ${escapeHtml(patch.version)}</div></div></div>`,
-      `.row{display:flex;align-items:center;gap:56px;margin-top:48px}
-.portrait.big{width:448px;height:252px}
-.facts{display:flex;flex-direction:column;gap:14px;max-width:640px}
-.hero{font-weight:800;font-size:52px}.stat{font-weight:600;font-size:34px;color:var(--muted)}`
-    );
+    const rows = own.map((change) => {
+      const ability = detail?.abilities.find((one) => one.id === change.abilityId);
+      return {
+        icon: ability?.key ?? null,
+        ability: ability?.name ?? null,
+        stat: change.stat,
+        from: change.from,
+        to: change.to
+      };
+    });
     return {
-      picture: { html, ...PICTURE_SIZE },
-      // «Название: было → стало» lines: the post's table, with no red or green to give the answer away.
-      text: [
-        `${hero.localizedName} в патче ${patch.version}: часть усилили, часть ослабили.`,
-        ...own.map((change) => `${name(change)}: ${change.from} → ${change.to}`),
-        `В итоге ${hero.localizedName} стал сильнее или слабее?`
-      ].join('\n'),
-      poll: poll(`${hero.localizedName} после ${patch.version}: в итоге нерф или баф?`, [
-        'Нерф',
-        'Баф',
-        'Ничего не поменялось'
-      ])
+      picture: { html: nerfPicture(look, patch.version, hero, rows, false), ...PICTURE_SIZE },
+      pictureInPoll: true,
+      // Never sent (the poll is the whole post); kept for the logs and the local preview.
+      text: `${hero.localizedName}, патч ${patch.version}: нерф или баф?`,
+      poll: poll(`${hero.localizedName} после ${patch.version}: нерф или баф?`, options)
     };
   }
   const traps = patch.changes.filter(
@@ -373,21 +540,18 @@ export async function nerfOrBuff(context: RubricContext): Promise<RubricSample> 
   const html =
     ability === undefined
       ? null
-      : picturePage(
-          `<div class="title">Нерф <b>или</b> баф?</div>
-<div class="row"><img class="ability" src="${abilityImage(ability.key)}" alt="">
-<div class="facts"><div class="hero">${escapeHtml(subject)}</div><div class="stat">${escapeHtml(change.stat)}</div>
-<div class="nums">${escapeHtml(change.from)} → ${escapeHtml(change.to)}</div></div></div>`,
-          `.row{display:flex;align-items:center;gap:56px;margin-top:48px}
-.ability{width:256px;height:256px;border-radius:16px;border:1px solid var(--line);box-shadow:0 14px 40px rgba(0,0,0,.6)}
-.facts{display:flex;flex-direction:column;gap:14px;max-width:760px}
-.hero{font-weight:800;font-size:40px}.stat{font-weight:600;font-size:32px;color:var(--muted)}
-.nums{font-weight:900;font-size:84px;color:var(--red)}`
+      : nerfPicture(
+          look,
+          patch.version,
+          hero,
+          [{ icon: ability.key, ability: ability.name, stat: change.stat, from: change.from, to: change.to }],
+          true
         );
   return {
     picture: html === null ? null : { html, ...PICTURE_SIZE },
     text: `${subject}: ${change.stat.toLowerCase()}: ${change.from} → ${change.to}\nЦифра стала меньше — значит, нерф?`,
-    poll: quiz('Это нерф или баф?', ['Нерф', 'Баф'], 1, `${change.note} (патч ${patch.version})`)
+    pictureInPoll: html !== null,
+    poll: quiz('Это нерф или баф?', options, 1, `${change.note} (патч ${patch.version})`)
   };
 }
 

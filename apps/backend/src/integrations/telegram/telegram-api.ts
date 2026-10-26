@@ -61,6 +61,8 @@ export interface TelegramPollParams extends TelegramSendFlags {
   shuffle_options?: boolean;
   correct_option_ids?: number[];
   explanation?: string;
+  /** A photo over the poll (Bot API 10.3): a rubric can be one poll message with its picture. */
+  media?: { type: 'photo'; media: InputFile };
 }
 
 // grammY's raw Api: no auto-retry plugin and no retry of its own, so a failed send is reported
