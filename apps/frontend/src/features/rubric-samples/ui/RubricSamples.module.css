@@ -1,9 +1,6 @@
 .list {
-  max-height: 60vh;
-  overflow-y: auto;
   display: flex;
   flex-direction: column;
-  gap: var(--space-2);
   margin: 0;
   padding: 0;
   list-style: none;
@@ -14,11 +11,14 @@
   align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
+  padding: var(--space-3) 0;
+  border-bottom: 1px solid var(--color-border-subtle);
 }
 
 .text {
   display: flex;
   flex-direction: column;
+  min-width: 0;
 }
 
 .label {
@@ -30,9 +30,15 @@
   font-size: var(--font-size-sm);
 }
 
+.status,
+.failed {
+  font-size: var(--font-size-sm);
+}
+
 .status {
-  display: block;
-  min-height: 1.5em;
-  margin: var(--space-3) 0 0;
   color: var(--color-text-muted);
+}
+
+.failed {
+  color: var(--color-danger);
 }

@@ -4,9 +4,8 @@ import { useDocumentTitle } from '../../app/use-document-title';
 import { readAppEnvironment } from '../../app/environment';
 import { DotaEventDetail, SourcesBoard, type SourceTableView } from '../../features/dota-intelligence';
 import { useOwnerTimezone } from '../../features/owner-settings';
-import { RubricSamplesButton } from '../../features/rubric-samples';
 import { ru } from '../../shared/lib/ru';
-import { PageHeader } from '../../shared/ui';
+import { Button, PageHeader } from '../../shared/ui';
 
 export function SourcesPage() {
   const timezone = useOwnerTimezone();
@@ -44,7 +43,13 @@ export function SourcesPage() {
       <PageHeader
         title={ru.pages.sources}
         focusHeadingOnMount
-        actions={isDev && !search.update ? <RubricSamplesButton /> : undefined}
+        actions={
+          isDev && !search.update ? (
+            <Button variant="secondary" icon="send" onPress={() => void navigate({ to: '/sources/rubrics' })}>
+              Рубрики (DEV)
+            </Button>
+          ) : undefined
+        }
       />
       <div hidden={Boolean(search.update)}>
         <SourcesBoard timezone={timezone} state={state} onChange={onChange} autopublishTest={isDev} />

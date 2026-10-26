@@ -29,6 +29,7 @@ import { Route as SettingsChannelsRouteImport } from './routes/settings.channels
 import { Route as SettingsGeneralRouteImport } from './routes/settings.general';
 import { Route as SettingsNotificationsRouteImport } from './routes/settings.notifications';
 import { Route as SettingsOperationsRouteImport } from './routes/settings.operations';
+import { Route as SourcesRubricsRouteImport } from './routes/sources_.rubrics';
 import { Route as PostsIdPublishRouteImport } from './routes/posts/$id.publish';
 
 const IndexRoute = IndexRouteImport.update({
@@ -131,6 +132,11 @@ const SettingsOperationsRoute = SettingsOperationsRouteImport.update({
   path: '/operations',
   getParentRoute: () => SettingsRoute,
 } as any);
+const SourcesRubricsRoute = SourcesRubricsRouteImport.update({
+  id: '/sources_/rubrics',
+  path: '/sources/rubrics',
+  getParentRoute: () => rootRouteImport,
+} as any);
 const PostsIdPublishRoute = PostsIdPublishRouteImport.update({
   id: '/publish',
   path: '/publish',
@@ -156,6 +162,7 @@ export interface FileRoutesByFullPath {
   '/settings/general': typeof SettingsGeneralRoute;
   '/settings/notifications': typeof SettingsNotificationsRoute;
   '/settings/operations': typeof SettingsOperationsRoute;
+  '/sources/rubrics': typeof SourcesRubricsRoute;
   '/posts/': typeof PostsIndexRoute;
   '/settings/': typeof SettingsIndexRoute;
   '/posts/$id/publish': typeof PostsIdPublishRoute;
@@ -178,6 +185,7 @@ export interface FileRoutesByTo {
   '/settings/general': typeof SettingsGeneralRoute;
   '/settings/notifications': typeof SettingsNotificationsRoute;
   '/settings/operations': typeof SettingsOperationsRoute;
+  '/sources/rubrics': typeof SourcesRubricsRoute;
   '/posts': typeof PostsIndexRoute;
   '/settings': typeof SettingsIndexRoute;
   '/posts/$id/publish': typeof PostsIdPublishRoute;
@@ -202,6 +210,7 @@ export interface FileRoutesById {
   '/settings/general': typeof SettingsGeneralRoute;
   '/settings/notifications': typeof SettingsNotificationsRoute;
   '/settings/operations': typeof SettingsOperationsRoute;
+  '/sources_/rubrics': typeof SourcesRubricsRoute;
   '/posts/': typeof PostsIndexRoute;
   '/settings/': typeof SettingsIndexRoute;
   '/posts/$id/publish': typeof PostsIdPublishRoute;
@@ -227,6 +236,7 @@ export interface FileRouteTypes {
     | '/settings/general'
     | '/settings/notifications'
     | '/settings/operations'
+    | '/sources/rubrics'
     | '/posts/'
     | '/settings/'
     | '/posts/$id/publish';
@@ -249,6 +259,7 @@ export interface FileRouteTypes {
     | '/settings/general'
     | '/settings/notifications'
     | '/settings/operations'
+    | '/sources/rubrics'
     | '/posts'
     | '/settings'
     | '/posts/$id/publish';
@@ -272,6 +283,7 @@ export interface FileRouteTypes {
     | '/settings/general'
     | '/settings/notifications'
     | '/settings/operations'
+    | '/sources_/rubrics'
     | '/posts/'
     | '/settings/'
     | '/posts/$id/publish';
@@ -289,6 +301,7 @@ export interface RootRouteChildren {
   SourcesRoute: typeof SourcesRoute;
   PostsIdRoute: typeof PostsIdRouteWithChildren;
   PostsNewRoute: typeof PostsNewRoute;
+  SourcesRubricsRoute: typeof SourcesRubricsRoute;
   PostsIndexRoute: typeof PostsIndexRoute;
 }
 
@@ -434,6 +447,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsOperationsRouteImport;
       parentRoute: typeof SettingsRoute;
     };
+    '/sources_/rubrics': {
+      id: '/sources_/rubrics';
+      path: '/sources/rubrics';
+      fullPath: '/sources/rubrics';
+      preLoaderRoute: typeof SourcesRubricsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
     '/posts/$id/publish': {
       id: '/posts/$id/publish';
       path: '/publish';
@@ -493,6 +513,7 @@ const rootRouteChildren: RootRouteChildren = {
   SourcesRoute: SourcesRoute,
   PostsIdRoute: PostsIdRouteWithChildren,
   PostsNewRoute: PostsNewRoute,
+  SourcesRubricsRoute: SourcesRubricsRoute,
   PostsIndexRoute: PostsIndexRoute,
 };
 export const routeTree = rootRouteImport

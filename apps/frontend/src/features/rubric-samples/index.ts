@@ -1,1 +1,1 @@
-export { RubricSamplesButton } from './ui/RubricSamples';
+export { RubricSamplesList } from './ui/RubricSamples';

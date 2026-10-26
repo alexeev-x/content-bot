@@ -1,13 +1,13 @@
 import type { RubricSampleKey } from '@alexeev/contracts';
 import { useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
-import { Button, Dialog } from '../../../shared/ui';
+import { Button } from '../../../shared/ui';
 import { useSendRubricSample } from '../api/rubric-samples-api';
 import styles from './RubricSamples.module.css';
 
 type Need = 'ready' | 'stratz' | 'later';
 const RUBRICS: { key: RubricSampleKey; label: string; note: string; need: Need }[] = [
-  { key: 'patch_broken', label: '1. Что сломали в патче', note: 'картинка: герои патча со стрелками', need: 'ready' },
+  { key: 'patch_broken', label: '1. Что сломали в патче', note: 'картинка: герои патча', need: 'ready' },
   { key: 'who_is_imba', label: '2. Кто теперь имба?', note: 'опрос', need: 'ready' },
   { key: 'nerf_or_buff', label: '3. Нерф или баф?', note: 'картинка + викторина', need: 'ready' },
   { key: 'whose_ability', label: '4. Чья способность?', note: 'викторина по цифрам', need: 'ready' },
@@ -53,11 +53,11 @@ const REASONS: Record<string, string> = {
 };
 
 /**
- * DEV only (owner, 25.10.2026): each press queues the chosen rubric — live data, the AI writer's text, pictures A and B —
- * and the bot sends it to the owner's chat within minutes, the way subscribers would see it, for the owner to compare.
+ * DEV only (owner, 25.10.2026; a page of its own since 26.10.2026): each press queues the chosen rubric — live data,
+ * the AI writer's text and its picture — and the bot sends it to the owner's chat within minutes, the way subscribers
+ * would see it. The press's status stays in its own row, where the owner looks after pressing.
  */
-export function RubricSamplesButton() {
-  const [open, setOpen] = useState(false);
+export function RubricSamplesList() {
   const send = useSendRubricSample();
   const [last, setLast] = useState<RubricSampleKey | null>(null);
   const failure =
@@ -67,52 +67,42 @@ export function RubricSamplesButton() {
         ? (REASONS[send.error.reason] ??
           `${send.error.message} (${send.error.reason}${send.error.details?.['status'] ? `, HTTP ${send.error.details['status']}` : ''})`)
         : send.error.message;
+  const status = send.isPending
+    ? 'Ставлю в очередь…'
+    : failure !== null
+      ? `Не отправлено: ${failure}`
+      : send.data
+        ? 'В работе — придёт в чат с ботом через 1–3 минуты.'
+        : '';
   return (
-    <>
-      <Button variant="secondary" icon="send" onPress={() => setOpen(true)}>
-        Рубрики (DEV)
-      </Button>
-      <Dialog
-        isOpen={open}
-        onOpenChange={setOpen}
-        title="Рубрики (DEV)"
-        description="Собирается только выбранная рубрика: живые данные, текст пишет ИИ, две картинки — A и B, чтобы сравнить. Придёт вам в чат с ботом через 1–3 минуты. В канал ничего не уходит."
-      >
-        <ul className={styles.list}>
-          {RUBRICS.map((rubric) => (
-            <li key={rubric.key} className={styles.row}>
-              <span className={styles.text}>
-                <span className={styles.label}>{rubric.label}</span>
-                <span className={styles.note}>
-                  {rubric.note}
-                  {NEED_NOTE[rubric.need]}
-                </span>
-              </span>
-              <Button
-                size="sm"
-                variant="secondary"
-                isLoading={send.isPending && last === rubric.key}
-                isDisabled={send.isPending}
-                onPress={() => {
-                  setLast(rubric.key);
-                  send.mutate(rubric.key);
-                }}
-              >
-                Прислать
-              </Button>
-            </li>
-          ))}
-        </ul>
-        <output className={styles.status}>
-          {send.isPending
-            ? 'Ставлю в очередь…'
-            : failure !== null
-              ? `Не отправлено: ${failure}`
-              : send.data
-                ? `В работе: ${RUBRICS.find((each) => each.key === send.data.rubric)?.label ?? send.data.rubric} — придёт в чат с ботом через 1–3 минуты.`
-                : ''}
-        </output>
-      </Dialog>
-    </>
+    <ul className={styles.list}>
+      {RUBRICS.map((rubric) => (
+        <li key={rubric.key} className={styles.row}>
+          <span className={styles.text}>
+            <span className={styles.label}>{rubric.label}</span>
+            <span className={styles.note}>
+              {rubric.note}
+              {NEED_NOTE[rubric.need]}
+            </span>
+            {/* Every row keeps its live region so a status appearing after the press is announced. */}
+            <output className={failure !== null && last === rubric.key ? styles.failed : styles.status}>
+              {last === rubric.key ? status : ''}
+            </output>
+          </span>
+          <Button
+            size="sm"
+            variant="secondary"
+            isLoading={send.isPending && last === rubric.key}
+            isDisabled={send.isPending}
+            onPress={() => {
+              setLast(rubric.key);
+              send.mutate(rubric.key);
+            }}
+          >
+            Прислать
+          </Button>
+        </li>
+      ))}
+    </ul>
   );
 }
