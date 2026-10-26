@@ -2,13 +2,12 @@ import { richMediaId } from '@alexeev/contracts';
 import { InputFile } from 'grammy';
 import { BrowserRenderError, type PictureRenderer } from '../../integrations/browser-render/browser-render';
 import { createDotaConstantsApi, DotaConstantsError } from '../../integrations/dotaconstants/dotaconstants';
-import type { GitHubRepoApi } from '../../integrations/github/github-api';
 import { createSteamPublicApi, SteamPublicError } from '../../integrations/steam-public/steam-public';
 import { createStratzApi, StratzError } from '../../integrations/stratz/stratz-api';
 import { createTelegramApi, type TelegramSendApi } from '../../integrations/telegram/telegram-api';
 import { createValveDatafeedApi, DatafeedError } from '../../integrations/valve-datafeed/valve-datafeed';
 import { drawRubricScene, writeRubricCaption } from '../../modules/ai';
-import { parseBuildMessage } from '../../modules/game-files';
+import { condenseBuild, splitDiff, type GameFind } from '../../modules/game-files';
 import {
   buildRubricSample,
   pictureHeading,
@@ -30,9 +29,33 @@ import type { Container } from '../container';
 
 const TELEGRAM_TIMEOUT_MS = 20_000;
 const FLAGS = { disable_notification: false, protect_content: false } as const;
+const BARE_FINDS_MAX = 4;
+const BARE_TEXT_MAX = 1500;
+const GITHUB_TIMEOUT_MS = 8000;
+
+// Finds from before the check's note and the post link were kept (migration 0114) have no text: the writer gets the
+// build's own changed lines instead, read the way the game-files flow reads them. A failed read leaves the find as it was.
+async function fillBareFinds(container: Container, finds: GameFind[]): Promise<GameFind[]> {
+  const github = container.gameFilesRepo;
+  if (github === null) return finds;
+  const bare = finds.filter((find) => find.text === null && find.note === null).slice(0, BARE_FINDS_MAX);
+  const filled = new Map<string, string>();
+  await Promise.all(
+    bare.map(async (find) => {
+      try {
+        const whole = await github.getCommitDiff(find.sha, AbortSignal.timeout(GITHUB_TIMEOUT_MS));
+        const text = condenseBuild(splitDiff(whole));
+        if (text !== null) filled.set(find.sha, text.slice(0, BARE_TEXT_MAX));
+      } catch {
+        // The find stays without text.
+      }
+    })
+  );
+  return finds.map((find) => ({ ...find, text: filled.get(find.sha) ?? find.text }));
+}
 
 function rubricSources(
-  gameFilesRepo: GitHubRepoApi | null,
+  gameFinds: (since: number) => Promise<GameFind[]>,
   stratzAccess: { token: string; bridgeUrl: string } | null
 ): RubricSources {
   const stratz = stratzAccess === null ? null : createStratzApi(stratzAccess);
@@ -66,17 +89,7 @@ function rubricSources(
     },
     steamNews: () => steam.dotaNews(),
     workshopTrending: () => steam.workshopTrending(),
-    gameBuilds: () =>
-      gameFilesRepo === null
-        ? null
-        : gameFilesRepo.listCommits(30).then((commits) =>
-            commits.flatMap((commit) => {
-              const header = parseBuildMessage(commit.message);
-              return header === null
-                ? []
-                : [{ build: header.build, paths: header.paths, committedAt: commit.committedAt }];
-            })
-          ),
+    gameFinds,
     stats:
       stratz === null
         ? null
@@ -121,7 +134,8 @@ const BROWSER_GAP_MS = 11_000;
 type Scene = { kind: 'drawn'; base64: string } | { kind: 'failed'; reason: string };
 
 export type RubricSampleDeps = {
-  gameFilesRepo: GitHubRepoApi | null;
+  /** The finds in the game's files since a time (the game-files module's read). */
+  gameFinds: (since: number) => Promise<GameFind[]>;
   /** STRATZ through the stats bridge; null until both the token and the bridge are set. */
   stratzAccess: { token: string; bridgeUrl: string } | null;
   renderer: PictureRenderer | null;
@@ -164,7 +178,7 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
   let sample;
   try {
     sample = await buildRubricSample(rubric, {
-      sources: rubricSources(deps.gameFilesRepo, deps.stratzAccess),
+      sources: rubricSources(deps.gameFinds, deps.stratzAccess),
       random: deps.random,
       now: deps.now
     });
@@ -353,7 +367,7 @@ export async function runRubricSampleJob(
   try {
     await sendRubricSample(
       {
-        gameFilesRepo: container.gameFilesRepo,
+        gameFinds: async (since) => fillBareFinds(container, await container.gameFileBuilds.recentFinds(since)),
         stratzAccess: access.stratzAccess,
         renderer: access.renderer,
         ai: {

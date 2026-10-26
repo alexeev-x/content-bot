@@ -21,12 +21,21 @@ const WHO_IS_IMBA = [
   'Без вопроса в конце и без призыва голосовать или писать в комментарии: опрос под постом спросит сам. Закончи последним героем или короткой фразой без вопроса.'
 ].join('\n');
 
+// «Утечка недели» (owner, 26.10.2026): of the week's finds in the game's files, one concrete detail told as a leak.
+const WEEKLY_LEAK = [
+  'В черновике — находки в файлах игры за неделю: сборка, дата, что нашла проверка и текст поста об этой находке.',
+  'Выбери ОДНУ самую интересную конкретную деталь недели: новый предмет, сет или имя, голосовая реплика, число, спрятанная функция. Остальное не пересказывай.',
+  'Расскажи её как утечку, с юмором в духе «Valve это скрывает», в голосе канала, коротко.',
+  'Названия и числа бери только из находок, ничего не выдумывай и не додумывай. Назови номер сборки и дату.',
+  'Valve это не подтверждала — можно сказать одной короткой фразой. Без заключительного вопроса, если только он не про эту самую находку.'
+].join('\n');
+
 export const RUBRIC_BRIEFS: Record<RubricKey, string> = {
   patch_broken: STANDARD,
   who_is_imba: WHO_IS_IMBA,
   nerf_or_buff: STANDARD,
   whose_ability: STANDARD,
-  files_dont_lie: STANDARD,
+  files_dont_lie: WEEKLY_LEAK,
   who_gets_nerfed: STANDARD,
   valve_seriously: STANDARD,
   valve_time: STANDARD,

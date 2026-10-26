@@ -92,8 +92,8 @@ export interface RubricSources {
   patchNotes(version: string): Promise<PatchNotes>;
   /** The newest Steam announcements of Dota 2 with their first picture. */
   steamNews(): Promise<{ title: string; imageUrl: string | null; publishedAt: number }[]>;
-  /** The newest builds of the game-files tracker: build number and changed paths; null without its token. */
-  gameBuilds(): Promise<{ build: string; paths: string[]; committedAt: number }[]> | null;
+  /** The finds in the game's files committed since `since` (UTC ms), newest first, at most a few. */
+  gameFinds(since: number): Promise<{ build: string; committedAt: number; note: string | null; text: string | null }[]>;
   /** A set rising in the Steam Workshop this week. */
   workshopTrending(): Promise<{ title: string; previewUrl: string; url: string } | null>;
   /** Null until STRATZ_TOKEN is set. */

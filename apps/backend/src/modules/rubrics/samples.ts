@@ -64,7 +64,7 @@ export const RUBRIC_TITLES: Record<RubricKey, string> = {
   who_is_imba: 'Кто теперь имба?',
   nerf_or_buff: 'Нерф или баф?',
   whose_ability: 'Чья способность?',
-  files_dont_lie: 'Файлы не врут',
+  files_dont_lie: 'Утечка недели',
   who_gets_nerfed: 'Кого понерфят?',
   valve_seriously: 'Valve, ты серьёзно?',
   valve_time: 'Валв-тайм',

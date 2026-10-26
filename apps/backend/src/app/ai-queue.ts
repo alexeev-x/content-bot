@@ -705,6 +705,11 @@ async function handleAiQueueMessages(batch: MessageBatch<unknown>, container: Co
           requestId,
           status: outcome.kind === 'skipped' ? outcome.reason : outcome.kind
         });
+        // The find's post, kept with its build for the rubric «Утечка недели».
+        if (eventJob.own !== undefined && 'postId' in outcome && outcome.postId !== null)
+          await container.gameFileBuilds
+            .attachPost(eventJob.externalId.replace(/^files:/u, ''), outcome.postId)
+            .catch(onError);
         // For the studio's «Автопубликация»: a queued post is recorded by its own job, when it is published or held.
         const source = eventJob.own === undefined ? 'event' : 'game_files';
         if (outcome.kind === 'published' || outcome.kind === 'held')

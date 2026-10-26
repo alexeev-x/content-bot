@@ -293,6 +293,8 @@ export async function prepareGameFilesPost(
   } catch (error) {
     onError(error);
   }
+  // Kept for the rubric «Утечка недели»; a failed write only loses the note.
+  await container.gameFileBuilds.noteCheck(job.sha, reason).catch(onError);
   return { reason, own: gameFilesTask(job) };
 }
 

@@ -26,9 +26,28 @@ export interface GameFileBuildRepository {
   previousBuild(build: string): Promise<string | null>;
   /** Whether a commit of `build` had a find sent to the writer. */
   hadFind(build: string): Promise<boolean>;
+  /** Keeps the check's reason of a queued find. */
+  noteCheck(sha: string, note: string): Promise<void>;
+  /** Links a queued find to the post made of it. */
+  attachPost(sha: string, postId: string): Promise<void>;
+  /** The finds committed since `since`, newest first: one bounded read. */
+  recentFinds(since: number): Promise<GameFind[]>;
+}
+
+/** A find of the game's files with what the check and the writer made of it. */
+export interface GameFind {
+  sha: string;
+  build: string;
+  committedAt: number;
+  /** The cheap check's reason; null for a find from before it was kept. */
+  note: string | null;
+  /** The post the writer made of it (as it stands now); null when none was made. */
+  text: string | null;
 }
 
 const SHAS_MAX = 100;
+const FINDS_MAX = 8;
+const FIND_TEXT_MAX = 1500;
 
 export function createD1GameFileBuilds(db: D1Database): GameFileBuildRepository {
   return {
@@ -90,6 +109,37 @@ export function createD1GameFileBuilds(db: D1Database): GameFileBuildRepository 
         .bind(build)
         .first<{ found: number }>();
       return row !== null;
+    },
+    async noteCheck(sha, note) {
+      await db
+        .prepare(`UPDATE game_file_builds SET check_note = ?2 WHERE sha = ?1 AND status = 'queued'`)
+        .bind(sha, note.slice(0, 200))
+        .run();
+    },
+    async attachPost(sha, postId) {
+      await db
+        .prepare(`UPDATE game_file_builds SET post_id = ?2 WHERE sha = ?1 AND status = 'queued'`)
+        .bind(sha, postId)
+        .run();
+    },
+    async recentFinds(since) {
+      const { results } = await db
+        .prepare(
+          // The post's body is read here, not through the posts module: one query instead of one per find.
+          `SELECT b.sha, b.build, b.committed_at, b.check_note, substr(p.body, 1, ?2) AS text
+           FROM game_file_builds b LEFT JOIN posts p ON p.id = b.post_id
+           WHERE b.status = 'queued' AND b.committed_at >= ?1
+           ORDER BY b.committed_at DESC LIMIT ?3`
+        )
+        .bind(since, FIND_TEXT_MAX, FINDS_MAX)
+        .all<{ sha: string; build: string; committed_at: number; check_note: string | null; text: string | null }>();
+      return results.map((row) => ({
+        sha: row.sha,
+        build: row.build,
+        committedAt: row.committed_at,
+        note: row.check_note,
+        text: row.text
+      }));
     }
   };
 }

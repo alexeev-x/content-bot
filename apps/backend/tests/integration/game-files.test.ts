@@ -190,6 +190,24 @@ describe('the check of a build', () => {
     expect(prepared?.own.facts).toContain('+ "AbilityCooldown" "18"');
     expect(await status(3)).toEqual({ status: 'queued', reason: null });
   });
+
+  it('gives the week its finds with the check reason and the post, and only the queued ones', async () => {
+    await prepareGameFilesPost(make(ai(true)), job, 't', () => {});
+    const builds = container.gameFileBuilds;
+    const postId = '11111111-1111-4111-8111-111111111111';
+    await testDb()
+      .prepare(
+        `INSERT INTO posts (id, title, body, created_at, updated_at) VALUES (?1, 'Находка', 'Новый предмет', 0, 0)`
+      )
+      .bind(postId)
+      .run();
+    await builds.attachPost(sha(3), postId);
+    await builds.skip([{ sha: sha(4), build: '6964', committedAt: 5, reason: 'baseline' }], 0);
+    expect(await builds.recentFinds(0)).toEqual([
+      { sha: sha(3), build: '6963', committedAt: 0, note: 'Марси стала сильнее', text: 'Новый предмет' }
+    ]);
+    expect(await builds.recentFinds(1)).toEqual([]);
+  });
 });
 
 describe('a build with nothing in it (owner, 24.10.2026: «смешную добавить текст и сам diff»)', () => {

@@ -42,7 +42,7 @@ Search with `rg`; read only needed lines. `npm run verify` prints failures; open
 ## Token economy (owner priority)
 - Write tersely: no preamble, no restating the task, no recap of a visible diff.
 - Read line ranges, not whole files; pipe noisy commands through `tail`/`grep`.
-- Images cost ~`⌈w/28⌉×⌈h/28⌉` tokens: view copies with the long edge ≤ 1100 px (`sips -Z 1100`), only the ones you compare.
+- Images cost ~`⌈w/28⌉×⌈h/28⌉` tokens: view one contact sheet (long edge ≤ 1100 px), only what you compare; ≤ 2 fix rounds.
 - One task per session; never resume a finished subagent (start fresh with a ≤ 40-line packet and a path to `.logs/handoff/<task>.md`).
 - Don't edit instructions, skills, hooks or settings mid-task unless that is the task (it breaks the prompt cache).
 

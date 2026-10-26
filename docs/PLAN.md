@@ -237,7 +237,7 @@ with each one's picture is `.logs/rubrics-best.html` (local, not in Git).
      black-and-white 20% crop of its icon, a talent or facet, several correct answers, the odd one out.
   4a. «Ребус» (owner, 25.10.2026: «как ёж + ружьё»): pictures of objects that add up to a hero's name as players say it
      or an item's; from a bank the AI fills and the owner approves in the studio, so a weak rebus never goes out.
-  5. «Файлы не врут»: the week's main game-file finds in one post.
+  5. «Утечка недели» (was «Файлы не врут»): of the week's finds in the game's files, the one most interesting detail told as a leak.
   6. «Кого понерфят?»: a poll when a new build shows up before its patch; after the patch a result post that
      restates the question.
   7. «Valve, ты серьёзно?»: the oddest change of a patch or a file find, rated with reactions.
