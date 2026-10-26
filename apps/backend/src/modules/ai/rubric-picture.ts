@@ -1,7 +1,7 @@
 import { DRAW_TIMEOUT_MS, decodeReference, IMAGE_MODEL, type PictureDeps, prepare, SIZE } from './patch-picture';
 import { AiProviderError } from './ports';
 
-// A rubric's picture after the owner's ten references (design-refs/rubric-style): the model draws the scene and the
+// A rubric's picture after the owner's ten references (embedded in rubric-style-refs.generated.ts; their source folder was removed 26.10.2026): the model draws the scene and the
 // lettering, the browser lays Valve's real portraits, icons and the numbers over it, so they stay exact. A model that
 // redrew the portraits itself was dropped (owner, 25.10.2026: «лица ИИ не может нормально делать»).
 

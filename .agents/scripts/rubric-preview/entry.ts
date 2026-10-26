@@ -118,6 +118,23 @@ for (const key of RUBRIC_KEYS.filter((k) => process.argv.length < 4 || process.a
       ],
       { stdio: 'ignore' }
     );
+    // The rubric's second post (a riddle's answer), as <key>-answer.png.
+    const answer = sample.followUp?.picture;
+    if (answer) {
+      writeFileSync(`${out}/${key}-answer.html`, answer.html);
+      execFileSync(
+        chrome,
+        [
+          '--headless=new',
+          '--hide-scrollbars',
+          '--window-size=1536,768',
+          '--virtual-time-budget=8000',
+          `--screenshot=${out}/${key}-answer.png`,
+          `file:///${out}/${key}-answer.html`
+        ],
+        { stdio: 'ignore' }
+      );
+    }
     console.log('ok', key);
   } catch (error) {
     console.log('fail', key, String(error).slice(0, 120));

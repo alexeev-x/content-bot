@@ -106,6 +106,10 @@ export interface RubricSample {
   text: string;
   /** The rubric is one poll message with the picture inside it: no text post, no AI caption. */
   pictureInPoll?: boolean;
+  /** The text is final as written (fixed captions): no AI caption. */
+  ownText?: boolean;
+  /** A second post of the rubric that follows the first after a while (e.g. a riddle's answer). */
+  followUp?: { afterMinutes: number; picture: { html: string; width: number; height: number } | null; text: string };
   poll: {
     question: string;
     options: string[];

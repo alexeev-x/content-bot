@@ -115,6 +115,8 @@ function sourceError(error: unknown): { code: string; status: number | null } | 
 }
 
 const CAPTION_TIMEOUT_MS = 120_000;
+/** The free plan takes one screenshot per 10 seconds. */
+const BROWSER_GAP_MS = 11_000;
 
 type Scene = { kind: 'drawn'; base64: string } | { kind: 'failed'; reason: string };
 
@@ -185,8 +187,10 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
   // The caption is written while the scene is drawn.
   // A rubric that is one poll with its picture has no text to write.
   const pollOnly = sample.pictureInPoll === true && sample.poll !== null;
+  // Fixed captions (a riddle and its answer) are final as written: no AI either.
+  const noWriter = pollOnly || sample.ownText === true;
   const caption =
-    deps.ai === null || pollOnly
+    deps.ai === null || noWriter
       ? Promise.resolve(null)
       : deps.ai.caption({
           title,
@@ -226,8 +230,21 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
       }
   }
   const written = await caption.catch(() => null);
-  if (deps.ai !== null && !pollOnly && written === null) notes.push('Текст — шаблон: ИИ его не написал.');
+  if (deps.ai !== null && !noWriter && written === null) notes.push('Текст — шаблон: ИИ его не написал.');
   const text = written ?? sample.text;
+
+  // The second post (a riddle's answer) is drawn now too; the free plan takes one screenshot per 10 seconds.
+  let followUpPicture: Uint8Array | null = null;
+  const followUp = sample.followUp;
+  if (followUp?.picture && deps.renderer !== null) {
+    await new Promise((resolve) => setTimeout(resolve, BROWSER_GAP_MS));
+    try {
+      followUpPicture = await deps.renderer.render(followUp.picture.html, followUp.picture, 'png');
+    } catch (error) {
+      const code = error instanceof BrowserRenderError ? error.code : 'BROWSER_FAILED';
+      notes.push(`Картинка второго поста не нарисована (${code}).`);
+    }
+  }
 
   try {
     const signal = () => AbortSignal.timeout(TELEGRAM_TIMEOUT_MS);
@@ -284,6 +301,23 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
         },
         signal()
       );
+    }
+    if (followUp !== undefined) {
+      // The channel gets it `afterMinutes` later; the owner's sample shows it at once, marked.
+      await deps.telegram.sendMessage(
+        deps.ownerChatId,
+        `Второй пост — в канале через ${Math.round(followUp.afterMinutes / 60)} ч, здесь сразу:`,
+        { ...FLAGS, entities: [] },
+        signal()
+      );
+      if (followUpPicture !== null)
+        await deps.telegram.sendPhoto(
+          deps.ownerChatId,
+          new InputFile(followUpPicture, `${rubric}-answer.png`),
+          { ...FLAGS, caption: followUp.text, caption_entities: [] },
+          signal()
+        );
+      else await deps.telegram.sendMessage(deps.ownerChatId, followUp.text, { ...FLAGS, entities: [] }, signal());
     }
   } catch {
     log('failed', 'TELEGRAM_SEND');

@@ -1,4 +1,4 @@
-// GENERATED from design-refs/rubric-style/1.png … 10.png (the owner's ten, 25.10.2026), downscaled to 768×384 JPEG
+// GENERATED from the owner's ten references (25.10.2026; the source images were removed 26.10.2026), downscaled to 768×384 JPEG
 // (quality 82) — do not edit. The image model draws the rubric pictures after these (owner, 25.10.2026).
 
 export const RUBRIC_STYLE_REFERENCES: readonly string[] = [
