@@ -86,7 +86,7 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
     goes without a picture and the owner gets a short note.
   - Built 22.10.2026: the patch post from Valve's notes and the hotfix check; 23.10.2026: the patch picture
     (`docs/backend/sources.md` «Patch posts», «Patch picture»; its price per picture is measured on the first DEV calls).
-    Seen on DEV 23.10.2026: 7.41e went out without the owner with its picture (the DEV-only «Проверить автопубликацию»), so
+    Seen on DEV 23.10.2026: 7.41e went out without the owner with its picture (the DEV-only automatic publishing test, now «Тестирование» → «Автопубликация»), so
     the AI over Dota's sources is closed; other sources come next. Renaming a video's short name in the studio is dropped
     (owner, 23.10.2026: «мелочи», the AI's names will do).
 - Find and add more that give a post a day without the owner's work; each must be free, keyless or with a free key,
@@ -220,8 +220,8 @@ what each shows: `design-refs/rubrics/<NN>-<key>/README.md`), Valve's real hero,
 code. The model draws only scenes without exact characters, or one hero per call from one reference. The layers are
 composed by Cloudflare Browser Rendering (free plan, 10 browser minutes a day; owner, 25.10.2026: «давай попробуем»):
 the picture is an HTML page with Valve's real icons and real text, screenshotted, so numbers on it are exact too.
-Built on DEV 25.10.2026: «Рубрики (DEV)» (a page of its own, `/sources/rubrics`, opened from «Источники») sends a rubric's post from live data to the owner's chat
-(`POST /api/v1/rubric-samples`; the pressed rubric only, its caption by the AI writer, a rubric with a layout of its own drawn by code alone in the flat style the owner chose 26.10.2026 after Riot's patch graphics, a rubric without one as the model's scene under its title), all 32 rubrics listed. OpenDota's
+Built on DEV 25.10.2026: «Тестирование» → «Рубрики» (`/lab`, a DEV-only menu item; DECISIONS 26.10.2026) sends a rubric's post from live data to the owner's chat
+(`POST /api/v1/lab/rubrics`; the pressed rubric only, its caption by the AI writer, a rubric with a layout of its own drawn by code alone in the flat style the owner chose 26.10.2026 after Riot's patch graphics, a rubric without one as the model's scene under its title), all 32 rubrics listed. OpenDota's
 API answers 429 to Cloudflare's shared addresses, so the game data comes from dotaconstants on GitHub and Valve's
 datafeed; pick, win, build, game-length and position rates come from STRATZ (`STRATZ_TOKEN`, owner's free sign-up,
 chosen 25.10.2026) through the owner's stats bridge, since STRATZ refuses Cloudflare (`bridge/stats-bridge`). 31 rubrics work; «Угадай матч» has no source of recent high-rank matches yet (STRATZ's live list

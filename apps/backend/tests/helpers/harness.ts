@@ -8,6 +8,7 @@ import { handleAiQueue } from '../../src/app/ai-queue';
 import { createContainer, type ContainerOverrides } from '../../src/app/container';
 import { createApp } from '../../src/app/create-app';
 import type { AppEnv } from '../../src/app/env';
+import { createLabQueue, mountLab } from '../../src/app/lab';
 import { mountLocalSignIn } from '../../src/app/local-sign-in-route';
 import type { Clock } from '../../src/platform/clock';
 import { sha256Hex } from '../../src/platform/security/sha256';
@@ -211,6 +212,8 @@ export function createApi(
     aiProvider?: AiTextProvider | null;
     /** Mounts the `npm run dev` sign-in (app/local-sign-in-route.ts), as src/index.ts does on the dev server. */
     localSignIn?: boolean;
+    /** Mounts «Тестирование» (app/lab) and its queued jobs, as src/index.ts does in a `__LAB__` build. */
+    lab?: boolean;
   } = {}
 ): Api {
   const messenger = fakeOwnerMessenger();
@@ -225,7 +228,8 @@ export function createApi(
   };
   const app = createApp({
     ...overrides,
-    ...(options.localSignIn === true ? { mountBeforeGuard: mountLocalSignIn } : {})
+    ...(options.localSignIn === true ? { mountBeforeGuard: mountLocalSignIn } : {}),
+    ...(options.lab === true ? { mountLab } : {})
   });
   const background: Promise<unknown>[] = [];
   // Queue AI_JOBS: a sent job runs at once through the real consumer, as background work `settle()` waits for.
@@ -243,7 +247,8 @@ export function createApi(
       return handleAiQueue(
         batch as unknown as MessageBatch<unknown>,
         createContainer(env, overrides),
-        env.TELEGRAM_BOT_TOKEN ?? ''
+        env.TELEGRAM_BOT_TOKEN ?? '',
+        options.lab === true ? createLabQueue(env) : null
       );
     }
   };

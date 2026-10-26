@@ -364,17 +364,23 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
   log('sent');
 }
 
+/** What a sample needs beyond the container: the browser and STRATZ, read from the Worker's env by `lab-queue.ts`. */
+export type RubricSampleAccess = {
+  renderer: PictureRenderer | null;
+  stratzAccess: { token: string; bridgeUrl: string } | null;
+};
+
 /** The `rubric_sample` job: runs once per press and tells the owner in the chat when the sample could not be built. */
 export async function runRubricSampleJob(
   container: Container,
+  access: RubricSampleAccess,
   token: string,
   rubric: RubricKey,
   requestId: string,
   onError: (error: unknown) => void
 ): Promise<void> {
-  const access = container.rubricSamples;
   const ownerChatId = container.ownerChatId;
-  if (access === null || ownerChatId === null || token === '') return;
+  if (ownerChatId === null || token === '') return;
   const telegram = createTelegramApi(token);
   const { timezone } = await getOwnerOperationsSettings({
     repo: container.settings,

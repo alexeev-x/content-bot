@@ -36,6 +36,7 @@ import { LOST_JOB_STATEMENTS, reportLostAiJobs } from './workflows/lost-ai-jobs'
 import { raiseScriptPrompts } from './workflows/script-prompts';
 import { runAiReviews } from './workflows/run-ai-reviews';
 import { DOTA_APP_ID } from './workflows/steam-watch';
+import type { LabCron } from './lab';
 
 // Per table and per hourly tick; leftovers wait for the next hour.
 export const CLEANUP_LIMIT = 100;
@@ -78,7 +79,6 @@ type TickContainer = Pick<
   Container,
   | 'clock'
   | 'logger'
-  | 'backgroundSwitch'
   | 'publishing'
   | 'settings'
   | 'dispatchJobs'
@@ -149,7 +149,12 @@ type TickContainer = Pick<
 //   7d. ai reviews: videos that turned 72 hours old, idle ticks of minutes 14, 34, 54 (one step, two videos at most)
 //   8a. bot media import: leftovers of the files the owner sent to the bot (idle ticks only, last, on what the tick has left)
 //   8. heartbeat: one upsert that records this run for the owner's /status
-export async function handleScheduled(controller: ScheduledController, container: TickContainer): Promise<void> {
+export async function handleScheduled(
+  controller: ScheduledController,
+  container: TickContainer,
+  /** «Тестирование»'s switches for the background jobs; null outside a `__LAB__` build, where every job runs. */
+  lab: LabCron | null = null
+): Promise<void> {
   const { clock, logger } = container;
   const startedAt = clock.now();
   const counts: Record<string, number> = {};
@@ -293,13 +298,9 @@ export async function handleScheduled(controller: ScheduledController, container
   const readAppOrigin = () => (appOrigin ??= container.systemState.readAppOrigin());
   const readPreferences = () =>
     (preferences ??= getOwnerOperationsSettings({ repo: container.settings, logger, requestId: 'scheduled' }));
-  // DEV only (owner, 25.10.2026: «на дев убрать кроны, чтобы не тратилось»): a background job runs only when the
-  // owner switched it on; production has no switch and runs them all. Publishing, reconcile and cleanup always run.
-  const backgroundOn = async (job: BackgroundJob) => {
-    if (!container.backgroundSwitch) return true;
-    const { background } = await readPreferences();
-    return background.enabled && background.jobs[job];
-  };
+  // Only «Тестирование» can switch a background job off (app/lab/lab-cron.ts).
+  const backgroundOn = async (job: BackgroundJob) =>
+    lab === null || lab.backgroundOn(job, async () => (await readPreferences()).background);
 
   const alerts = await alertOwnerOfIncidents({
     repo: container.dispatchJobs,

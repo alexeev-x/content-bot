@@ -42,10 +42,9 @@ type Props = {
   state: SourceTableView;
   timezone: string;
   onChange: (patch: Partial<SourceTableView>) => void;
-  autopublishTest?: boolean;
 };
 
-export function SourceTable({ state, timezone, onChange, autopublishTest = false }: Props) {
+export function SourceTable({ state, timezone, onChange }: Props) {
   const now = useNow().getTime();
   const query = useQuery(sourceEventsQueryOptions({ view: state.view, page: state.page, limit: PAGE_SIZE }));
   const totalCount = query.data?.totalCount ?? 0;
@@ -152,7 +151,6 @@ export function SourceTable({ state, timezone, onChange, autopublishTest = false
         event={opened}
         now={now}
         timezone={timezone}
-        autopublishTest={autopublishTest}
         onClose={() => onChange({ open: undefined })}
       />
     </Panel>

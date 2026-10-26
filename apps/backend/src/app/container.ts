@@ -115,11 +115,6 @@ import {
   type DotaSourceFetcher,
   type DotaWatcherRepository
 } from '../modules/dota';
-import {
-  type BrowserBinding,
-  createBrowserPictureRenderer,
-  type PictureRenderer
-} from '../integrations/browser-render/browser-render';
 import { createD1DotaWatchlists } from '../modules/dota-watchlists';
 import { createD1AutomationRepository, type AutomationRepository } from '../modules/automations';
 import { type ActivityRepository, createD1ActivityRepository } from '../modules/activity';
@@ -236,10 +231,6 @@ export interface Container {
   contentAlerts: ContentAlertRepository;
   /** Follower goals per platform (0048). */
   contentGoals: ContentGoalRepository;
-  /** DEV only: the Cron runs a background job only when the owner switched it on (`BACKGROUND_SWITCH`). */
-  backgroundSwitch: boolean;
-  /** DEV only (`RUBRIC_SAMPLES`): the browser and STRATZ access a rubric sample needs; null elsewhere. */
-  rubricSamples: { renderer: PictureRenderer | null; stratzAccess: { token: string; bridgeUrl: string } | null } | null;
   /** `ANALYTICS_TELEGRAM_CHANNEL`: the channel the analytics reads. */
   analyticsTelegramChannel: string | undefined;
   /** The daily report's forecasts and their scores (0076). */
@@ -320,13 +311,7 @@ export interface ContainerEnv {
   PUBLISHING_ENABLED?: string;
   /** Studio AI drafts per 10 minutes; dev raises it for control runs, unset means 20. */
   AI_DRAFT_LIMIT?: string;
-  /** "true" on dev only: the studio may run an old announcement through the automatic publishing (a test). */
-  AUTOPUBLISH_TEST?: string;
-  /** "true" on dev only: background Cron jobs follow the owner's switches (all off until switched on). */
-  BACKGROUND_SWITCH?: string;
-  /** "true" on dev only: «Рубрики (DEV)» sends rubric samples to the owner (owner, 25.10.2026). */
-  RUBRIC_SAMPLES?: string;
-  /** Browser Rendering (dev only): the rubric pictures. */
+  /** Browser Rendering (dev only): the rubric pictures of «Тестирование» (app/lab). */
   BROWSER?: unknown;
   STRATZ_TOKEN?: string;
   STATS_BRIDGE_URL?: string;
@@ -344,17 +329,6 @@ export interface ContainerEnv {
   TIKTOK_CLIENT_SECRET?: string;
   /** Worker secret: a GitHub token with no scopes, for the game-files tracker (5 000 calls an hour). */
   GITHUB_TOKEN?: string;
-}
-
-const isBrowserBinding = (value: unknown): value is BrowserBinding =>
-  typeof value === 'object' && value !== null && typeof (value as { quickAction?: unknown }).quickAction === 'function';
-
-// STRATZ refuses Cloudflare's addresses, so its calls go through the owner's stats bridge; both are needed.
-function stratzAccess(token: string | undefined, bridgeUrl: string | undefined) {
-  // A token pasted with its quotes is the same token.
-  const clean = token?.trim().replace(/^["']+|["']+$/g, '') ?? '';
-  const bridge = bridgeUrl?.trim() ?? '';
-  return clean === '' || !/^https:\/\/[\w.-]+(:\d+)?\/?$/.test(bridge) ? null : { token: clean, bridgeUrl: bridge };
 }
 
 export interface ContainerOverrides {
@@ -626,17 +600,6 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get contentGoals() {
       return createD1ContentGoalRepository(db());
-    },
-    get rubricSamples() {
-      if (env?.RUBRIC_SAMPLES !== 'true') return null;
-      const browser = env.BROWSER;
-      return {
-        renderer: isBrowserBinding(browser) ? createBrowserPictureRenderer(browser) : null,
-        stratzAccess: stratzAccess(env.STRATZ_TOKEN, env.STATS_BRIDGE_URL)
-      };
-    },
-    get backgroundSwitch() {
-      return env?.BACKGROUND_SWITCH === 'true';
     },
     get analyticsTelegramChannel() {
       return env?.ANALYTICS_TELEGRAM_CHANNEL;

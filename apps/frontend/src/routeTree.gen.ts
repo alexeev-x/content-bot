@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index';
 import { Route as AiRouteImport } from './routes/ai';
 import { Route as AnalyticsRouteImport } from './routes/analytics';
 import { Route as IncidentsRouteImport } from './routes/incidents';
+import { Route as LabRouteImport } from './routes/lab';
 import { Route as LoginRouteImport } from './routes/login';
 import { Route as MediaRouteImport } from './routes/media';
 import { Route as PublicationsRouteImport } from './routes/publications';
@@ -29,7 +30,6 @@ import { Route as SettingsChannelsRouteImport } from './routes/settings.channels
 import { Route as SettingsGeneralRouteImport } from './routes/settings.general';
 import { Route as SettingsNotificationsRouteImport } from './routes/settings.notifications';
 import { Route as SettingsOperationsRouteImport } from './routes/settings.operations';
-import { Route as SourcesRubricsRouteImport } from './routes/sources_.rubrics';
 import { Route as PostsIdPublishRouteImport } from './routes/posts/$id.publish';
 
 const IndexRoute = IndexRouteImport.update({
@@ -50,6 +50,11 @@ const AnalyticsRoute = AnalyticsRouteImport.update({
 const IncidentsRoute = IncidentsRouteImport.update({
   id: '/incidents',
   path: '/incidents',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const LabRoute = LabRouteImport.update({
+  id: '/lab',
+  path: '/lab',
   getParentRoute: () => rootRouteImport,
 } as any);
 const LoginRoute = LoginRouteImport.update({
@@ -132,11 +137,6 @@ const SettingsOperationsRoute = SettingsOperationsRouteImport.update({
   path: '/operations',
   getParentRoute: () => SettingsRoute,
 } as any);
-const SourcesRubricsRoute = SourcesRubricsRouteImport.update({
-  id: '/sources_/rubrics',
-  path: '/sources/rubrics',
-  getParentRoute: () => rootRouteImport,
-} as any);
 const PostsIdPublishRoute = PostsIdPublishRouteImport.update({
   id: '/publish',
   path: '/publish',
@@ -148,6 +148,7 @@ export interface FileRoutesByFullPath {
   '/ai': typeof AiRoute;
   '/analytics': typeof AnalyticsRoute;
   '/incidents': typeof IncidentsRoute;
+  '/lab': typeof LabRoute;
   '/login': typeof LoginRoute;
   '/media': typeof MediaRoute;
   '/publications': typeof PublicationsRoute;
@@ -162,7 +163,6 @@ export interface FileRoutesByFullPath {
   '/settings/general': typeof SettingsGeneralRoute;
   '/settings/notifications': typeof SettingsNotificationsRoute;
   '/settings/operations': typeof SettingsOperationsRoute;
-  '/sources/rubrics': typeof SourcesRubricsRoute;
   '/posts/': typeof PostsIndexRoute;
   '/settings/': typeof SettingsIndexRoute;
   '/posts/$id/publish': typeof PostsIdPublishRoute;
@@ -172,6 +172,7 @@ export interface FileRoutesByTo {
   '/ai': typeof AiRoute;
   '/analytics': typeof AnalyticsRoute;
   '/incidents': typeof IncidentsRoute;
+  '/lab': typeof LabRoute;
   '/login': typeof LoginRoute;
   '/media': typeof MediaRoute;
   '/publications': typeof PublicationsRoute;
@@ -185,7 +186,6 @@ export interface FileRoutesByTo {
   '/settings/general': typeof SettingsGeneralRoute;
   '/settings/notifications': typeof SettingsNotificationsRoute;
   '/settings/operations': typeof SettingsOperationsRoute;
-  '/sources/rubrics': typeof SourcesRubricsRoute;
   '/posts': typeof PostsIndexRoute;
   '/settings': typeof SettingsIndexRoute;
   '/posts/$id/publish': typeof PostsIdPublishRoute;
@@ -196,6 +196,7 @@ export interface FileRoutesById {
   '/ai': typeof AiRoute;
   '/analytics': typeof AnalyticsRoute;
   '/incidents': typeof IncidentsRoute;
+  '/lab': typeof LabRoute;
   '/login': typeof LoginRoute;
   '/media': typeof MediaRoute;
   '/publications': typeof PublicationsRoute;
@@ -210,7 +211,6 @@ export interface FileRoutesById {
   '/settings/general': typeof SettingsGeneralRoute;
   '/settings/notifications': typeof SettingsNotificationsRoute;
   '/settings/operations': typeof SettingsOperationsRoute;
-  '/sources_/rubrics': typeof SourcesRubricsRoute;
   '/posts/': typeof PostsIndexRoute;
   '/settings/': typeof SettingsIndexRoute;
   '/posts/$id/publish': typeof PostsIdPublishRoute;
@@ -222,6 +222,7 @@ export interface FileRouteTypes {
     | '/ai'
     | '/analytics'
     | '/incidents'
+    | '/lab'
     | '/login'
     | '/media'
     | '/publications'
@@ -236,7 +237,6 @@ export interface FileRouteTypes {
     | '/settings/general'
     | '/settings/notifications'
     | '/settings/operations'
-    | '/sources/rubrics'
     | '/posts/'
     | '/settings/'
     | '/posts/$id/publish';
@@ -246,6 +246,7 @@ export interface FileRouteTypes {
     | '/ai'
     | '/analytics'
     | '/incidents'
+    | '/lab'
     | '/login'
     | '/media'
     | '/publications'
@@ -259,7 +260,6 @@ export interface FileRouteTypes {
     | '/settings/general'
     | '/settings/notifications'
     | '/settings/operations'
-    | '/sources/rubrics'
     | '/posts'
     | '/settings'
     | '/posts/$id/publish';
@@ -269,6 +269,7 @@ export interface FileRouteTypes {
     | '/ai'
     | '/analytics'
     | '/incidents'
+    | '/lab'
     | '/login'
     | '/media'
     | '/publications'
@@ -283,7 +284,6 @@ export interface FileRouteTypes {
     | '/settings/general'
     | '/settings/notifications'
     | '/settings/operations'
-    | '/sources_/rubrics'
     | '/posts/'
     | '/settings/'
     | '/posts/$id/publish';
@@ -294,6 +294,7 @@ export interface RootRouteChildren {
   AiRoute: typeof AiRoute;
   AnalyticsRoute: typeof AnalyticsRoute;
   IncidentsRoute: typeof IncidentsRoute;
+  LabRoute: typeof LabRoute;
   LoginRoute: typeof LoginRoute;
   MediaRoute: typeof MediaRoute;
   PublicationsRoute: typeof PublicationsRoute;
@@ -301,7 +302,6 @@ export interface RootRouteChildren {
   SourcesRoute: typeof SourcesRoute;
   PostsIdRoute: typeof PostsIdRouteWithChildren;
   PostsNewRoute: typeof PostsNewRoute;
-  SourcesRubricsRoute: typeof SourcesRubricsRoute;
   PostsIndexRoute: typeof PostsIndexRoute;
 }
 
@@ -333,6 +333,13 @@ declare module '@tanstack/react-router' {
       path: '/incidents';
       fullPath: '/incidents';
       preLoaderRoute: typeof IncidentsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/lab': {
+      id: '/lab';
+      path: '/lab';
+      fullPath: '/lab';
+      preLoaderRoute: typeof LabRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     '/login': {
@@ -447,13 +454,6 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsOperationsRouteImport;
       parentRoute: typeof SettingsRoute;
     };
-    '/sources_/rubrics': {
-      id: '/sources_/rubrics';
-      path: '/sources/rubrics';
-      fullPath: '/sources/rubrics';
-      preLoaderRoute: typeof SourcesRubricsRouteImport;
-      parentRoute: typeof rootRouteImport;
-    };
     '/posts/$id/publish': {
       id: '/posts/$id/publish';
       path: '/publish';
@@ -506,6 +506,7 @@ const rootRouteChildren: RootRouteChildren = {
   AiRoute: AiRoute,
   AnalyticsRoute: AnalyticsRoute,
   IncidentsRoute: IncidentsRoute,
+  LabRoute: LabRoute,
   LoginRoute: LoginRoute,
   MediaRoute: MediaRoute,
   PublicationsRoute: PublicationsRoute,
@@ -513,7 +514,6 @@ const rootRouteChildren: RootRouteChildren = {
   SourcesRoute: SourcesRoute,
   PostsIdRoute: PostsIdRouteWithChildren,
   PostsNewRoute: PostsNewRoute,
-  SourcesRubricsRoute: SourcesRubricsRoute,
   PostsIndexRoute: PostsIndexRoute,
 };
 export const routeTree = rootRouteImport

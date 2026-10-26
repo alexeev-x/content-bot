@@ -18,7 +18,10 @@ export default defineConfig(({ command }) => ({
     __TELEGRAM_BOT_USERNAME__: JSON.stringify(telegramBotUsername),
     // Sign-in without Telegram on `npm run dev` only (docs/LOCAL_PREVIEW.md): the Login Widget refuses localhost.
     // Read by the SPA and the Worker; a build always gets false, so no deployed bundle can sign in this way.
-    __LOCAL_SIGN_IN__: JSON.stringify(command === 'serve')
+    __LOCAL_SIGN_IN__: JSON.stringify(command === 'serve'),
+    // «Тестирование» (owner, 26.10.2026): the SPA page and the Worker's app/lab exist in every Vite run but production;
+    // there the literal `false` lets the bundler drop them, and CI checks the production bundle for leftovers.
+    __LAB__: JSON.stringify(process.env['CLOUDFLARE_ENV'] !== 'production')
   },
   // Small font subsets would be inlined as `data:` URLs, which the CSP (`public/_headers`, no font-src) blocks.
   // Keep fonts as same-origin files instead of loosening the policy.

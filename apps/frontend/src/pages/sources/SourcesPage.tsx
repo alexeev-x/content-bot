@@ -1,11 +1,10 @@
 import { Link, useNavigate, useSearch } from '@tanstack/react-router';
 import { useCallback, useEffect, useRef } from 'react';
 import { useDocumentTitle } from '../../app/use-document-title';
-import { readAppEnvironment } from '../../app/environment';
 import { DotaEventDetail, SourcesBoard, type SourceTableView } from '../../features/dota-intelligence';
 import { useOwnerTimezone } from '../../features/owner-settings';
 import { ru } from '../../shared/lib/ru';
-import { Button, PageHeader } from '../../shared/ui';
+import { PageHeader } from '../../shared/ui';
 
 export function SourcesPage() {
   const timezone = useOwnerTimezone();
@@ -31,7 +30,6 @@ export function SourcesPage() {
     [navigate]
   );
   const invalidHeadingRef = useRef<HTMLHeadingElement>(null);
-  const isDev = readAppEnvironment() === 'dev';
   useDocumentTitle(search.update ? 'Разбор обновления' : ru.pages.sources);
 
   useEffect(() => {
@@ -40,19 +38,9 @@ export function SourcesPage() {
 
   return (
     <>
-      <PageHeader
-        title={ru.pages.sources}
-        focusHeadingOnMount
-        actions={
-          isDev && !search.update ? (
-            <Button variant="secondary" icon="send" onPress={() => void navigate({ to: '/sources/rubrics' })}>
-              Рубрики (DEV)
-            </Button>
-          ) : undefined
-        }
-      />
+      <PageHeader title={ru.pages.sources} focusHeadingOnMount />
       <div hidden={Boolean(search.update)}>
-        <SourcesBoard timezone={timezone} state={state} onChange={onChange} autopublishTest={isDev} />
+        <SourcesBoard timezone={timezone} state={state} onChange={onChange} />
       </div>
       {validUpdate && validSourceKey ? (
         <DotaEventDetail sourceKey={validSourceKey} externalId={externalId} timezone={timezone} />

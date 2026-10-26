@@ -2,9 +2,9 @@ import { type RubricSampleKey, sendRubricSampleResponseSchema } from '@alexeev/c
 import { useMutation } from '@tanstack/react-query';
 import { apiRequest } from '../../../shared/api/http-client';
 
-/** DEV only: one rubric's post from live data goes to the owner's chat with the bot. */
+/** «Тестирование» (DEV builds only): one rubric's post from live data goes to the owner's chat with the bot. */
 export function sendRubricSample(rubric: RubricSampleKey) {
-  return apiRequest('/api/v1/rubric-samples', sendRubricSampleResponseSchema, { method: 'POST', body: { rubric } });
+  return apiRequest('/api/v1/lab/rubrics', sendRubricSampleResponseSchema, { method: 'POST', body: { rubric } });
 }
 
 export function useSendRubricSample() {

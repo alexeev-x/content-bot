@@ -20,7 +20,6 @@ import { mediaRoutes } from './media-routes';
 import { postsRoutes } from './posts-routes';
 import { sourcesRoutes } from './sources-routes';
 import { publicationsRoutes } from './publications-routes';
-import { rubricSamplesRoutes } from './rubric-samples-routes';
 import { requireOwner } from './require-owner';
 import { settingsRoutes } from './settings-routes';
 
@@ -67,6 +66,8 @@ export function createApp(
   > & {
     /** Routes registered before the session guard: the `npm run dev` sign-in (local-sign-in-route.ts). */
     mountBeforeGuard?: (app: Hono<AppBindings>) => void;
+    /** Routes behind the session guard that only a `__LAB__` build has: «Тестирование» (lab/lab-routes.ts). */
+    mountLab?: (app: Hono<AppBindings>) => void;
   } = {}
 ) {
   const app = new Hono<AppBindings>();
@@ -120,7 +121,7 @@ export function createApp(
   app.route('/api/v1/dota', dotaRoutes);
   app.route('/api/v1/sources', sourcesRoutes);
   app.route('/api/v1/publications', publicationsRoutes);
-  app.route('/api/v1/rubric-samples', rubricSamplesRoutes);
+  options.mountLab?.(app);
   app.route('/api/v1/dashboard', dashboardRoutes);
   app.route('/api/v1/activity', activityRoutes);
   app.route('/api/v1/incidents', incidentsRoutes);

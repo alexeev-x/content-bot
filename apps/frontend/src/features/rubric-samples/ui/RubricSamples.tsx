@@ -40,7 +40,6 @@ const RUBRICS: { key: RubricSampleKey; label: string; note: string; need: Need }
 const NEED_NOTE: Record<Need, string> = { ready: '', stratz: ' · STRATZ', later: ' · пока не готово' };
 
 const REASONS: Record<string, string> = {
-  RUBRIC_SAMPLES_OFF: 'Образцы рубрик есть только на DEV.',
   BOT_NOT_CONFIGURED: 'Бот не подключён.',
   BROWSER_NOT_BOUND: 'Browser Rendering не подключён к этому серверу.',
   BROWSER_RATE: 'Бесплатный тариф рисует одну картинку в 10 секунд — подождите и нажмите снова.',
@@ -50,7 +49,7 @@ const REASONS: Record<string, string> = {
 };
 
 /**
- * DEV only (owner, 25.10.2026; a page of its own since 26.10.2026): each press queues the chosen rubric — live data,
+ * «Тестирование» → «Рубрики» (owner, 25.10.2026; in «Тестирование» since 26.10.2026): each press queues the chosen rubric — live data,
  * the AI writer's text and its picture — and the bot sends it to the owner's chat within minutes, the way subscribers
  * would see it. The press's status stays in its own row, where the owner looks after pressing.
  */

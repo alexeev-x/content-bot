@@ -1,11 +1,11 @@
+import type { ReactNode } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import { useNow } from '../../../shared/lib/use-now';
 import { ru } from '../../../shared/lib/ru';
 import { Banner, Button, ErrorState, Icon, Panel, Skeleton, VisuallyHidden } from '../../../shared/ui';
-import { useGeneralSettings } from '../model/use-general-settings';
+import { type SettingsPatch, useGeneralSettings } from '../model/use-general-settings';
 import { AutopublishActivity } from './AutopublishActivity';
 import { AutopublishPanel } from './AutopublishPanel';
-import { BackgroundJobsPanel } from './BackgroundJobsPanel';
 import styles from './GeneralSettingsEditor.module.css';
 import { TimezoneField, TimezoneFieldSkeleton } from './TimezoneField';
 
@@ -53,15 +53,20 @@ export function GeneralSettingsSkeleton() {
 
 const STATUS_TEXT = { idle: '', saving: ru.general.saving, saved: ru.general.saved } as const;
 
+export type GeneralSettingsView = NonNullable<ReturnType<typeof useGeneralSettings>['view']>;
+
 type Props = {
-  /** DEV only: the background jobs' switches (the page knows the environment). */
-  showBackground?: boolean;
   /** Enabled channels for the automatic publishing, composed by the page (features never import each other). */
   channels?: readonly { id: string; title: string }[];
+  /**
+   * Replaces the panels with other parts of the same settings document, saved the same way (load, conflict, status):
+   * «Тестирование» → «Фоновые задачи» (BackgroundJobsEditor), so its code stays out of the production bundle.
+   */
+  children?: (view: GeneralSettingsView, change: (patch: SettingsPatch) => void) => ReactNode;
 };
 
-/** The time zone, the automatic publishing and, on DEV, the background jobs; every change saves by itself. */
-export function GeneralSettingsEditor({ channels = [], showBackground = false }: Props) {
+/** The time zone and the automatic publishing; every change saves by itself. */
+export function GeneralSettingsEditor({ channels = [], children }: Props) {
   const { query, view, problem, status, isFetching, change, keepMine, loadCurrent } = useGeneralSettings();
   const now = useNow();
   const clock = view ? zoneClock(now, view.timezone) : null;
@@ -106,31 +111,34 @@ export function GeneralSettingsEditor({ channels = [], showBackground = false }:
           </div>
         </Banner>
       ) : null}
-      <Panel title={ru.general.timezoneTitle} icon={<Icon name="clock" />}>
-        <div className={styles.timezone}>
-          <TimezoneField value={view.timezone} now={now} onChange={(timezone) => change({ timezone })} />
-          {clock ? (
-            <div className={styles.clock}>
-              <span className={styles.clockLabel}>{ru.general.localTime}</span>
-              <time className={styles.clockTime} dateTime={now.toISOString()}>
-                {clock.time}
-              </time>
-              <span className={styles.clockLabel}>{clock.offset}</span>
+      {children ? (
+        children(view, change)
+      ) : (
+        <>
+          <Panel title={ru.general.timezoneTitle} icon={<Icon name="clock" />}>
+            <div className={styles.timezone}>
+              <TimezoneField value={view.timezone} now={now} onChange={(timezone) => change({ timezone })} />
+              {clock ? (
+                <div className={styles.clock}>
+                  <span className={styles.clockLabel}>{ru.general.localTime}</span>
+                  <time className={styles.clockTime} dateTime={now.toISOString()}>
+                    {clock.time}
+                  </time>
+                  <span className={styles.clockLabel}>{clock.offset}</span>
+                </div>
+              ) : null}
             </div>
-          ) : null}
-        </div>
-      </Panel>
-      <AutopublishPanel
-        enabled={view.autopublishEnabled}
-        destinationId={view.autopublishDestinationId}
-        dailyLimit={view.autopublishDailyLimit}
-        channels={channels}
-        change={change}
-      />
-      <AutopublishActivity />
-      {showBackground ? (
-        <BackgroundJobsPanel enabled={view.backgroundEnabled} jobs={view.backgroundJobs} change={change} />
-      ) : null}
+          </Panel>
+          <AutopublishPanel
+            enabled={view.autopublishEnabled}
+            destinationId={view.autopublishDestinationId}
+            dailyLimit={view.autopublishDailyLimit}
+            channels={channels}
+            change={change}
+          />
+          <AutopublishActivity />
+        </>
+      )}
       <output className={styles.status}>{STATUS_TEXT[status]}</output>
     </div>
   );

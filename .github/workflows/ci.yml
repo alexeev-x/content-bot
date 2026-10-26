@@ -235,6 +235,11 @@ jobs:
       - name: Build for Cloudflare
         run: npm exec -w @alexeev/frontend -- vite build
 
+      # «Тестирование» is DEV-only (owner decision 26.10.2026): the production bundle must not contain it.
+      - name: Check production bundle has no lab
+        if: env.CLOUDFLARE_ENV == 'production'
+        run: node apps/frontend/scripts/check-no-lab.mjs
+
       # DEV applies pending D1 migrations itself, before the new code goes live (owner decision 14.10.2026).
       # Migrations are expand-only (skill d1-migration), so the running old code keeps working; a failed
       # migration stops the job before the deploy. Production stays a manual «D1 migrations» run.
