@@ -7,7 +7,7 @@ import { createStratzApi, StratzError } from '../../integrations/stratz/stratz-a
 import { createTelegramApi, type TelegramSendApi } from '../../integrations/telegram/telegram-api';
 import { createValveDatafeedApi, DatafeedError } from '../../integrations/valve-datafeed/valve-datafeed';
 import { drawRubricScene, writeRubricCaption } from '../../modules/ai';
-import { condenseBuild, splitDiff, type GameFind } from '../../modules/game-files';
+import { condenseBuild, isRelevantPath, parseBuildMessage, splitDiff, type GameFind } from '../../modules/game-files';
 import {
   buildRubricSample,
   pictureHeading,
@@ -35,6 +35,30 @@ const GITHUB_TIMEOUT_MS = 8000;
 
 // Finds from before the check's note and the post link were kept (migration 0114) have no text: the writer gets the
 // build's own changed lines instead, read the way the game-files flow reads them. A failed read leaves the find as it was.
+/**
+ * DEV samples only: the week's builds straight from the tracker when the watch kept no find (DEV runs with the background
+ * work off; production has it on, and this sample page goes once every rubric is approved),
+ * owner 26.10.2026: «собрать данные за неделю назад»: only builds touching heroes, abilities, items or the strings.
+ */
+async function trackerFinds(container: Container, since: number): Promise<GameFind[]> {
+  const github = container.gameFilesRepo;
+  if (github === null) return [];
+  try {
+    const commits = await github.listCommits(30, AbortSignal.timeout(GITHUB_TIMEOUT_MS));
+    return commits
+      .filter((commit) => commit.committedAt >= since)
+      .flatMap((commit) => {
+        const header = parseBuildMessage(commit.message);
+        return header !== null && header.paths.some(isRelevantPath)
+          ? [{ sha: commit.sha, build: header.build, committedAt: commit.committedAt, note: null, text: null }]
+          : [];
+      })
+      .slice(0, BARE_FINDS_MAX);
+  } catch {
+    return [];
+  }
+}
+
 async function fillBareFinds(container: Container, finds: GameFind[]): Promise<GameFind[]> {
   const github = container.gameFilesRepo;
   if (github === null) return finds;
@@ -367,7 +391,10 @@ export async function runRubricSampleJob(
   try {
     await sendRubricSample(
       {
-        gameFinds: async (since) => fillBareFinds(container, await container.gameFileBuilds.recentFinds(since)),
+        gameFinds: async (since) => {
+          const stored = await container.gameFileBuilds.recentFinds(since);
+          return fillBareFinds(container, stored.length > 0 ? stored : await trackerFinds(container, since));
+        },
         stratzAccess: access.stratzAccess,
         renderer: access.renderer,
         ai: {
