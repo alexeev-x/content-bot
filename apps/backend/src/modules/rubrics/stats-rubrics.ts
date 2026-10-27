@@ -9,6 +9,7 @@ import {
   medianMinutes,
   OPENDOTA_MATCHUP_MIN_MATCHES,
   neutralPicks,
+  sampleNeutrals,
   pairTalents,
   rankPurchases,
   roleOf,
@@ -397,6 +398,14 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
       `Выборка: ${sample.matches.length} матчей на позиции ${position} из ${sample.fetched}, окно ${built?.days ?? '?'} дн.` +
         (built === null ? ` (мало для сборки: нужно ${BUILD_SAMPLE_MIN})` : `, посчитано ${built.matches}`)
     );
+    if (sample.matches.length === 0 && sample.positions !== undefined)
+      notes.push(
+        `Позиции в ответе STRATZ: ${
+          Object.entries(sample.positions)
+            .map(([name, count]) => `${name}×${count}`)
+            .join(', ') || 'нет'
+        }`
+      );
     if (built !== null && built.anchorShare < 0.7)
       notes.push(`Якоря: порог снижен до ${Math.round(built.anchorShare * 100)}% (при 70% их меньше трёх)`);
   }
@@ -438,7 +447,11 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
     if (start.length === 0 && (startRows !== null || quiet)) missing('стартовый закуп', 'предметы OpenDota');
   }
   const neutralRows = await attempt('нейтралки', () => stats.heroNeutralItems(hero.id, position));
-  const neutrals = neutralRows === null ? [] : neutralPicks(neutralRows, items);
+  let neutrals = neutralRows === null ? [] : neutralPicks(neutralRows, items);
+  if (neutrals.length === 0 && sample !== null) {
+    neutrals = sampleNeutrals(sample.matches, items);
+    if (neutrals.length > 0) notes.push('Нейтралки — из матчей выборки');
+  }
   if (neutrals.length === 0 && neutralRows !== null)
     notes.push(
       `Нет данных: нейтралки (STRATZ вернул ${neutralRows.length} строк, из них с уровнем ${neutralRows.filter((row) => row.tier !== null).length})`

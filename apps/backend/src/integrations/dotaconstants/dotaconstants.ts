@@ -7,7 +7,9 @@ import { readCappedText } from '../../platform/http/read-capped-text';
 
 export const DOTACONSTANTS_TIMEOUT_MS = 15_000;
 const BASE = 'https://raw.githubusercontent.com/odota/dotaconstants/master/build';
-const HERO_ABILITIES_URL = 'https://api.opendota.com/api/constants/hero_abilities';
+// The same constant OpenDota serves, from dotaconstants on GitHub: OpenDota refuses Cloudflare's addresses (DEV,
+// 27.10.2026: DOTACONSTANTS_HTTP).
+const HERO_ABILITIES_URL = 'https://raw.githubusercontent.com/odota/dotaconstants/master/build/hero_abilities.json';
 const MAX_BODY_BYTES = 800_000;
 
 export type DotaConstantsErrorCode = 'DOTACONSTANTS_FETCH' | 'DOTACONSTANTS_HTTP' | 'DOTACONSTANTS_SHAPE';

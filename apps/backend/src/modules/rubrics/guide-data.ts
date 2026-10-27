@@ -103,6 +103,22 @@ export function splitBuild(ranked: RankedItem[]): { core: GuideItem[]; situation
 }
 
 /**
+ * The neutral items most held at the end of the sample's matches, up to five (STRATZ's own neutral totals came back
+ * empty on DEV, 27.10.2026, after the neutral items' rework). A tier is shown when the constants know it.
+ */
+export function sampleNeutrals(matches: { neutral?: number | null }[], items: Map<number, ItemInfo>): GuideItem[] {
+  const counts = new Map<number, number>();
+  for (const match of matches) {
+    if (match.neutral == null || items.get(match.neutral) === undefined) continue;
+    counts.set(match.neutral, (counts.get(match.neutral) ?? 0) + 1);
+  }
+  return [...counts]
+    .sort((a, b) => b[1] - a[1])
+    .slice(0, 5)
+    .map(([itemId]) => ({ key: items.get(itemId)?.key ?? '' }));
+}
+
+/**
  * One neutral item per tier, the most held of each, tier 1 first. The tier is STRATZ's own; the constants' tier (given
  * to a few items only) stands in when STRATZ names none. A row repeats per week and bracket, so an item's rows add up.
  */

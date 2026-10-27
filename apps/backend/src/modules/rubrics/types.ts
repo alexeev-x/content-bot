@@ -86,6 +86,8 @@ export interface GuideMatch {
   patch: number | null;
   /** The six inventory slots at the end of the match. */
   items: number[];
+  /** The neutral item slot at the end of the match. */
+  neutral?: number | null;
   /** Every purchase with its minute (negative: before the horn); null when the sample does not carry them. */
   purchases: { itemId: number; minute: number }[] | null;
   /** Every ability point spent. */
@@ -97,6 +99,8 @@ export interface GuideSample {
   fetched: number;
   total: number;
   matches: GuideMatch[];
+  /** The positions the rows came with (`POSITION_4` → count), for the owner's note when none matched. */
+  positions?: Record<string, number>;
 }
 
 export interface StatsSource {

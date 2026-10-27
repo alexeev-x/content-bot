@@ -70,7 +70,11 @@ const matchupSchema = z.object({
   vs: z.array(z.object({ heroId2: z.number().int(), matchCount: count, winCount: count })).max(300)
 });
 /** Matches per guide sample (STRATZ's `take`). */
-const GUIDE_TAKE = 100;
+/** STRATZ's guide list answers ten matches a page (DEV, 27.10.2026: «из 10» for take 100): pages of ten, up to 100. */
+const GUIDE_PAGE = 10;
+const GUIDE_PAGES = 10;
+const GUIDE_TAKE = GUIDE_PAGE * GUIDE_PAGES;
+const GUIDE_PAGE_GAP_MS = 1200;
 const slot = z.number().int().nullable().catch(null);
 const guideSchema = z.object({
   matchCount: count,
@@ -94,6 +98,7 @@ const guideSchema = z.object({
             item3Id: slot,
             item4Id: slot,
             item5Id: slot,
+            neutral0Id: slot.optional(),
             abilities: z
               .array(
                 z.object({
@@ -143,6 +148,8 @@ export interface StratzGuideMatch {
   startedAt: number | null;
   patch: number | null;
   items: number[];
+  /** The neutral item slot at the end of the match. */
+  neutral: number | null;
   purchases: { itemId: number; minute: number }[] | null;
   abilities: { abilityId: number; time: number; level: number }[];
 }
@@ -207,7 +214,7 @@ export interface StratzApi {
     position: number,
     withPurchases: boolean,
     signal?: AbortSignal
-  ): Promise<{ fetched: number; total: number; matches: StratzGuideMatch[] }>;
+  ): Promise<{ fetched: number; total: number; matches: StratzGuideMatch[]; positions: Record<string, number> }>;
 }
 
 /** Matches per guide sample and opponents per matchup read: both bound the reply. */
@@ -394,18 +401,28 @@ export function createStratzApi(input: { token: string; bridgeUrl?: string; fetc
     async guideSample(id, position, withPurchases, signal) {
       const wanted = place(position);
       const purchases = withPurchases ? ' stats { itemPurchases { time itemId } }' : '';
-      const lists = await query(
-        `{ heroStats { guide(heroId: ${heroId(id)}, positionId: POSITION_${wanted}, take: ${GUIDE_TAKE}) { matchCount guides { match { startDateTime gameVersionId } matchPlayer { isVictory position item0Id item1Id item2Id item3Id item4Id item5Id abilities { abilityId time level }${purchases} } } } } }`,
-        (data) => heroStats(data, 'guide'),
-        guideSchema,
-        signal
-      );
+      // Page by page, one after another with a pause: rubrics are not in a hurry (owner, 27.10.2026).
+      const lists: z.infer<typeof guideSchema>[] = [];
+      for (let page = 0; page < GUIDE_PAGES; page += 1) {
+        if (page > 0) await new Promise((resolve) => setTimeout(resolve, GUIDE_PAGE_GAP_MS));
+        const rows = await query(
+          `{ heroStats { guide(heroId: ${heroId(id)}, positionId: POSITION_${wanted}, take: ${GUIDE_PAGE}, skip: ${page * GUIDE_PAGE}) { matchCount guides { match { startDateTime gameVersionId } matchPlayer { isVictory position item0Id item1Id item2Id item3Id item4Id item5Id neutral0Id abilities { abilityId time level }${purchases} } } } } }`,
+          (data) => heroStats(data, 'guide'),
+          guideSchema,
+          signal
+        );
+        lists.push(...rows);
+        if (rows.flatMap((list) => list.guides).length < GUIDE_PAGE) break;
+      }
       const matches: StratzGuideMatch[] = [];
       let fetched = 0;
+      // The positions the rows came with, for the owner's note when none matched.
+      const seen: Record<string, number> = {};
       for (const guide of lists.flatMap((list) => list.guides)) {
         fetched += 1;
         const player = guide.matchPlayer;
         if (player === null || player.isVictory === null) continue;
+        seen[player.position ?? 'нет'] = (seen[player.position ?? 'нет'] ?? 0) + 1;
         if (Number(/POSITION_(d)/u.exec(player.position ?? '')?.[1] ?? 0) !== wanted) continue;
         const events = player.stats?.itemPurchases;
         matches.push({
@@ -420,11 +437,12 @@ export function createStratzApi(input: { token: string; bridgeUrl?: string; fetc
             player.item4Id,
             player.item5Id
           ].filter((each): each is number => each !== null),
+          neutral: player.neutral0Id ?? null,
           purchases: events == null ? null : events.map((event) => ({ itemId: event.itemId, minute: event.time / 60 })),
           abilities: player.abilities
         });
       }
-      return { fetched, total: lists.reduce((sum, list) => sum + list.matchCount, 0), matches };
+      return { fetched, total: lists.reduce((sum, list) => sum + list.matchCount, 0), matches, positions: seen };
     }
   };
 }
