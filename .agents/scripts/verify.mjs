@@ -11,8 +11,8 @@
 // Light steps run at once; heavy ones (tsc, test pools, build) run one after another alongside them, because
 // all of them together exhaust a 16 GB laptop's memory and macOS starts force-quitting apps.
 import { execFileSync } from 'node:child_process';
-import { existsSync, mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { existsSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { runCommandAsync, commandOutput } from './run-command.mjs';
 
@@ -51,12 +51,14 @@ const INSTRUCTIONS =
 const PRETTIER_FILES = /\.(ts|tsx|js|mjs|cjs|json|jsonc|css)$/;
 const LINT_FILES = /\.(ts|tsx|js|mjs|cjs)$/;
 
-export function planSteps(files, { existingFiles = files } = {}) {
+export function planSteps(files, { existingFiles = files, versionBumps = [], dependencyChanges = [] } = {}) {
   files = files.map((file) => file.replaceAll('\\', '/'));
   existingFiles = existingFiles.map((file) => file.replaceAll('\\', '/'));
-  if (files.some((f) => GLOBAL.test(f))) return STEPS;
   const steps = [];
   const pretty = existingFiles.filter((f) => PRETTIER_FILES.test(f));
+  // See changedFiles: a version bump only checks formatting, an app's dependency only that app.
+  files = files.filter((f) => !versionBumps.includes(f));
+  if (files.some((f) => GLOBAL.test(f) && !dependencyChanges.includes(f))) return STEPS;
   const lintable = existingFiles.filter((f) => LINT_FILES.test(f));
   const contracts = files.some((f) => f.startsWith('apps/contracts/'));
   const backend = contracts || files.some((f) => f.startsWith('apps/backend/'));
@@ -74,22 +76,31 @@ export function planSteps(files, { existingFiles = files } = {}) {
   if (backend) steps.push(['backend-typecheck', ['npm', 'run', 'typecheck', '-w', '@alexeev/backend']]);
   if (frontend) steps.push(['frontend-typecheck', ['npm', 'run', 'typecheck', '-w', '@alexeev/frontend']]);
   if (backend || frontend) steps.push(['architecture', ['npm', 'run', 'depcruise']]);
-  if (backend) steps.push(['backend-tests', tests('backend', contracts, existingFiles)]);
-  if (frontend) steps.push(['frontend-tests', tests('frontend', contracts, existingFiles)]);
+  const backendTests = backend && tests('backend', contracts, files);
+  const frontendTests = frontend && tests('frontend', contracts, files);
+  if (backendTests) steps.push(['backend-tests', backendTests]);
+  if (frontendTests) steps.push(['frontend-tests', frontendTests]);
   if (backend || frontend) steps.push(BUILD);
   return steps;
 }
 
 // Only the tests named after what changed (owner, 26.10.2026: a DEV push must take seconds, not minutes of the whole
 // suite). An import graph does not narrow it: almost every test loads the app's container and through it every module.
-// The filters are the changed files' names and their module folder («rubrics» → every test path with «rubric»).
-// A contract change still runs a package's whole suite; CI runs every suite for main and PRs.
-function tests(pkg, contracts, existingFiles) {
+// The filters are the changed (or deleted) files' names and their module folder («rubrics» → every test path with
+// «rubric»); a migration runs the migration test, which applies them all. No changed code or migration → no tests
+// (owner, 27.10.2026: no needless checks). A contract change still runs a package's whole suite; CI runs every suite
+// for main and PRs.
+function tests(pkg, contracts, files) {
+  if (contracts) return ['npm', 'run', 'test', '-w', `@alexeev/${pkg}`];
   const prefix = `apps/${pkg}/`;
-  const own = existingFiles.filter((f) => f.startsWith(prefix) && LINT_FILES.test(f));
-  if (contracts || own.length === 0) return ['npm', 'run', 'test', '-w', `@alexeev/${pkg}`];
+  const own = files.filter((f) => f.startsWith(prefix) && (LINT_FILES.test(f) || f.endsWith('.sql')));
+  if (own.length === 0) return null;
   const names = new Set();
   for (const file of own) {
+    if (file.endsWith('.sql')) {
+      names.add('migration');
+      continue;
+    }
     const base = file
       .split('/')
       .pop()
@@ -143,7 +154,66 @@ export function changedFiles(root, requestedBase = null) {
     .map((l) => l.slice(3).replaceAll('\\', '/'));
   const files = [...new Set([...committed.split('\0').filter(Boolean), ...working])];
   // Keep deletions for area selection, but never pass missing paths to formatters/linters.
-  return { base, files, existingFiles: files.filter((f) => existsSync(join(root, f))) };
+  const existingFiles = files.filter((f) => existsSync(join(root, f)));
+  if (!base) return { base, files, existingFiles };
+  // A package.json that changed only its version or an app's dependencies is narrowed (owner, 27.10.2026): the bump
+  // checks formatting, a dependency checks its app and the files that import it. Root dependencies are tooling
+  // (TypeScript, Vitest, Prettier…) that every check uses, so they still run the full set. The lock follows them.
+  const versionBumps = [];
+  const dependencyChanges = [];
+  const users = [];
+  for (const file of existingFiles.filter((f) => /^(package|apps\/[^/]+\/package)\.json$/.test(f))) {
+    const deps = changedDependencies(git, root, base, file);
+    if (deps === null || (deps.length > 0 && file === 'package.json')) continue;
+    (deps.length ? dependencyChanges : versionBumps).push(file);
+    for (const dep of deps) users.push(...importers(git, dirname(file), dep));
+  }
+  const packages = files.filter((f) => /(^|\/)package\.json$/.test(f));
+  const narrowed = [...versionBumps, ...dependencyChanges];
+  if (packages.length > 0 && packages.every((f) => narrowed.includes(f))) versionBumps.push('package-lock.json');
+  return { base, files: [...new Set([...files, ...users])], existingFiles, versionBumps, dependencyChanges };
+}
+
+/**
+ * The dependencies a package.json changed since `base` (committed or not), `[]` for a version bump alone, or null
+ * when anything else changed (scripts, workspaces, engines…) and the full set must run.
+ */
+function changedDependencies(git, root, base, file) {
+  let before;
+  try {
+    before = JSON.parse(git('show', `${base}:${file}`));
+  } catch {
+    return null;
+  }
+  const after = JSON.parse(readFileSync(join(root, file), 'utf8'));
+  const DEPS = ['dependencies', 'devDependencies', 'peerDependencies'];
+  const keys = new Set([...Object.keys(before), ...Object.keys(after)]);
+  const other = [...keys].filter(
+    (k) => k !== 'version' && !DEPS.includes(k) && JSON.stringify(before[k]) !== JSON.stringify(after[k]),
+  );
+  if (other.length > 0) return null;
+  const deps = new Set();
+  for (const section of DEPS) {
+    const was = before[section] ?? {};
+    const now = after[section] ?? {};
+    for (const name of new Set([...Object.keys(was), ...Object.keys(now)])) {
+      if (was[name] !== now[name]) deps.add(name);
+    }
+  }
+  return [...deps];
+}
+
+/** Tracked source and config files of one app that import `dep` (or a path inside it). */
+function importers(git, dir, dep) {
+  const quoted = ["'", '"'].flatMap((q) => ['-e', `${q}${dep}${q}`, '-e', `${q}${dep}/`]);
+  try {
+    return git('grep', '-l', '-F', ...quoted, '--', dir, ':!*package.json')
+      .split('\n')
+      .filter(Boolean)
+      .map((f) => f.replaceAll('\\', '/'));
+  } catch {
+    return []; // git grep exits 1 when nothing imports it
+  }
 }
 
 /** Applies `--only` / `--skip`; an unknown step name is an error, so a typo never skips a check silently. */
@@ -170,8 +240,8 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
   const requestedBase = baseIndex === -1 ? null : process.argv[baseIndex + 1];
   let steps = STEPS;
   if (process.argv.includes('--changed')) {
-    const { base, files, existingFiles } = changedFiles(root, requestedBase);
-    steps = base === null ? STEPS : planSteps(files, { existingFiles });
+    const { base, files, existingFiles, versionBumps, dependencyChanges } = changedFiles(root, requestedBase);
+    steps = base === null ? STEPS : planSteps(files, { existingFiles, versionBumps, dependencyChanges });
     console.log(
       base === null
         ? 'verify --changed: no usable base found, running the full set'
