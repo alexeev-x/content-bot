@@ -42,10 +42,15 @@ export interface GuideSwap {
 }
 
 export interface GuideAltBuild {
-  winRate: number;
+  /** Left out when the sample holds winners only (STRATZ's guide lists): `share` speaks for the build instead. */
+  winRate?: number;
+  /** The share of the sample's matches that went this way, 0…1. */
+  share: number;
   matches: number;
   /** The item the build turns on, as players name it: «через Мьёльнир». */
   keyItem: string;
+  /** The key item's id, for its win rate from STRATZ's purchase totals. */
+  keyItemId?: number;
   /** Only the items that differ from the main build, at most four drawn: the shared ones would repeat slide one. */
   swaps: GuideSwap[];
   /** Only the talent levels where this build picks the other side; `instead` is the main build's pick. */
@@ -61,6 +66,8 @@ export interface HeroGuideCard {
   buildWinRate?: number;
   buildMatches?: number;
   buildDays: number;
+  /** The rate is the hero's at the position, not the build's (the sample held winners only). */
+  buildRateOfRole?: boolean;
   /** At most six each; core in buy order. */
   start: GuideItem[];
   core: GuideItem[];
@@ -71,7 +78,7 @@ export interface HeroGuideCard {
   matchups: GuideMatchup[];
   /** Win rate (0…1) in games under 35 minutes, 35–50 and over 50; the block is left out without it. */
   byLength?: [number, number, number];
-  /** The hero's four abilities in Q, W, E, R order; the last is the ultimate. */
+  /** The hero's abilities in Q, W, E, R order; with four the last is the ultimate (Invoker's three basics have none). */
   abilities: string[];
   /** Level 1 first: an ability key from `abilities`, or null for a level without one. Only levels 1–10 are drawn; may be empty. */
   skills: (string | null)[];
@@ -150,10 +157,10 @@ function head(guide: HeroGuideCard, shape: HeadShape) {
   return `<div class="z head"><h1 class="title" style="font-size:${size}px">Гайд на <b>${escapeHtml(name)}</b></h1><span class="role">${ROLE_WORDS[guide.role]}</span></div>`;
 }
 
-/** «Винрейт сборки 53,4% · 1 864 матча за 14 дней»; `note` is a second line in red. */
-function stat(winRate: number, matches: number, days: number, cls: string, note?: string) {
+/** «Винрейт сборки 53,4% · 1 864 матча за 14 дней»; `label` is the first part's HTML, `note` a second line in red. */
+function stat(label: string, matches: number, days: number, cls: string, note?: string) {
   const sample = `${count(matches)} ${plural(matches, MATCHES)} за ${days} ${plural(days, DAYS)}`;
-  return `<p class="stat ${cls}"><span>Винрейт сборки <b>${percent(winRate)}</b></span><span class="dot"> · </span><span>${sample}</span>${
+  return `<p class="stat ${cls}"><span>${label}</span><span class="dot"> · </span><span>${sample}</span>${
     note === undefined ? '' : `<span class="note">${note}</span>`
   }</p>`;
 }
@@ -309,7 +316,7 @@ const skillTile = (guide: HeroGuideCard, skill: string | null | undefined) =>
     : '<b>—</b>';
 
 function skillRow(guide: HeroGuideCard) {
-  const ultimate = guide.abilities.at(-1);
+  const ultimate = guide.abilities.length === 4 ? guide.abilities.at(-1) : undefined;
   const cells = guide.skills
     .slice(0, 10)
     .map(
@@ -408,6 +415,7 @@ function diffSlide(guide: HeroGuideCard, alt: GuideAltBuild) {
   const rarerButBetter =
     guide.buildMatches !== undefined &&
     guide.buildWinRate !== undefined &&
+    alt.winRate !== undefined &&
     alt.matches < guide.buildMatches &&
     alt.winRate > guide.buildWinRate;
   const talents = talentDiff(alt);
@@ -423,15 +431,20 @@ function diffSlide(guide: HeroGuideCard, alt: GuideAltBuild) {
   const size = full ? Math.min(150, Math.floor((slot - 80) / 1.75)) : shown >= 4 ? 120 : shown === 3 ? 150 : 176;
   const was = Math.round(size * (full ? 0.75 : 0.8));
   const vars = `left:${left}px;width:${width}px;--tw:${size}px;--th:${Math.round((size * 64) / 88)}px;--fw:${was}px;--fh:${Math.round((was * 64) / 88)}px`;
-  return `${heroBox(guide, { width: heroWidth, height: 644, faceX: 0.5, faceY: 0.28, share: full ? 0.5 : 0.62 })}
+  return `${heroBox(guide, { width: heroWidth, height: 644, faceX: 0.5, faceY: 0.34, share: full ? 0.6 : 0.72 })}
 <div class="z dif ${full ? 'full' : 'min'}" style="${vars}">${head(guide, { room: 554, max: 52 })}
-<h2>Альтернатива: через ${escapeHtml(alt.keyItem)}</h2>${stat(
-    alt.winRate,
-    alt.matches,
-    guide.buildDays,
-    '',
-    rarerButBetter ? 'реже берут, но побед больше' : undefined
-  )}${swapList(alt)}${talents}${skills}</div>`;
+<h2>Альтернатива: через ${escapeHtml(alt.keyItem)}</h2>${
+    // Without its own win rate only the share speaks: the sample's few days are not the card's window.
+    alt.winRate === undefined
+      ? `<p class="stat"><span>Так собирают <b>${percent(alt.share)}</b> победителей</span></p>`
+      : stat(
+          `Винрейт сборки <b>${percent(alt.winRate)}</b>`,
+          alt.matches,
+          guide.buildDays,
+          '',
+          rarerButBetter ? 'реже берут, но побед больше' : undefined
+        )
+  }${swapList(alt)}${talents}${skills}</div>`;
 }
 
 // Scale: type 64/52/34/22/20/18/16; gaps 4/8/12/16/24/32/64. Items at most 1.7× Valve's 88×64, abilities at most
@@ -537,8 +550,13 @@ export function guidePicture(guide: HeroGuideCard): { html: string; width: numbe
   const stats =
     guide.buildWinRate === undefined || guide.buildMatches === undefined
       ? ''
-      : stat(guide.buildWinRate, guide.buildMatches, guide.buildDays, 'z');
-  const body = `${heroBox(guide, { width: 280, height: tall ? 644 : 492, faceX: 0.5, faceY: tall ? 0.24 : 0.3, share: tall ? 0.62 : 0.55 })}${head(guide, { room: 554, max: 52 })}
+      : stat(
+          `${guide.buildRateOfRole === true ? 'Винрейт на позиции' : 'Винрейт сборки'} <b>${percent(guide.buildWinRate)}</b>`,
+          guide.buildMatches,
+          guide.buildDays,
+          'z'
+        );
+  const body = `${heroBox(guide, { width: 280, height: tall ? 644 : 492, faceX: 0.5, faceY: tall ? 0.34 : 0.38, share: tall ? 0.72 : 0.65 })}${head(guide, { room: 554, max: 52 })}
 ${stats}${groups(guide)}
 <div class="z rcol">${talentBlock(guide)}${lengthBars(guide)}</div>${hasSkills ? skillRow(guide) : ''}
 ${hasSpectrum ? spectrum(guide, { width: 680, face: 84 }) : ''}`;

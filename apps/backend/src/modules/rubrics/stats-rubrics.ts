@@ -3,6 +3,8 @@ import {
   BUILD_SAMPLE_MIN,
   fallbackPurchases,
   guideFromSample,
+  itemWinRate,
+  keyItemOf,
   lengthWinRates,
   lengthWinRatesFromBins,
   matchupRows,
@@ -25,6 +27,7 @@ import { NERF_LOOKS, nerfQuestionPicture, nerfResultPicture } from './nerf-pictu
 import { VERSUS_LOOKS, VERSUS_TITLES, versusPicture } from './versus-pictures';
 import {
   type FallbackStatsSource,
+  type StatsSource,
   type HeroInfo,
   type ItemInfo,
   needStats,
@@ -388,10 +391,14 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
           ...(fallbackMinutes === undefined ? {} : { fallbackMinutes })
         });
   let built = counted();
+  // STRATZ's per-minute purchase totals at the position: read once, for missing minutes and the builds' win rates.
+  let purchaseTotals: Promise<Awaited<ReturnType<StatsSource['heroPositionPurchases']>> | null> | undefined;
+  const totals = () =>
+    (purchaseTotals ??= attempt('покупки на позиции', () => stats.heroPositionPurchases(hero.id, position)));
   if (built !== null && built.core.some((item) => item.minute === undefined)) {
     // Buyers' times missing: the order and the minutes come from STRATZ's per-minute totals.
-    const totals = await attempt('минуты покупки', () => stats.heroPositionPurchases(hero.id, position));
-    if (totals !== null) built = counted(medianMinutes(totals));
+    const rows = await totals();
+    if (rows !== null) built = counted(medianMinutes(rows));
   }
   if (sample !== null) {
     notes.push(
@@ -406,8 +413,10 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
             .join(', ') || 'нет'
         }`
       );
-    if (built !== null && built.anchorShare < 0.7)
-      notes.push(`Якоря: порог снижен до ${Math.round(built.anchorShare * 100)}% (при 70% их меньше трёх)`);
+    if (built !== null && built.anchorShare < 0.5)
+      notes.push(
+        `Основа: порог снижен до ${Math.round(built.anchorShare * 100)}% (больше чем в половине матчей — меньше трёх предметов)`
+      );
   }
 
   let core: GuideItem[] = built?.core ?? [];
@@ -481,22 +490,39 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
   }
   if (byLength === null && (timeline !== null || quiet)) missing('винрейт по длине матча');
 
-  const alt = built?.alt ?? null;
+  let alt = built?.alt ?? null;
   if (built !== null && alt === null) notes.push('Нет данных: альтернативная сборка (нет другого набора в 15% матчей)');
   // The build's own numbers are the sample's; without a sample, STRATZ's win rate of the hero at the position.
   const own = positionRows.find((row) => row.heroId === hero.id && row.position === position);
+  // STRATZ's guide lists hold winning matches only (every sampled player won, 27.10.2026): such a sample's win rate says
+  // nothing about the build.
+  const winnersOnly = sample !== null && sample.matches.length > 0 && sample.matches.every((match) => match.victory);
+  // Such a build's win rate is its key item's at the position (Battle Fury's games), else the hero's at the position.
+  const bought = built !== null && winnersOnly ? await totals() : null;
+  const key = built === null ? null : keyItemOf(built.core, items);
+  const keyRate = bought === null || key === null ? null : itemWinRate(bought, key.id);
+  if (alt !== null && bought !== null && alt.keyItemId !== undefined) {
+    const altRate = itemWinRate(bought, alt.keyItemId);
+    if (altRate !== null) alt = { ...alt, winRate: altRate.winRate, matches: altRate.matches };
+  }
   const ownRate =
-    built !== null
-      ? { buildWinRate: built.winRate, buildMatches: built.matches }
-      : own === undefined || own.matches === 0
-        ? {}
-        : { buildWinRate: own.wins / own.matches, buildMatches: own.matches };
+    built !== null && winnersOnly
+      ? keyRate !== null
+        ? { buildWinRate: keyRate.winRate, buildMatches: keyRate.matches }
+        : own === undefined || own.matches === 0
+          ? {}
+          : { buildWinRate: own.wins / own.matches, buildMatches: own.matches, buildRateOfRole: true }
+      : built !== null
+        ? { buildWinRate: built.winRate, buildMatches: built.matches }
+        : own === undefined || own.matches === 0
+          ? {}
+          : { buildWinRate: own.wins / own.matches, buildMatches: own.matches };
 
   const card: HeroGuideCard = {
     hero: { name: hero.name, localizedName: hero.localizedName },
     role: roleOf(position),
     ...ownRate,
-    buildDays: built?.days ?? GUIDE_DAYS,
+    buildDays: built === null || winnersOnly ? GUIDE_DAYS : (built.days ?? GUIDE_DAYS),
     start,
     core,
     situational,

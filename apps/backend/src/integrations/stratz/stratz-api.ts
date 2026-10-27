@@ -69,27 +69,73 @@ const neutralSchema = z.object({
 const matchupSchema = z.object({
   vs: z.array(z.object({ heroId2: z.number().int(), matchCount: count, winCount: count })).max(300)
 });
-/** Matches per guide sample (STRATZ's `take`). */
-/** STRATZ's guide list answers ten matches a page (DEV, 27.10.2026: «из 10» for take 100): pages of ten, up to 100. */
-const GUIDE_PAGE = 10;
-const GUIDE_PAGES = 10;
-const GUIDE_TAKE = GUIDE_PAGE * GUIDE_PAGES;
-const GUIDE_PAGE_GAP_MS = 1200;
+// «Гайд на героя» sample (owner, 27.10.2026, live on STRATZ): `heroStats.guide` answers ten matches at most and leaves
+// `matchPlayer` null, but different filters give different matches, so one request with a `guide` alias per filter
+// gathers the candidates, and `match(id) { players(steamAccountId) }` aliases give each player's own details.
+const GUIDE_TARGET = 100;
+const GUIDE_MIN_NEWEST = 30;
+/** The stats bridge refuses a query over 4000 characters (bridge/stats-bridge): a read is split into requests under it. */
+const QUERY_MAX_CHARS = 3900;
+const DETAIL_BATCH = 10;
+const STRATZ_GAP_MS = 1200;
+/** Opponents whose filtered lists widen the candidates; the hero itself is skipped. */
+const GUIDE_OPPONENTS = [
+  1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 13, 14, 16, 18, 19, 20, 21, 22, 23, 25, 26, 27, 28, 29, 30, 31, 32, 34, 35, 36, 37,
+  38, 39, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51
+];
 const slot = z.number().int().nullable().catch(null);
-const guideSchema = z.object({
-  matchCount: count,
-  guides: z
+/** Splits aliased fields into groups whose query text stays under `limit` characters. */
+function chunked(parts: string[], limit: number): string[][] {
+  const groups: string[][] = [];
+  let size = 0;
+  for (const part of parts) {
+    const last = groups[groups.length - 1];
+    if (last === undefined || size + part.length + 1 > limit - 40) {
+      groups.push([part]);
+      size = part.length;
+    } else {
+      last.push(part);
+      size += part.length + 1;
+    }
+  }
+  return groups;
+}
+// `guide` answers a list (one HeroGuideListType) under each alias.
+const candidateSchema = z.record(
+  z.string(),
+  z
     .array(
       z.object({
-        match: z
-          .object({
-            startDateTime: z.number().nullable().catch(null),
-            gameVersionId: z.number().int().nullable().catch(null)
-          })
-          .nullable()
-          .catch(null),
-        matchPlayer: z
-          .object({
+        guides: z
+          .array(
+            z.object({
+              matchId: z.number().int(),
+              steamAccountId: z.number().int(),
+              match: z
+                .object({
+                  startDateTime: z.number().nullable().catch(null),
+                  gameVersionId: z.number().int().nullable().catch(null)
+                })
+                .nullable()
+                .catch(null)
+            })
+          )
+          .max(50)
+          .catch([])
+      })
+    )
+    .max(5)
+    .catch([])
+);
+const detailSchema = z.record(
+  z.string(),
+  z
+    .object({
+      gameVersionId: z.number().int().nullable().catch(null),
+      players: z
+        .array(
+          z.object({
+            heroId: z.number().int().nullable().catch(null),
             isVictory: z.boolean().nullable().catch(null),
             position: z.string().max(20).nullable().catch(null),
             item0Id: slot,
@@ -98,17 +144,12 @@ const guideSchema = z.object({
             item3Id: slot,
             item4Id: slot,
             item5Id: slot,
-            neutral0Id: slot.optional(),
+            neutral0Id: slot,
             abilities: z
-              .array(
-                z.object({
-                  abilityId: z.number().int(),
-                  time: z.number().catch(0),
-                  level: z.number().catch(0)
-                })
-              )
+              .array(z.object({ abilityId: z.number().int(), time: z.number().catch(0), level: z.number().catch(0) }))
               .max(60)
-              .catch([]),
+              .nullable()
+              .catch(null),
             stats: z
               .object({
                 itemPurchases: z
@@ -120,12 +161,13 @@ const guideSchema = z.object({
               .nullable()
               .catch(null)
           })
-          .nullable()
-          .catch(null)
-      })
-    )
-    .max(GUIDE_TAKE)
-});
+        )
+        .max(10)
+        .catch([])
+    })
+    .nullable()
+    .catch(null)
+);
 const timeSchema = z.object({ time: z.number().int(), remainingMatchCount: count, winCount: count });
 const positionSchema = z.object({
   heroId: z.number().int(),
@@ -206,15 +248,21 @@ export interface StratzApi {
   /** A hero's matches and wins against every other hero. */
   matchups(heroId: number, signal?: AbortSignal): Promise<{ heroId: number; matches: number; wins: number }[]>;
   /**
-   * A hero's recent matches at one position (HeroGuideListType): per match the player's outcome, final inventory,
-   * abilities and, with `withPurchases`, every item purchase. Only the rows the player's own position confirms are kept.
+   * A hero's recent matches at one position: about a hundred candidates from `guide` lists under several filters, then
+   * per match the player's outcome, final inventory, abilities and, with `withPurchases`, every item purchase. Only the
+   * newest patch's players whose own position and hero match are kept. `fetched`: candidates read; `total`: found.
    */
   guideSample(
     heroId: number,
     position: number,
     withPurchases: boolean,
     signal?: AbortSignal
-  ): Promise<{ fetched: number; total: number; matches: StratzGuideMatch[]; positions: Record<string, number> }>;
+  ): Promise<{
+    fetched: number;
+    total: number;
+    matches: StratzGuideMatch[];
+    positions: Record<string, number>;
+  }>;
 }
 
 /** Matches per guide sample and opponents per matchup read: both bound the reply. */
@@ -373,7 +421,7 @@ export function createStratzApi(input: { token: string; bridgeUrl?: string; fetc
       );
       return rows.map((row) => ({
         itemId: row.itemId,
-        tier: Number(/TIER_(d)/u.exec(row.item?.stat?.neutralItemTier ?? '')?.[1] ?? 0) || null,
+        tier: Number(/TIER_(\d)/u.exec(row.item?.stat?.neutralItemTier ?? '')?.[1] ?? 0) || null,
         matches: row.matchCount,
         wins: row.winCount
       }));
@@ -400,49 +448,102 @@ export function createStratzApi(input: { token: string; bridgeUrl?: string; fetc
     },
     async guideSample(id, position, withPurchases, signal) {
       const wanted = place(position);
-      const purchases = withPurchases ? ' stats { itemPurchases { time itemId } }' : '';
-      // Page by page, one after another with a pause: rubrics are not in a hurry (owner, 27.10.2026).
-      const lists: z.infer<typeof guideSchema>[] = [];
-      for (let page = 0; page < GUIDE_PAGES; page += 1) {
-        if (page > 0) await new Promise((resolve) => setTimeout(resolve, GUIDE_PAGE_GAP_MS));
-        const rows = await query(
-          `{ heroStats { guide(heroId: ${heroId(id)}, positionId: POSITION_${wanted}, take: ${GUIDE_PAGE}, skip: ${page * GUIDE_PAGE}) { matchCount guides { match { startDateTime gameVersionId } matchPlayer { isVictory position item0Id item1Id item2Id item3Id item4Id item5Id neutral0Id abilities { abilityId time level }${purchases} } } } } }`,
-          (data) => heroStats(data, 'guide'),
-          guideSchema,
-          signal
+      const hero = heroId(id);
+      const field = (alias: string, filter: string) =>
+        `${alias}: guide(heroId: ${hero}, positionId: POSITION_${wanted}, take: 10${filter}) { guides { matchId steamAccountId match { startDateTime gameVersionId } } }`;
+      const fields = [
+        field('base', ''),
+        field('pro', ', isPro: true'),
+        ...GUIDE_OPPONENTS.filter((other) => other !== hero).map((other) =>
+          field(`v${other}`, `, againstHeroId: ${other}`)
+        )
+      ];
+      const lists: z.infer<typeof candidateSchema>[] = [];
+      for (const [index, part] of chunked(fields, QUERY_MAX_CHARS).entries()) {
+        if (index > 0) await new Promise((resolve) => setTimeout(resolve, STRATZ_GAP_MS));
+        lists.push(
+          ...(await query(
+            `{ heroStats { ${part.join(' ')} } }`,
+            (data) => [(data as { heroStats?: unknown } | undefined)?.heroStats],
+            candidateSchema,
+            signal
+          ))
         );
-        lists.push(...rows);
-        if (rows.flatMap((list) => list.guides).length < GUIDE_PAGE) break;
       }
+      const unique = new Map<string, { matchId: number; steamAccountId: number; patch: number | null; at: number }>();
+      for (const list of lists)
+        for (const each of Object.values(list))
+          for (const guide of each.flatMap((one) => one.guides))
+            unique.set(`${guide.matchId}:${guide.steamAccountId}`, {
+              matchId: guide.matchId,
+              steamAccountId: guide.steamAccountId,
+              patch: guide.match?.gameVersionId ?? null,
+              at: guide.match?.startDateTime ?? 0
+            });
+      const candidates = [...unique.values()];
+      const newest = Math.max(-1, ...candidates.map((each) => each.patch ?? -1));
+      const onNewest = candidates.filter((each) => each.patch === newest);
+      const chosen = (onNewest.length >= GUIDE_MIN_NEWEST ? onNewest : candidates)
+        .sort((a, b) => b.at - a.at)
+        .slice(0, GUIDE_TARGET);
+      const purchases = withPurchases ? ' stats { itemPurchases { time itemId } }' : '';
+      const readOf = (each: { matchId: number; steamAccountId: number }, slotNumber: number) =>
+        `m${slotNumber}: match(id: ${each.matchId}) { gameVersionId players(steamAccountId: ${each.steamAccountId}) { heroId isVictory position item0Id item1Id item2Id item3Id item4Id item5Id neutral0Id abilities { abilityId time level }${purchases} } }`;
       const matches: StratzGuideMatch[] = [];
-      let fetched = 0;
-      // The positions the rows came with, for the owner's note when none matched.
       const seen: Record<string, number> = {};
-      for (const guide of lists.flatMap((list) => list.guides)) {
-        fetched += 1;
-        const player = guide.matchPlayer;
-        if (player === null || player.isVictory === null) continue;
-        seen[player.position ?? 'нет'] = (seen[player.position ?? 'нет'] ?? 0) + 1;
-        if (Number(/POSITION_(d)/u.exec(player.position ?? '')?.[1] ?? 0) !== wanted) continue;
-        const events = player.stats?.itemPurchases;
-        matches.push({
-          victory: player.isVictory,
-          startedAt: guide.match?.startDateTime ?? null,
-          patch: guide.match?.gameVersionId ?? null,
-          items: [
-            player.item0Id,
-            player.item1Id,
-            player.item2Id,
-            player.item3Id,
-            player.item4Id,
-            player.item5Id
-          ].filter((each): each is number => each !== null),
-          neutral: player.neutral0Id ?? null,
-          purchases: events == null ? null : events.map((event) => ({ itemId: event.itemId, minute: event.time / 60 })),
-          abilities: player.abilities
+      // One request at a time with a pause (STRATZ blocked eight at once): up to ten matches a request, fewer when the
+      // text would pass the bridge's limit.
+      for (let from = 0; from < chosen.length;) {
+        await new Promise((resolve) => setTimeout(resolve, STRATZ_GAP_MS));
+        const reads: string[] = [];
+        const batch: typeof chosen = [];
+        let size = 4;
+        while (batch.length < DETAIL_BATCH && from + batch.length < chosen.length) {
+          const next = chosen[from + batch.length];
+          if (next === undefined) break;
+          const read = readOf(next, batch.length);
+          if (batch.length > 0 && size + read.length + 1 > QUERY_MAX_CHARS) break;
+          size += read.length + 1;
+          reads.push(read);
+          batch.push(next);
+        }
+        from += batch.length;
+        const details = await query(`{ ${reads.join(' ')} }`, (data) => [data], detailSchema, signal);
+        const byAlias = details[0] ?? {};
+        batch.forEach((each, index) => {
+          const match = byAlias[`m${index}`];
+          const player = match?.players[0];
+          if (match == null || player === undefined || player.isVictory === null) return;
+          seen[player.position ?? 'нет'] = (seen[player.position ?? 'нет'] ?? 0) + 1;
+          if (player.position !== `POSITION_${wanted}` || player.heroId !== hero) return;
+          const events = player.stats?.itemPurchases;
+          matches.push({
+            victory: player.isVictory,
+            startedAt: each.at === 0 ? null : each.at,
+            patch: match.gameVersionId ?? each.patch,
+            items: [
+              player.item0Id,
+              player.item1Id,
+              player.item2Id,
+              player.item3Id,
+              player.item4Id,
+              player.item5Id
+            ].filter((item): item is number => item !== null),
+            neutral: player.neutral0Id,
+            purchases:
+              events == null ? null : events.map((event) => ({ itemId: event.itemId, minute: event.time / 60 })),
+            abilities: player.abilities ?? []
+          });
         });
       }
-      return { fetched, total: lists.reduce((sum, list) => sum + list.matchCount, 0), matches, positions: seen };
+      const patch = Math.max(-1, ...matches.map((each) => each.patch ?? -1));
+      const current = matches.filter((each) => each.patch === patch);
+      return {
+        fetched: chosen.length,
+        total: candidates.length,
+        matches: current.length >= GUIDE_MIN_NEWEST ? current : matches,
+        positions: seen
+      };
     }
   };
 }

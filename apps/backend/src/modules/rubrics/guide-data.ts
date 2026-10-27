@@ -13,6 +13,11 @@ const ITEMS_MAX = 6;
 // are lower.
 const CORE_MIN_COST = 1000;
 const SUPPORT_CORE_MIN_COST = 400;
+/**
+ * The cheap early items a build opens with (Magic Wand, Bracer, boots): from this price they enter the core when nearly
+ * every match buys them, ahead of the big items, as Dota2ProTracker's build line does (owner, 27.10.2026).
+ */
+const EARLY_MIN_COST = 400;
 const POOL = 30;
 const MATCHUP_MIN_MATCHES = 300;
 /** OpenDota's free sample holds about a hundred games a pair (Faceless Void, 27.10.2026): its own floor. */
@@ -284,10 +289,10 @@ export function fallbackPurchases(
 // Anchors, starting sets, skill sequences and alternative builds are counted from the sample's individual matches, not
 // from per-item totals: a total across roles put Magic Stick into the core and Nullifier on supports.
 
-/** An item is an anchor of a build when this share of its matches ends with it in the inventory. */
-const ANCHOR_SHARE = 0.7;
-/** A role whose few anchors would leave a core of one or two items falls back to this share. */
-const ANCHOR_RELAXED_SHARE = 0.5;
+/** An item is an anchor of a build when more than half its matches buy it (Dota2ProTracker's «более чем в половине матчей»). */
+const ANCHOR_SHARE = 0.5;
+/** A role whose few anchors would leave a core of one or two items falls back to these shares, one after another (a support's builds vary: Hoodwink had two items at 50%, 27.10.2026). */
+const ANCHOR_RELAXED_SHARES = [0.3];
 const ANCHOR_MIN = 3;
 const SITUATIONAL_SHARE = 0.2;
 const MINUTE_MIN_BUYERS = 3;
@@ -301,10 +306,8 @@ const ALT_SHARE = 0.15;
 const ALT_GROUP_MIN = 8;
 const ALT_PICK_MIN = 5;
 const DAY_SECONDS = 86_400;
-/** Consumables, wards and the cheap pieces every build passes through: never a build's item, whatever their price. */
+/** Consumables, wards and the free scroll: never a build's item. Magic Stick and boots drop out as parts once upgraded. */
 const NOT_A_BUILD_ITEM = new Set([
-  'magic_stick',
-  'magic_wand',
   'branches',
   'tango',
   'flask',
@@ -317,7 +320,6 @@ const NOT_A_BUILD_ITEM = new Set([
   'smoke_of_deceit',
   'dust',
   'tpscroll',
-  'boots',
   'cheese',
   'refresher_shard'
 ]);
@@ -340,15 +342,29 @@ export function currentPatch(matches: GuideMatch[]): { matches: GuideMatch[]; da
 
 export interface BuildItem {
   item: ItemInfo;
-  /** The share of the sample's matches that ended with it in the inventory, 0…1. */
+  /** The share of the sample's matches that bought it (or ended with it, without a purchase log), 0…1. */
   share: number;
+  /** A cheap early item (Magic Wand, Bracer): a core item only as an anchor, never situational. */
+  early: boolean;
   /** The average minute it was first bought at; null without enough buyers' purchase times. */
   minute: number | null;
 }
 
+/** A part stays in the build while this share of its buyers keep it a while before an item made from it. */
+const PART_KEPT_SHARE = 0.5;
 /**
- * Every item that ended in at least one inventory and can be a build's item (price floor, no consumable, no neutral, no
- * part of another item in play), most common first, each with the average minute it was bought.
+ * Minutes a part must be held before the item made from it to count as a step of the build: Faceless Void's Yasha
+ * (18 → Manta 22) is one on Dota2ProTracker's line, Perseverance (12 → Battle Fury 14) is not (27.10.2026).
+ */
+const PART_HELD_MINUTES = 3;
+
+/**
+ * Every item bought in at least one match that can be a build's item (price floor, no consumable, no neutral), most
+ * common first, each with the average minute it was first bought. Counted from the purchase log as Dota2ProTracker
+ * does (27.10.2026): Maelstrom upgraded into Mjollnir is still Faceless Void's 19-minute item, though no final inventory
+ * holds it. A part drops out when most of its buyers turn it into an item made from it within three minutes
+ * (Perseverance into Battle Fury, boots into Power Treads); one held longer stays (Yasha four minutes before Manta). Without purchase
+ * times the final inventories stand in.
  */
 export function inventoryShares(
   matches: GuideMatch[],
@@ -358,37 +374,64 @@ export function inventoryShares(
 ): BuildItem[] {
   if (matches.length === 0) return [];
   const floor = support ? SUPPORT_CORE_MIN_COST : CORE_MIN_COST;
+  // Cheap for any role: a support's boots or Magic Wand is an early step too, never a situational pick.
+  const isEarly = (item: ItemInfo) => item.cost >= EARLY_MIN_COST && item.cost < CORE_MIN_COST;
+  const buildItem = (id: number) => {
+    const item = items.get(id);
+    return item === undefined ||
+      (item.cost < floor && !isEarly(item)) ||
+      item.neutralTier !== null ||
+      NOT_A_BUILD_ITEM.has(item.key)
+      ? null
+      : item;
+  };
+  const byKey = new Map([...items.values()].map((item) => [item.key, item]));
   const held = new Map<number, number>();
   const bought = new Map<number, number[]>();
+  // Per item: buyers, and buyers who later completed an item it is a part of.
+  const upgraded = new Map<number, number>();
   for (const match of matches) {
-    for (const id of new Set(match.items)) {
-      const item = items.get(id);
-      if (item === undefined || item.cost < floor || item.neutralTier !== null || NOT_A_BUILD_ITEM.has(item.key))
-        continue;
+    const purchases = match.purchases ?? [];
+    const first = new Map<number, number>();
+    for (const purchase of purchases)
+      if (!first.has(purchase.itemId) || (first.get(purchase.itemId) ?? 0) > purchase.minute)
+        first.set(purchase.itemId, purchase.minute);
+    const owned = match.purchases === null ? new Set(match.items) : new Set([...first.keys(), ...match.items]);
+    for (const id of owned) {
+      const item = buildItem(id);
+      if (item === null) continue;
       held.set(id, (held.get(id) ?? 0) + 1);
-      const first = Math.min(
-        ...(match.purchases ?? []).filter((purchase) => purchase.itemId === id).map((purchase) => purchase.minute)
+      const minute = first.get(id);
+      if (minute !== undefined) bought.set(id, [...(bought.get(id) ?? []), minute]);
+      const later = [...first.entries()].some(
+        ([other, at]) =>
+          other !== id &&
+          at >= (minute ?? at) &&
+          at - (minute ?? at) < PART_HELD_MINUTES &&
+          partsOf(items.get(other)?.key ?? '', byKey).has(item.key)
       );
-      if (Number.isFinite(first)) bought.set(id, [...(bought.get(id) ?? []), first]);
+      if (later) upgraded.set(id, (upgraded.get(id) ?? 0) + 1);
     }
   }
   const rows: BuildItem[] = [];
   for (const [id, count] of held) {
     const item = items.get(id);
     if (item === undefined) continue;
+    if ((upgraded.get(id) ?? 0) > count * (1 - PART_KEPT_SHARE)) continue;
     const minutes = bought.get(id) ?? [];
     const average = minutes.reduce((sum, minute) => sum + minute, 0) / (minutes.length || 1);
     rows.push({
       item,
+      early: isEarly(item),
       share: count / matches.length,
       minute:
         minutes.length >= MINUTE_MIN_BUYERS ? Math.max(0, Math.round(average)) : (fallbackMinutes?.get(id) ?? null)
     });
   }
-  const byKey = new Map([...items.values()].map((item) => [item.key, item]));
-  const parts = new Set(
-    rows.filter((row) => row.share >= SITUATIONAL_SHARE).flatMap((row) => [...partsOf(row.item.key, byKey)])
-  );
+  const withoutLog = matches.every((match) => match.purchases === null);
+  const parts = withoutLog
+    ? new Set(rows.filter((row) => row.share >= SITUATIONAL_SHARE).flatMap((row) => [...partsOf(row.item.key, byKey)]))
+    : new Set<string>();
   return rows
     .filter((row) => !parts.has(row.item.key))
     .sort((a, b) => b.share - a.share || a.item.key.localeCompare(b.item.key));
@@ -398,20 +441,25 @@ const guideItem = (row: BuildItem): GuideItem =>
   row.minute === null ? { key: row.item.key } : { key: row.item.key, minute: row.minute };
 
 /**
- * Anchors (in at least 70% of the inventories, 50% when that leaves fewer than three) in the order they were bought,
- * then the situational items: 20% and more of the inventories and not an anchor.
+ * The core: the cheap early anchors and up to six big ones (bought in over half the matches, 30% when that leaves a core
+ * of fewer than three), in the order they were bought; then the situational items: big, 20% and more, not an anchor.
  */
 export function splitAnchors(rows: BuildItem[]): { core: BuildItem[]; situational: BuildItem[]; anchorShare: number } {
   let anchorShare = ANCHOR_SHARE;
-  let anchors = rows.filter((row) => row.share >= anchorShare);
-  if (anchors.length < ANCHOR_MIN) {
-    anchorShare = ANCHOR_RELAXED_SHARE;
-    anchors = rows.filter((row) => row.share >= anchorShare);
+  const big = rows.filter((row) => !row.early);
+  const early = rows.filter((row) => row.early && row.share > ANCHOR_SHARE);
+  let anchors = big.filter((row) => row.share > anchorShare);
+  for (const relaxed of ANCHOR_RELAXED_SHARES) {
+    if (anchors.length + early.length >= ANCHOR_MIN) break;
+    anchorShare = relaxed;
+    anchors = big.filter((row) => row.share > anchorShare);
   }
   const late = Number.POSITIVE_INFINITY;
-  const core = anchors.slice(0, ITEMS_MAX).sort((a, b) => (a.minute ?? late) - (b.minute ?? late) || b.share - a.share);
+  const core = [...early, ...anchors.slice(0, ITEMS_MAX)].sort(
+    (a, b) => (a.minute ?? late) - (b.minute ?? late) || b.share - a.share
+  );
   const chosen = new Set(core.map((row) => row.item.key));
-  const situational = rows
+  const situational = big
     .filter((row) => !chosen.has(row.item.key) && row.share >= SITUATIONAL_SHARE)
     .slice(0, ITEMS_MAX);
   return { core, situational, anchorShare };
@@ -476,7 +524,7 @@ export function commonSequence(matches: GuideMatch[], known: Set<number>): { ids
 }
 
 export interface SkillPlan {
-  /** Q, W, E, R keys: up to three basic abilities and the ultimate last. */
+  /** Q, W, E, R keys: up to three basic abilities and the ultimate last (when learnt by level 10). */
   abilities: string[];
   /** Levels 1–10 as ability keys; null for a talent, the attribute bonus or an ability the card does not show. */
   skills: (string | null)[];
@@ -485,18 +533,22 @@ export interface SkillPlan {
   keyOf: (abilityId: number) => string | null;
 }
 
-/** The most common exact sequence of levels 1–10 as the card draws it; null without a repeated sequence or a clear ultimate. */
+/**
+ * The most common exact sequence of levels 1–10 as the card draws it; null without a repeated sequence. A hero whose
+ * first ten points never reach the ultimate (Invoker: Invoke comes free) shows three basic abilities.
+ */
 export function skillPlan(matches: GuideMatch[], detail: HeroDetail): SkillPlan | null {
   const sequence = commonSequence(matches, new Set(detail.abilities.map((ability) => ability.id)));
   if (sequence === null) return null;
   const learnt = new Set(sequence.ids);
   const ultimate = detail.abilities.find((ability) => ability.isUltimate && learnt.has(ability.id));
   const basics = detail.abilities.filter((ability) => !ability.isUltimate && learnt.has(ability.id)).slice(0, 3);
-  if (ultimate === undefined || basics.length < 2) return null;
-  const shown = new Map([...basics, ultimate].map((ability) => [ability.id, ability.key]));
+  if (ultimate === undefined ? basics.length < 3 : basics.length < 2) return null;
+  const drawn = ultimate === undefined ? basics : [...basics, ultimate];
+  const shown = new Map(drawn.map((ability) => [ability.id, ability.key]));
   const keyOf = (abilityId: number) => shown.get(abilityId) ?? null;
   return {
-    abilities: [...basics.map((ability) => ability.key), ultimate.key],
+    abilities: drawn.map((ability) => ability.key),
     skills: sequence.ids.map(keyOf),
     matches: sequence.matches,
     keyOf
@@ -538,14 +590,20 @@ export function altFromSample(input: {
 }): GuideAltBuild | null {
   const { matches, rows, core, items, support, detail, talents, plan } = input;
   const coreKeys = new Set(core.map((row) => row.item.key));
+  // What each match bought (the purchase log, as the core is counted), with the final inventory for a match without one.
   const inventories = matches.map((match) => ({
     match,
-    keys: new Set(match.items.flatMap((id) => items.get(id)?.key ?? []))
+    keys: new Set(
+      [...match.items, ...(match.purchases ?? []).map((purchase) => purchase.itemId)].flatMap(
+        (id) => items.get(id)?.key ?? []
+      )
+    )
   }));
   const need = Math.max(ALT_GROUP_MIN, Math.ceil(matches.length * ALT_SHARE));
   let best: { row: BuildItem; group: GuideMatch[] } | null = null;
   for (const row of rows) {
-    if (coreKeys.has(row.item.key) || row.share < ALT_SHARE) continue;
+    // A cheap early item (plain boots) is no build's turn.
+    if (coreKeys.has(row.item.key) || row.early || row.share < ALT_SHARE) continue;
     const group = inventories
       .filter(({ keys }) => keys.has(row.item.key) && [...coreKeys].some((key) => !keys.has(key)))
       .map(({ match }) => match);
@@ -556,8 +614,11 @@ export function altFromSample(input: {
   const own = splitAnchors(inventoryShares(best.group, items, support, input.fallbackMinutes)).core;
   const ownKeys = new Set(own.map((row) => row.item.key));
   const dropped = core.filter((row) => !ownKeys.has(row.item.key));
+  // A part of a main core item (Perseverance of Battle Fury) is the same road, not a swap.
+  const byKey = new Map([...items.values()].map((item) => [item.key, item]));
+  const coreParts = new Set(core.flatMap((row) => [...partsOf(row.item.key, byKey)]));
   const added = own
-    .filter((row) => !coreKeys.has(row.item.key))
+    .filter((row) => !coreKeys.has(row.item.key) && !coreParts.has(row.item.key))
     .sort((a, b) => (a.item.key === keyKey ? -1 : b.item.key === keyKey ? 1 : (a.minute ?? 99) - (b.minute ?? 99)));
   const swaps: GuideSwap[] = [];
   for (let index = 0; index < Math.min(dropped.length, added.length, 4); index += 1) {
@@ -582,9 +643,12 @@ export function altFromSample(input: {
       ? null
       : commonSequence(best.group, new Set(detail.abilities.map((ability) => ability.id)));
   return {
-    winRate: matchWins(best.group) / best.group.length,
+    // STRATZ's guide lists hold winners only: their win rate says nothing.
+    ...(matches.every((match) => match.victory) ? {} : { winRate: matchWins(best.group) / best.group.length }),
+    share: best.group.length / matches.length,
     matches: best.group.length,
     keyItem: best.row.item.name,
+    keyItemId: best.row.item.id,
     swaps,
     ...(talentDiff.length === 0 ? {} : { talents: talentDiff }),
     ...(plan === null || ownSequence === null || ownSequence.matches < ALT_PICK_MIN
@@ -640,6 +704,32 @@ export function guideFromSample(input: {
     withPurchases: matches.some((match) => match.purchases !== null)
   };
 }
+
+/** A build's key item: its first big core item worth at least this (Battle Fury, Blink Dagger), not boots. */
+const KEY_ITEM_MIN_COST = 2000;
+
+/** The core item a build turns on: the first one bought that costs at least 2000; null when none does. */
+export function keyItemOf(core: GuideItem[], items: Map<number, ItemInfo>): ItemInfo | null {
+  const byKey = new Map([...items.values()].map((item) => [item.key, item]));
+  return (
+    core.map((each) => byKey.get(each.key)).find((item) => item !== undefined && item.cost >= KEY_ITEM_MIN_COST) ?? null
+  );
+}
+
+/**
+ * The win rate and matches of the games at the position that bought an item, summed over STRATZ's per-minute purchase
+ * totals; null under 100 matches. The guide sample holds winners only, so this stands for a build's win rate.
+ */
+export function itemWinRate(
+  rows: { itemId: number; matches: number; wins: number }[],
+  itemId: number
+): { winRate: number; matches: number } | null {
+  const own = rows.filter((row) => row.itemId === itemId);
+  const matches = own.reduce((sum, row) => sum + row.matches, 0);
+  const wins = own.reduce((sum, row) => sum + row.wins, 0);
+  return matches < ITEM_RATE_MIN_MATCHES ? null : { winRate: wins / matches, matches };
+}
+const ITEM_RATE_MIN_MATCHES = 100;
 
 /** The median minute each item was bought at, from STRATZ's per-minute purchase totals. */
 export function medianMinutes(rows: { itemId: number; minute: number; matches: number }[]): Map<number, number> {

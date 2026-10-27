@@ -20,17 +20,17 @@ const ITEMS = new Map<number, ItemInfo>([
   item(1, 'blink', 2250),
   item(2, 'black_king_bar', 4050),
   item(3, 'battle_fury', 4100),
-  item(4, 'magic_stick', 1000),
+  item(4, 'magic_stick', 200),
   item(5, 'nullifier', 4725),
   item(6, 'sange', 2200),
   item(7, 'sange_and_yasha', 4100, ['sange']),
   item(8, 'tango', 90),
   item(9, 'tpscroll', 50),
   item(10, 'quelling_blade', 100),
-  item(11, 'tranquil_boots', 900),
+  item(11, 'tranquil_boots', 925),
   item(12, 'force_staff', 2200),
   item(13, 'glimmer_cape', 1950),
-  item(14, 'magic_wand', 1500),
+  item(14, 'magic_wand', 450, ['magic_stick']),
   item(15, 'branches', 50),
   item(16, 'ward_observer', 0),
   item(17, 'trusty_shovel', 0, [], 1),
@@ -49,37 +49,47 @@ const many = (count: number, make: (index: number) => GuideMatch) =>
   Array.from({ length: count }, (_, index) => make(index));
 const bought = (...rows: [number, number][]) => rows.map(([itemId, minute]) => ({ itemId, minute }));
 
-describe('anchors and core order', () => {
-  // Ten carries: everyone ends with Blink and BKB; eight with Battle Fury; the Magic Stick sits in every bag.
+describe('the core from the purchase log', () => {
+  // Ten carries, as Dota2ProTracker counts them: Battle Fury, Blink and BKB in most games, Magic Wand early in seven,
+  // the Magic Stick under it in all; Nullifier in three.
   const matches = many(10, (index) =>
     match({
-      items: [1, 2, 4, ...(index < 8 ? [3] : []), ...(index < 3 ? [5] : []), ...(index === 9 ? [6] : [])],
-      purchases: bought([3, 12], [1, 18], [2, 25])
+      items: [1, 2, ...(index < 8 ? [3] : []), ...(index < 3 ? [5] : [])],
+      purchases: bought(
+        [4, 3],
+        ...(index < 7 ? ([[14, 5]] as [number, number][]) : []),
+        ...(index < 8 ? ([[3, 12]] as [number, number][]) : []),
+        [1, 18],
+        [2, 25],
+        ...(index < 3 ? ([[5, 30]] as [number, number][]) : [])
+      )
     })
   );
   const split = splitAnchors(inventoryShares(matches, ITEMS, false));
 
-  it('takes items in at least 70% of the inventories, in the order they were bought on average', () => {
+  it('takes items bought in over half the matches, the early Magic Wand first, in the order they were bought', () => {
     expect(split.core.map((row) => [row.item.key, row.minute])).toEqual([
+      ['magic_wand', 5],
       ['battle_fury', 12],
       ['blink', 18],
       ['black_king_bar', 25]
     ]);
-    expect(split.anchorShare).toBe(0.7);
+    expect(split.anchorShare).toBe(0.5);
   });
 
   it('keeps Magic Stick out of every block, and puts a 30% item in the situational list only', () => {
     const everywhere = [...split.core, ...split.situational].map((row) => row.item.key);
     expect(everywhere).not.toContain('magic_stick');
     expect(split.situational.map((row) => row.item.key)).toEqual(['nullifier']);
-    expect(split.core.map((row) => row.item.key)).not.toContain('nullifier');
   });
 
-  it('drops a part of a listed item and an item in fewer than 20% of the inventories', () => {
-    const withParts = [...matches, match({ items: [6, 1, 2] }), ...many(5, () => match({ items: [7, 1, 2] }))];
-    const keys = inventoryShares(withParts, ITEMS, false).map((row) => row.item.key);
-    expect(keys).toContain('sange_and_yasha');
-    expect(keys).not.toContain('sange');
+  it('counts an item turned into another (no final inventory holds it), and drops a part upgraded within three minutes', () => {
+    const upgraded = (sangeAt: number) =>
+      many(10, () => match({ items: [7, 1], purchases: bought([6, sangeAt], [7, 20], [1, 24]) }));
+    expect(inventoryShares(upgraded(19), ITEMS, false).map((row) => row.item.key)).not.toContain('sange');
+    // Held from minute 14 to 20 it is a step of the build, like Faceless Void's Yasha before Manta.
+    const held = splitAnchors(inventoryShares(upgraded(14), ITEMS, false)).core.map((row) => row.item.key);
+    expect(held).toEqual(['sange', 'sange_and_yasha', 'blink']);
   });
 
   it('orders by share when no purchase times are known, and takes the fallback minute', () => {
@@ -99,23 +109,21 @@ describe('anchors and core order', () => {
 describe('a support sample without carry items', () => {
   const support = many(10, (index) =>
     match({
-      items: [11, 12, 14, 15, 16, ...(index < 6 ? [13] : []), ...(index < 2 ? [5] : [])],
-      purchases: bought([11, 8], [12, 20], [13, 26])
+      items: [11, 12, 15, 16, ...(index < 4 ? [13] : []), ...(index < 2 ? [5] : [])],
+      purchases: bought([11, 8], [12, 20], ...(index < 4 ? ([[13, 26]] as [number, number][]) : []), [15, 1], [16, 1])
     })
   );
 
-  it('uses the lower price floor, so the cheap boots count, and still skips wand, branches and wards', () => {
+  it('counts the cheap boots in the core, never branches or wards', () => {
     const keys = inventoryShares(support, ITEMS, true).map((row) => row.item.key);
     expect(keys).toEqual(expect.arrayContaining(['tranquil_boots', 'force_staff', 'glimmer_cape']));
-    expect(keys).not.toContain('magic_wand');
     expect(keys).not.toContain('branches');
     expect(keys).not.toContain('ward_observer');
-    expect(inventoryShares(support, ITEMS, false).map((row) => row.item.key)).not.toContain('tranquil_boots');
   });
 
-  it('relaxes the anchor share to 50% when 70% leaves fewer than three, and never makes Nullifier an anchor', () => {
+  it('relaxes the anchor share to 30% when over half leaves a core of fewer than three, and never makes Nullifier an anchor', () => {
     const split = splitAnchors(inventoryShares(support, ITEMS, true));
-    expect(split.anchorShare).toBe(0.5);
+    expect(split.anchorShare).toBe(0.3);
     expect(split.core.map((row) => row.item.key)).toEqual(['tranquil_boots', 'force_staff', 'glimmer_cape']);
     expect(split.core.map((row) => row.item.key)).not.toContain('nullifier');
   });

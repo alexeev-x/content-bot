@@ -74,7 +74,8 @@ const heroSchema = z.object({
 });
 
 const talentLevelsSchema = z.object({
-  talents: z.array(z.object({ name: z.string().max(100), level: z.number().int().min(1).max(4) })).max(12)
+  // Rubick and Ringmaster carry extra talents at tiers 5–7 (DEV, 27.10.2026: DOTACONSTANTS_SHAPE); only 1–4 are the tree.
+  talents: z.array(z.object({ name: z.string().max(100), level: z.number().int().min(1).max(10) })).max(24)
 });
 
 export interface DotaConstantsApi {
@@ -166,7 +167,7 @@ export function createDotaConstantsApi(input: { fetchImpl?: typeof fetch } = {})
       const all = await getUrl(HERO_ABILITIES_URL, signal);
       const parsed = talentLevelsSchema.safeParse(all[heroName]);
       if (!parsed.success) throw new DotaConstantsError('DOTACONSTANTS_SHAPE');
-      return parsed.data.talents;
+      return parsed.data.talents.filter((talent) => talent.level <= 4);
     }
   };
 }
