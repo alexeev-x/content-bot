@@ -144,6 +144,8 @@ export interface RubricSources {
     screenshots: string[];
     /** The description's GIFs as MP4 clips. */
     clips: string[];
+    /** The Workshop's tags; the hero's English name is one of them. */
+    tags: string[];
   } | null>;
   /** Null until STRATZ_TOKEN is set. */
   stats: StatsSource | null;

@@ -9,8 +9,12 @@ export const GUIDE_DAYS = 7;
 
 const ITEMS_MAX = 6;
 /** A key item costs at least this much; cheaper buys (wand, boots, bracer) are not what a build turns on. */
+// A support's whole build is cheap (Lich came with four core items and no situational ones, 27.10.2026): its floors
+// are lower.
 const CORE_MIN_COST = 1000;
 const ALT_MIN_COST = 3000;
+const SUPPORT_CORE_MIN_COST = 400;
+const SUPPORT_ALT_MIN_COST = 1500;
 const POOL = 30;
 const MATCHUP_MIN_MATCHES = 300;
 const TALENT_MIN_MATCHES = 50;
@@ -62,8 +66,10 @@ function partsOf(key: string, byKey: Map<string, ItemInfo>, seen = new Set<strin
  */
 export function rankPurchases(
   rows: { itemId: number; minute: number; matches: number; wins: number }[],
-  items: Map<number, ItemInfo>
+  items: Map<number, ItemInfo>,
+  support = false
 ): RankedItem[] {
+  const floor = support ? SUPPORT_CORE_MIN_COST : CORE_MIN_COST;
   const byId = new Map<number, { matches: number; wins: number; minutes: { minute: number; matches: number }[] }>();
   for (const row of rows) {
     const own = byId.get(row.itemId) ?? { matches: 0, wins: 0, minutes: [] };
@@ -75,7 +81,7 @@ export function rankPurchases(
   const ranked: RankedItem[] = [];
   for (const [itemId, own] of byId) {
     const item = items.get(itemId);
-    if (item === undefined || item.cost < CORE_MIN_COST || item.neutralTier !== null || own.matches <= 0) continue;
+    if (item === undefined || item.cost < floor || item.neutralTier !== null || own.matches <= 0) continue;
     const sorted = own.minutes.sort((a, b) => a.minute - b.minute);
     let seen = 0;
     const median = sorted.find((each) => (seen += each.matches) >= own.matches / 2)?.minute ?? 0;
@@ -283,8 +289,10 @@ export function altBuild(input: {
   items: Map<number, ItemInfo>;
   /** The key item the sample was drawn for. */
   keyItem: RankedItem;
+  support?: boolean;
 }): GuideAltBuild | null {
   const { ranked, core, sample, items, keyItem } = input;
+  const floor = input.support === true ? SUPPORT_CORE_MIN_COST : CORE_MIN_COST;
   if (sample === null || sample.inventories.length < SAMPLE_MIN) return null;
   const share = (key: string) =>
     sample.inventories.filter((held) => held.some((id) => items.get(id)?.key === key)).length /
@@ -296,7 +304,7 @@ export function altBuild(input: {
     ...new Set(
       sample.inventories.flat().flatMap((id) => {
         const item = items.get(id);
-        return item !== undefined && item.cost >= CORE_MIN_COST && item.neutralTier === null && !coreKeys.has(item.key)
+        return item !== undefined && item.cost >= floor && item.neutralTier === null && !coreKeys.has(item.key)
           ? [item.key]
           : [];
       })
@@ -321,8 +329,9 @@ export function altBuild(input: {
   return { winRate: keyItem.wins / keyItem.matches, matches: keyItem.matches, keyItem: keyItem.item.name, swaps };
 }
 
-/** The key item an alternative turns on: the most bought item of cost 3000 or more that the core does not have. */
-export function altKeyItem(ranked: RankedItem[], core: GuideItem[]): RankedItem | null {
+/** The key item an alternative turns on: the most bought item of cost 3000 (a support's 1500) or more not in the core. */
+export function altKeyItem(ranked: RankedItem[], core: GuideItem[], support = false): RankedItem | null {
   const coreKeys = new Set(core.map((item) => item.key));
-  return ranked.find((each) => each.item.cost >= ALT_MIN_COST && !coreKeys.has(each.item.key)) ?? null;
+  const floor = support ? SUPPORT_ALT_MIN_COST : ALT_MIN_COST;
+  return ranked.find((each) => each.item.cost >= floor && !coreKeys.has(each.item.key)) ?? null;
 }

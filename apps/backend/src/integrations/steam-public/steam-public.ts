@@ -65,7 +65,17 @@ const newsSchema = z.object({
 const detailsSchema = z.object({
   response: z.object({
     publishedfiledetails: z
-      .array(z.object({ title: z.string().max(300).optional(), preview_url: z.url().optional() }))
+      .array(
+        z.object({
+          title: z.string().max(300).optional(),
+          preview_url: z.url().optional(),
+          // The Workshop's tags hold the hero's name («Dazzle», «Enchantress») among «Wearable», «misc»…
+          tags: z
+            .array(z.object({ tag: z.string().max(80) }))
+            .max(40)
+            .optional()
+        })
+      )
       .max(5)
   })
 });
@@ -81,7 +91,14 @@ export interface SteamPublicApi {
   workshopItem(
     id: string,
     signal?: AbortSignal
-  ): Promise<{ title: string; previewUrl: string; url: string; screenshots: string[]; clips: string[] } | null>;
+  ): Promise<{
+    title: string;
+    previewUrl: string;
+    url: string;
+    screenshots: string[];
+    clips: string[];
+    tags: string[];
+  } | null>;
 }
 
 export function createSteamPublicApi(input: { fetchImpl?: typeof fetch } = {}): SteamPublicApi {
@@ -160,7 +177,8 @@ export function createSteamPublicApi(input: { fetchImpl?: typeof fetch } = {}): 
         previewUrl: item.preview_url,
         url,
         screenshots: workshopScreenshots(itemPage),
-        clips: workshopClips(itemPage)
+        clips: workshopClips(itemPage),
+        tags: (item.tags ?? []).map((each) => each.tag)
       };
     }
   };

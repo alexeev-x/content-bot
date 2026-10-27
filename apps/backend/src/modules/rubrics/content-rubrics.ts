@@ -360,6 +360,9 @@ export async function workshopSet(context: RubricContext): Promise<RubricSample>
   const ids = await context.sources.workshopTrendingIds();
   const id = pick(ids, context.random);
   const set = id === undefined ? null : await context.sources.workshopItem(id);
+  // The hero comes from the Workshop's own tags (owner, 27.10.2026: «героя точно надо писать, мастерская это отдаёт»).
+  const heroes = set === null ? [] : await context.sources.heroes();
+  const hero = heroes.find((each) => set?.tags.some((tag) => tag.toLowerCase() === each.localizedName.toLowerCase()));
   if (set === null) throw noData('workshop');
   // The set's own photos from the Workshop, no picture of ours (owner, 27.10.2026: «фотографии из мастерской забирай и
   // их скидывай»); the page hides behind words, the verdict is the channel's reactions.
@@ -375,7 +378,10 @@ export async function workshopSet(context: RubricContext): Promise<RubricSample>
       clips: set.clips,
       cover: set.previewUrl
     },
-    text: `Сет из мастерской Steam, который набирает популярность: «${set.title}».`,
+    text:
+      hero === undefined
+        ? `Сет из мастерской Steam, который набирает популярность: «${set.title}».`
+        : `Сет из мастерской Steam на ${hero.localizedName}, который набирает популярность: «${set.title}».`,
     links: [{ text: 'Посмотреть в мастерской', url: set.url }],
     footer: workshopVerdict(set.title, context.random),
     poll: null

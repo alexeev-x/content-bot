@@ -323,15 +323,19 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
   const attempt = async <T>(block: string, read: () => Promise<T>): Promise<T | null> => {
     try {
       return await read();
-    } catch {
-      notes.push(`Нет данных: ${block}`);
+    } catch (error) {
+      // The error's code tells a wrong STRATZ argument (STRATZ_SHAPE) from a refusal or a timeout.
+      const code = error instanceof Error && 'code' in error ? String((error as { code: unknown }).code) : 'ошибка';
+      notes.push(`Нет данных: ${block} (${code})`);
       return null;
     }
   };
   const detail = await attempt('способности и таланты', () => context.sources.heroDetail(hero.id));
 
   const purchases = await attempt('предметы', () => stats.heroPositionPurchases(hero.id, position));
-  const ranked = purchases === null ? [] : rankPurchases(purchases, items);
+  // Positions 4 and 5 buy cheap: their item floors are lower.
+  const support = position >= 4;
+  const ranked = purchases === null ? [] : rankPurchases(purchases, items, support);
   const { core, situational } = splitBuild(ranked);
   if (core.length === 0) throw noData('hero purchases');
   const startRows = await attempt('стартовый закуп', () => stats.heroStartingItems(hero.id, position));
@@ -339,7 +343,8 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
   if (start.length === 0 && startRows !== null) notes.push('Нет данных: стартовый закуп');
   const neutralRows = await attempt('нейтралки', () => stats.heroNeutralItems(hero.id, position));
   const neutrals = neutralRows === null ? [] : neutralPicks(neutralRows, items);
-  if (neutrals.length === 0 && neutralRows !== null) notes.push('Нет данных: нейтралки');
+  if (neutrals.length === 0 && neutralRows !== null)
+    notes.push(`Нет данных: нейтралки (STRATZ вернул ${neutralRows.length} строк)`);
 
   const talentStats = await attempt('таланты', () => stats.heroTalents(hero.id, position));
   const talents = detail === null || talentStats === null ? [] : talentRows(detail.talents, talentStats);
@@ -357,12 +362,12 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
     (row) => row.heroId === hero.id && row.position === position
   );
 
-  const keyItem = altKeyItem(ranked, core);
+  const keyItem = altKeyItem(ranked, core, support);
   const sample =
     keyItem === null
       ? null
       : await attempt('альтернативная сборка', () => stats.heroItemSample(hero.id, position, keyItem.item.id));
-  const alt = keyItem === null ? null : altBuild({ ranked, core, sample, items, keyItem });
+  const alt = keyItem === null ? null : altBuild({ ranked, core, sample, items, keyItem, support });
   if (keyItem !== null && alt === null && sample !== null) notes.push('Нет данных: альтернативная сборка');
 
   const card: HeroGuideCard = {
