@@ -7,13 +7,9 @@ import styles from './RubricSamples.module.css';
 
 type Need = 'ready' | 'stratz' | 'later';
 // Rubrics the owner approved leave the list (owner, 26.10.2026: «убирай те рубрики, которые мы утвердили»):
-// 1 «Кого понерфили», 2 «Кто теперь имба?», 3 «Нерф или баф?», 4 «Чья способность?», 5 «Утечка недели».
+// 1 «Кого понерфили», 2 «Кто теперь имба?», 3 «Нерф или баф?», 4 «Чья способность?», 5 «Утечка недели»; 6–10
+// «Кого понерфят?», «Valve, ты серьёзно?», «Валв-тайм», «Оцениваем», «Кто кого перебьёт?» (27.10.2026).
 const RUBRICS: { key: RubricSampleKey; label: string; note: string; need: Need }[] = [
-  { key: 'who_gets_nerfed', label: '6. Кого понерфят?', note: 'опрос', need: 'stratz' },
-  { key: 'valve_seriously', label: '7. Valve, ты серьёзно?', note: 'текст', need: 'ready' },
-  { key: 'valve_time', label: '8. Валв-тайм', note: 'текст', need: 'ready' },
-  { key: 'rate_it', label: '9. Оцениваем', note: 'картинка новинки', need: 'ready' },
-  { key: 'who_beats_whom', label: '10. Кто кого перебьёт?', note: 'картинка + опрос', need: 'stratz' },
   { key: 'guess_by_numbers', label: '11. Угадай героя по цифрам', note: 'викторина', need: 'ready' },
   { key: 'guess_winrate', label: '12. Угадай винрейт', note: 'картинка + викторина', need: 'stratz' },
   { key: 'ban_or_pick', label: '13. Бан или пик?', note: 'картинка + опрос', need: 'stratz' },
