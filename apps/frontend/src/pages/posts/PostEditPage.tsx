@@ -6,6 +6,7 @@ import {
   DeletePostsDialog,
   deleteBlockOf,
   deleteTargetOf,
+  formatDayMonth,
   formatExact,
   LifecycleBanner,
   PostEditor,
@@ -17,7 +18,7 @@ import {
 import { PostRubricSelect } from '../../features/content-analytics';
 import { classifyApiError } from '../../shared/api/error-kind';
 import { ApiError } from '../../shared/api/http-client';
-import { Banner, Button, Card, ErrorState, Menu, Skeleton, VisuallyHidden } from '../../shared/ui';
+import { Banner, Button, Card, ErrorState, Menu, Skeleton, useMediaQuery, VisuallyHidden } from '../../shared/ui';
 import { BackToPosts } from './BackToPosts';
 import { PostPublications } from './PostPublications';
 import styles from './PostPages.module.css';
@@ -114,6 +115,7 @@ function LoadedPost({ post }: { post: PostDto }) {
   const [deleting, setDeleting] = useState(false);
   const restore = useRestoreActions({ onNotice: setNotice });
   const isArchived = post.archivedAt !== null;
+  const phone = useMediaQuery('(max-width: 859px)');
   const block = deleteBlockOf(post);
   const date = post.autoDeleteAt ? formatExact(post.autoDeleteAt) : '';
 
@@ -134,21 +136,23 @@ function LoadedPost({ post }: { post: PostDto }) {
         aside={<PostPublications postId={id} />}
         postSettings={isArchived ? undefined : <PostRubricSelect postId={id} />}
         headerActions={
-          isArchived ? undefined : (
+          isArchived && !phone ? undefined : (
             <Menu
               label={copy.actions.pageMenu}
               items={[
-                {
-                  id: 'delete',
-                  label: block
-                    ? copy.actions.deleteBlocked(
-                        block === 'unknown' ? copy.actions.blockedUnknown : copy.actions.blockedInProgress
-                      )
-                    : copy.actions.delete,
-                  icon: 'trash',
-                  tone: 'danger',
-                  isDisabled: block !== null
-                }
+                isArchived
+                  ? { id: 'delete', label: copy.actions.deleteNow, icon: 'trash', tone: 'danger' }
+                  : {
+                      id: 'delete',
+                      label: block
+                        ? copy.actions.deleteBlocked(
+                            block === 'unknown' ? copy.actions.blockedUnknown : copy.actions.blockedInProgress
+                          )
+                        : copy.actions.delete,
+                      icon: 'trash',
+                      tone: 'danger',
+                      isDisabled: block !== null
+                    }
               ]}
               onAction={() => {
                 setNotice(null);
@@ -157,12 +161,31 @@ function LoadedPost({ post }: { post: PostDto }) {
             />
           )
         }
-        // The archive banner goes with the editor's own: on a phone the composer fills the screen.
+        // A phone shows the archive as a strip under the header and «Удалить сейчас» in the menu (owner, 27.10.2026:
+        // a dark card over the chat looked foreign); wider screens keep the banner over the editor.
+        phonePinned={
+          isArchived
+            ? {
+                text: copy.editor.phone.archivedPinned(post.autoDeleteAt ? formatDayMonth(post.autoDeleteAt) : ''),
+                action: (
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    icon="retry"
+                    isLoading={restore.isPending}
+                    onPress={() => void restoreHere()}
+                  >
+                    {copy.editor.phone.restore}
+                  </Button>
+                )
+              }
+            : null
+        }
         notices={
-          notice || isArchived ? (
+          notice || (isArchived && !phone) ? (
             <>
               {notice ? <LifecycleBanner notice={notice} onDismiss={() => setNotice(null)} /> : null}
-              {isArchived ? (
+              {isArchived && !phone ? (
                 <Banner
                   tone="info"
                   title={copy.archived.body(date)}

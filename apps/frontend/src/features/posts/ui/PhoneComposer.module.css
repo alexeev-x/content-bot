@@ -31,12 +31,12 @@
   overflow-y: auto;
   padding: var(--space-2) var(--space-3) 0;
 }
-/* The message sits at the bottom of the chat, like the last post in a channel; a long one scrolls. */
+/* The message sits at the bottom of the chat, like the last post in a channel; a long one scrolls. The top margin,
+   not `justify-content: flex-end`, pushes it down: flex-end puts a long post's start out of reach above the scroll. */
 .chat {
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
-  justify-content: flex-end;
   min-height: 0;
   overflow-y: auto;
   overscroll-behavior: contain;
@@ -45,6 +45,7 @@
 .message {
   display: grid;
   gap: var(--space-2);
+  margin-top: auto;
   width: 100%;
   min-width: 0;
   max-width: 30rem;
@@ -53,6 +54,23 @@
   background: var(--color-bubble);
   color: var(--color-bubble-text);
   overflow-wrap: anywhere;
+}
+/* An approved or archived post's state, as a pinned message in Telegram: one line in the header's colour. */
+.pinned {
+  display: flex;
+  flex: none;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-1) var(--space-2) var(--space-1) var(--space-3);
+  border-bottom: 1px solid var(--color-border-subtle);
+  background: var(--color-surface-1);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+.pinnedText {
+  flex: 1 1 auto;
+  min-width: 0;
+  margin: 0;
 }
 .below {
   flex: none;

@@ -54,6 +54,8 @@ type Props = {
   postSettings?: ReactNode;
   /** Page-level banners (a failed delete): shown with the editor's own, so the phone composer does not cover them. */
   notices?: ReactNode;
+  /** Phones: the archive's one-line strip under the header (its banner is in `notices` on wider screens). */
+  phonePinned?: { text: string; action?: ReactNode } | null;
   /** Tab the editor opens on; «Создать опрос» sends a new post straight to the poll form. */
   initialTab?: 'editor' | 'poll' | undefined;
 };
@@ -71,6 +73,7 @@ export function PostEditor({
   headerActions,
   postSettings,
   notices,
+  phonePinned,
   initialTab
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -481,9 +484,27 @@ export function PostEditor({
       <>
         {banners}
         {mixedNotice}
-        {approvedBanner}
       </>
     );
+    const pinned = isArchived
+      ? phonePinned
+      : showApprovedPreview
+        ? {
+            text: copy.phone.approvedPinned,
+            action: canReturnToDraft ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                icon="edit"
+                isLoading={editor.isReturning}
+                onPress={() => void editor.returnToDraft()}
+              >
+                {copy.phone.toDraft}
+              </Button>
+            ) : undefined
+          }
+        : null;
+    const status = isArchived ? copy.phone.archivedStatus : showApprovedPreview ? copy.phone.approvedStatus : null;
     return (
       <>
         <PhoneComposer
@@ -492,6 +513,7 @@ export function PostEditor({
           canImprove={editor.body.trim() !== ''}
           isReadOnly={locked}
           send={send}
+          pinned={pinned}
           below={showApprovedPreview ? aside : null}
           meta={
             savedAt ? (
@@ -509,7 +531,7 @@ export function PostEditor({
                   {editor.isNew ? copy.composer.newTitle : editor.title.trim() || copy.untitled}
                 </h1>
                 <span className={styles.phoneStatus}>
-                  <SaveIndicator state={editor.saveState} savedAt={baseline?.updatedAt} compact />
+                  {status ?? <SaveIndicator state={editor.saveState} savedAt={baseline?.updatedAt} compact />}
                   <OriginMark origin={baseline?.origin} />
                 </span>
               </div>
@@ -538,9 +560,7 @@ export function PostEditor({
             </>
           }
           notices={
-            conflict || notice || notices || editor.mixed || waitingForPictures || editor.richLost || approvedBanner
-              ? phoneNotices
-              : null
+            conflict || notice || notices || editor.mixed || waitingForPictures || editor.richLost ? phoneNotices : null
           }
         >
           {(tools) =>

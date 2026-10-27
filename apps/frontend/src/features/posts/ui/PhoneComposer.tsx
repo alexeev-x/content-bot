@@ -1,5 +1,5 @@
 import { useRef, useState, type ReactNode, type RefObject } from 'react';
-import { Button, IconButton, type IconName } from '../../../shared/ui';
+import { Button, Icon, IconButton, type IconName } from '../../../shared/ui';
 import { useKeyboardPanel, type PhonePanel } from '../model/use-keyboard-panel';
 import { postsCopy } from './copy';
 import type { PhoneMedia } from './PostMediaEditor';
@@ -15,6 +15,8 @@ type Props = {
   header: ReactNode;
   /** Conflict, error and other banners over the chat. */
   notices?: ReactNode;
+  /** An approved or archived post's state under the header, with its one action. */
+  pinned?: { text: string; action?: ReactNode } | null;
   /** The message bubble; the tools hand the panel to the text and the media. */
   children: (tools: PhoneComposerTools) => ReactNode;
   /** The bubble's corner, as a sent message: the save time and its mark. */
@@ -48,6 +50,7 @@ export function PhoneComposer({
   rootRef,
   header,
   notices,
+  pinned,
   children,
   meta,
   below,
@@ -88,6 +91,13 @@ export function PhoneComposer({
   return (
     <div ref={rootRef} className={styles.root} data-keyboard={keyboard.keyboardOpen || undefined}>
       <header className={styles.header}>{header}</header>
+      {pinned ? (
+        <div className={styles.pinned}>
+          <Icon name="info" size={16} />
+          <p className={styles.pinnedText}>{pinned.text}</p>
+          {pinned.action}
+        </div>
+      ) : null}
       {notices ? <div className={styles.notices}>{notices}</div> : null}
       <div
         ref={chatRef}
@@ -106,59 +116,62 @@ export function PhoneComposer({
         </article>
         {below ? <div className={styles.below}>{below}</div> : null}
       </div>
-      <div className={styles.bar} role="toolbar" aria-label={copy.bar}>
-        {isReadOnly ? null : (
-          <>
-            {panels.map((item) => {
-              const isOpen = keyboard.panel === item.id;
-              const backToKeyboard = isOpen && kind === 'text';
-              return (
+      {/* An archived post has neither tools nor a send: no bar, as a channel you cannot write to. */}
+      {isReadOnly && send === null ? null : (
+        <div className={styles.bar} role="toolbar" aria-label={copy.bar}>
+          {isReadOnly ? null : (
+            <>
+              {panels.map((item) => {
+                const isOpen = keyboard.panel === item.id;
+                const backToKeyboard = isOpen && kind === 'text';
+                return (
+                  <IconButton
+                    key={item.id}
+                    className={styles.tool}
+                    size="target"
+                    icon={backToKeyboard ? 'keyboard' : item.icon}
+                    label={backToKeyboard ? copy.keyboard : item.label}
+                    aria-expanded={isOpen}
+                    // Focus stays in the text until the panel replaces the keyboard in one frame.
+                    preventFocusOnPress
+                    showTooltip={false}
+                    onPress={() => toggle(item.id)}
+                  />
+                );
+              })}
+              {kind === 'text' ? (
                 <IconButton
-                  key={item.id}
                   className={styles.tool}
                   size="target"
-                  icon={backToKeyboard ? 'keyboard' : item.icon}
-                  label={backToKeyboard ? copy.keyboard : item.label}
-                  aria-expanded={isOpen}
-                  // Focus stays in the text until the panel replaces the keyboard in one frame.
-                  preventFocusOnPress
+                  icon="sparkle"
+                  label={canImprove ? copy.ai : `${copy.ai}. ${copy.aiEmpty}`}
+                  isDisabled={!canImprove}
                   showTooltip={false}
-                  onPress={() => toggle(item.id)}
+                  onPress={() => {
+                    keyboard.close();
+                    setImproveOpen(true);
+                  }}
                 />
-              );
-            })}
-            {kind === 'text' ? (
-              <IconButton
-                className={styles.tool}
-                size="target"
-                icon="sparkle"
-                label={canImprove ? copy.ai : `${copy.ai}. ${copy.aiEmpty}`}
-                isDisabled={!canImprove}
-                showTooltip={false}
-                onPress={() => {
-                  keyboard.close();
-                  setImproveOpen(true);
-                }}
-              />
-            ) : null}
-          </>
-        )}
-        <span className={styles.spacer} />
-        {send ? (
-          <Button
-            className={styles.send}
-            icon="send"
-            isLoading={send.isLoading}
-            isDisabled={send.isDisabled}
-            onPress={() => {
-              keyboard.close();
-              send.onPress();
-            }}
-          >
-            {copy.send}
-          </Button>
-        ) : null}
-      </div>
+              ) : null}
+            </>
+          )}
+          <span className={styles.spacer} />
+          {send ? (
+            <Button
+              className={styles.send}
+              icon="send"
+              isLoading={send.isLoading}
+              isDisabled={send.isDisabled}
+              onPress={() => {
+                keyboard.close();
+                send.onPress();
+              }}
+            >
+              {copy.send}
+            </Button>
+          ) : null}
+        </div>
+      )}
       <section
         ref={setPanelTarget}
         className={styles.panel}

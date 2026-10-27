@@ -37,6 +37,11 @@ const weekdayFormat = new Intl.DateTimeFormat('ru-RU', { weekday: 'short' });
 const dayMonthFormat = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 'short' });
 const fullDateFormat = new Intl.DateTimeFormat('ru-RU', { day: '2-digit', month: '2-digit', year: '2-digit' });
 
+/** «22 нояб.»: a date that fits one line on a phone. */
+export function formatDayMonth(iso: string): string {
+  return dayMonthFormat.format(new Date(iso));
+}
+
 /** The time of a chat in Telegram's list: «12:00» today, «пн» this week, «6 окт.» this year, «06.10.25» before. */
 export function formatChatTime(iso: string, now: number): string {
   const date = new Date(iso);
