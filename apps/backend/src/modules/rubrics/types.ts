@@ -90,6 +90,8 @@ export interface GuideMatch {
   items: number[];
   /** The neutral item slot at the end of the match. */
   neutral?: number | null;
+  /** Every neutral item the slot held during the match (STRATZ's minute-by-minute inventory); absent when unknown. */
+  neutralsHeld?: number[];
   /** Every purchase with its minute (negative: before the horn); null when the sample does not carry them. */
   purchases: { itemId: number; minute: number }[] | null;
   /** Every ability point spent. */

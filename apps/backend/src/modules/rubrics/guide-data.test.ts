@@ -5,6 +5,7 @@ import {
   inventoryShares,
   neutralPicks,
   pairTalents,
+  sampleNeutrals,
   skillPlan,
   splitAnchors,
   startingSet
@@ -34,6 +35,10 @@ const ITEMS = new Map<number, ItemInfo>([
   item(15, 'branches', 50),
   item(16, 'ward_observer', 0),
   item(17, 'trusty_shovel', 0, [], 1),
+  item(19, 'mana_draught', 0, [], 2),
+  item(20, 'serrated_shiv', 0, [], 3),
+  item(21, 'cloak_of_flames', 0, [], 3),
+  item(22, 'giant_maul', 0, [], 5),
   item(18, 'mekansm', 1775)
 ]);
 
@@ -202,6 +207,22 @@ describe('the skill sequence', () => {
     const matches = [first, second, [...first].reverse()].map((ids) => match({ items: [], abilities: learn(ids) }));
     expect(skillPlan(matches, detail)).toBeNull();
     expect(skillPlan([], detail)).toBeNull();
+  });
+});
+
+describe('neutrals', () => {
+  it('takes one per tier, tier 1 first, from every item the slot held, not the five left at the end', () => {
+    const matches = [
+      ...many(4, () => match({ items: [], neutral: 20, neutralsHeld: [17, 19, 20] })),
+      ...many(3, () => match({ items: [], neutral: 21, neutralsHeld: [19, 21] })),
+      ...many(2, () => match({ items: [], neutral: 22, neutralsHeld: [17, 20, 22] }))
+    ];
+    expect(sampleNeutrals(matches, ITEMS).map((each) => each.key)).toEqual([
+      'trusty_shovel',
+      'mana_draught',
+      'serrated_shiv',
+      'giant_maul'
+    ]);
   });
 });
 

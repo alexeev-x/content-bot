@@ -115,20 +115,28 @@ export function splitBuild(ranked: RankedItem[]): { core: GuideItem[]; situation
   };
 }
 
+const NEUTRAL_MIN_MATCHES = 2;
+
 /**
- * The neutral items most held at the end of the sample's matches, up to five (STRATZ's own neutral totals came back
- * empty on DEV, 27.10.2026, after the neutral items' rework). A tier is shown when the constants know it.
+ * One neutral per tier, tier 1 first: the one most matches held at any minute (owner, 27.10.2026: the end-of-match slot
+ * gave five items of tiers 1–4 mixed, never a real tier 5). Without the minute-by-minute slot, the end-of-match one.
  */
-export function sampleNeutrals(matches: { neutral?: number | null }[], items: Map<number, ItemInfo>): GuideItem[] {
+export function sampleNeutrals(
+  matches: { neutral?: number | null; neutralsHeld?: number[] }[],
+  items: Map<number, ItemInfo>
+): GuideItem[] {
   const counts = new Map<number, number>();
   for (const match of matches) {
-    if (match.neutral == null || items.get(match.neutral) === undefined) continue;
-    counts.set(match.neutral, (counts.get(match.neutral) ?? 0) + 1);
+    const held = match.neutralsHeld ?? (match.neutral == null ? [] : [match.neutral]);
+    for (const id of new Set(held)) if (items.get(id)?.neutralTier != null) counts.set(id, (counts.get(id) ?? 0) + 1);
   }
-  return [...counts]
-    .sort((a, b) => b[1] - a[1])
-    .slice(0, 5)
-    .map(([itemId]) => ({ key: items.get(itemId)?.key ?? '' }));
+  return [1, 2, 3, 4, 5].flatMap((tier) => {
+    const top = [...counts]
+      .filter(([id, count]) => items.get(id)?.neutralTier === tier && count >= NEUTRAL_MIN_MATCHES)
+      .sort((x, y) => y[1] - x[1] || x[0] - y[0])[0];
+    const item = top === undefined ? undefined : items.get(top[0]);
+    return item === undefined ? [] : [{ key: item.key }];
+  });
 }
 
 /**

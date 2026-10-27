@@ -157,6 +157,12 @@ const detailSchema = z.record(
                   .array(z.object({ time: z.number(), itemId: z.number().int() }))
                   .max(500)
                   .nullable()
+                  .catch(null),
+                // The neutral slot minute by minute: every tier's item, not only the one left at the end.
+                inventoryReport: z
+                  .array(z.object({ neutral0: z.object({ itemId: z.number().int() }).nullable().catch(null) }))
+                  .max(240)
+                  .nullable()
                   .catch(null)
               })
               .nullable()
@@ -195,6 +201,8 @@ export interface StratzGuideMatch {
   items: number[];
   /** The neutral item slot at the end of the match. */
   neutral: number | null;
+  /** Every neutral item the slot held during the match. */
+  neutralsHeld: number[];
   purchases: { itemId: number; minute: number }[] | null;
   abilities: { abilityId: number; time: number; level: number }[];
 }
@@ -489,7 +497,9 @@ export function createStratzApi(input: { token: string; bridgeUrl?: string; fetc
       const chosen = (onNewest.length >= GUIDE_MIN_NEWEST ? onNewest : candidates)
         .sort((a, b) => b.at - a.at)
         .slice(0, GUIDE_TARGET);
-      const purchases = withPurchases ? ' stats { itemPurchases { time itemId } }' : '';
+      const purchases = withPurchases
+        ? ' stats { itemPurchases { time itemId } inventoryReport { neutral0 { itemId } } }'
+        : ' stats { inventoryReport { neutral0 { itemId } } }';
       const readOf = (each: { matchId: number; steamAccountId: number }, slotNumber: number) =>
         `m${slotNumber}: match(id: ${each.matchId}) { gameVersionId durationSeconds players(steamAccountId: ${each.steamAccountId}) { heroId isVictory position item0Id item1Id item2Id item3Id item4Id item5Id neutral0Id abilities { abilityId time level }${purchases} } }`;
       const matches: StratzGuideMatch[] = [];
@@ -534,6 +544,13 @@ export function createStratzApi(input: { token: string; bridgeUrl?: string; fetc
               player.item5Id
             ].filter((item): item is number => item !== null),
             neutral: player.neutral0Id,
+            neutralsHeld: [
+              ...new Set(
+                (player.stats?.inventoryReport ?? []).flatMap((minute) =>
+                  minute.neutral0 === null ? [] : [minute.neutral0.itemId]
+                )
+              )
+            ],
             purchases:
               events == null ? null : events.map((event) => ({ itemId: event.itemId, minute: event.time / 60 })),
             abilities: player.abilities ?? []
