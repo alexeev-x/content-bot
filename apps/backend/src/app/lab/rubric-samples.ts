@@ -38,12 +38,34 @@ const STRATZ_GAP_MS = 1500;
 const RUBRIC_PHOTO_MIN_WIDTH = 1200;
 const PHOTO_TIMEOUT_MS = 15_000;
 const PHOTO_MAX_BYTES = 8_000_000;
-/** Steam's announcement images only (the rubric builds the address from Valve's own placeholder). */
-const PHOTO_ORIGIN = 'https://clan.akamai.steamstatic.com/';
+/** Steam's announcement images and Workshop screenshots only (the rubrics build these addresses themselves). */
+const PHOTO_ORIGINS = [
+  'https://clan.akamai.steamstatic.com/',
+  'https://images.steamusercontent.com/',
+  'https://i.imgur.com/'
+];
+
+/**
+ * Links as words at the end of a caption (owner, 27.10.2026: «ссылки прятать в текст»): each one's words on its own line
+ * and a text_link entity over them; UTF-16 offsets, as Telegram counts.
+ */
+function withLinks(
+  body: string,
+  links: { text: string; url: string }[]
+): { text: string; entities: { type: 'text_link'; offset: number; length: number; url: string }[] } {
+  let text = body;
+  const entities: { type: 'text_link'; offset: number; length: number; url: string }[] = [];
+  for (const link of links) {
+    text += text === '' ? '' : '\n';
+    entities.push({ type: 'text_link', offset: text.length, length: link.text.length, url: link.url });
+    text += link.text;
+  }
+  return { text, entities };
+}
 
 async function fetchPhoto(url: string): Promise<Uint8Array> {
   const failed = () => new AppError('UNAVAILABLE', 'The source picture was not fetched', { reason: 'PHOTO_FETCH' });
-  if (!url.startsWith(PHOTO_ORIGIN)) throw failed();
+  if (!PHOTO_ORIGINS.some((origin) => url.startsWith(origin))) throw failed();
   let response: Response;
   try {
     response = await fetch(url, { signal: AbortSignal.timeout(PHOTO_TIMEOUT_MS) });
@@ -282,7 +304,8 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
   let picture: Uint8Array | null = null;
   // Every rubric gets a picture for now (owner, 25.10.2026: «пусть ИИ рисует для всех, а там уже отбросим»): one with
   // no layout of its own is the drawn scene with its title alone, and none at all when the scene is not drawn.
-  const page = sample.photo !== undefined ? null : (sample.picture ?? (deps.ai === null ? null : titlePicture(title)));
+  const ownPhotos = sample.photo !== undefined || sample.album !== undefined;
+  const page = ownPhotos ? null : (sample.picture ?? (deps.ai === null ? null : titlePicture(title)));
   if (page !== null) {
     if (deps.renderer === null) {
       throw new AppError('UNAVAILABLE', 'Browser Rendering is not bound here', { reason: 'BROWSER_NOT_BOUND' });
@@ -315,9 +338,26 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
     });
     picture = file.bytes;
   }
+  // An album's photos one by one; one that fails is left out, the album needs one.
+  const album: { kind: 'photo' | 'video'; bytes: Uint8Array }[] = [];
+  for (const [kind, urls] of [
+    ['photo', sample.album?.photos ?? []],
+    ['video', sample.album?.clips ?? []]
+  ] as const) {
+    for (const url of urls) {
+      const bytes = await fetchPhoto(url).catch(() => null);
+      if (bytes !== null) album.push({ kind, bytes });
+    }
+  }
+  if (sample.album !== undefined && album.length === 0) {
+    throw new AppError('UNAVAILABLE', 'No photo of the album was fetched', { reason: 'PHOTO_FETCH' });
+  }
   const written = await caption.catch(() => null);
   if (deps.ai !== null && !noWriter && written === null) notes.push('Текст — шаблон: ИИ его не написал.');
-  const text = written ?? sample.text;
+  // The footer stays word for word under the AI's text; links show as their words (text_link entities).
+  const body = [written ?? sample.text, ...(sample.footer === undefined ? [] : [sample.footer])].join('\n\n');
+  const linked = withLinks(body, sample.links ?? []);
+  const text = linked.text;
 
   // The second post (a riddle's answer) is drawn now too; the free plan takes one screenshot per 10 seconds.
   let followUpPicture: Uint8Array | null = null;
@@ -341,8 +381,19 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
         { ...FLAGS, entities: [] },
         signal()
       );
-    const rich = pollOnly ? null : rubricRichHtml(text, picture !== null);
-    if (pollOnly) {
+    const rich = pollOnly || album.length > 0 ? null : rubricRichHtml(text, picture !== null);
+    if (album.length > 0) {
+      await deps.telegram.sendMediaGroup(
+        deps.ownerChatId,
+        album.map(({ kind, bytes }, index) => ({
+          type: kind,
+          media: new InputFile(bytes, `${rubric}-${index + 1}.${kind === 'photo' ? 'jpg' : 'mp4'}`),
+          ...(index === 0 ? { caption: text, caption_entities: linked.entities } : {})
+        })),
+        FLAGS,
+        signal()
+      );
+    } else if (pollOnly) {
       // The picture goes inside the poll (Bot API 10.3), no post before it (owner, 26.10.2026: «вся информация на
       // картинке и сразу опрос»).
     } else if (rich !== null) {
@@ -362,11 +413,11 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
       await deps.telegram.sendPhoto(
         deps.ownerChatId,
         new InputFile(picture, `${rubric}.png`),
-        { ...FLAGS, caption: text, caption_entities: [] },
+        { ...FLAGS, caption: text, caption_entities: linked.entities },
         signal()
       );
     } else {
-      await deps.telegram.sendMessage(deps.ownerChatId, text, { ...FLAGS, entities: [] }, signal());
+      await deps.telegram.sendMessage(deps.ownerChatId, text, { ...FLAGS, entities: linked.entities }, signal());
     }
     if (sample.poll !== null) {
       await deps.telegram.sendPoll(

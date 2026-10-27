@@ -8,6 +8,27 @@ import { readCappedText } from '../../platform/http/read-capped-text';
 export const STEAM_PUBLIC_TIMEOUT_MS = 15_000;
 const MAX_BODY_BYTES = 1_500_000;
 const NEWS_TEXT_MAX = 1500;
+const SCREENSHOTS_MAX = 9;
+const SCREENSHOT = /'url':\s*'(https:\/\/images\.steamusercontent\.com\/ugc\/\d{1,25}\/[0-9A-F]{40}\/)/gu;
+const CLIPS_MAX = 3;
+const IMGUR_GIF = /https:\/\/i\.imgur\.com\/([A-Za-z0-9]{5,12})\.gif/gu;
+/**
+ * The animated GIFs of a Workshop item's description (owner, 27.10.2026: «там гифки есть»), as imgur's own MP4 of each:
+ * an album mixes photos and videos, never GIFs.
+ */
+export function workshopClips(page: string): string[] {
+  return [...new Set([...page.matchAll(IMGUR_GIF)].map((match) => `https://i.imgur.com/${match[1] ?? ''}.mp4`))].slice(
+    0,
+    CLIPS_MAX
+  );
+}
+/** The full-size screenshots of a Workshop item page (its `rgFullScreenshotURLs`), without the resize query. */
+export function workshopScreenshots(page: string): string[] {
+  return [...new Set([...page.matchAll(SCREENSHOT)].map((match) => match[1] ?? ''))]
+    .filter((url) => url !== '')
+    .slice(0, SCREENSHOTS_MAX);
+}
+
 /** An announcement's body as plain text: BBCode tags, image placeholders and links out, spaces folded. */
 const plainText = (contents: string) =>
   contents
@@ -53,7 +74,10 @@ export interface SteamPublicApi {
   dotaNews(
     signal?: AbortSignal
   ): Promise<{ title: string; text: string; imageUrl: string | null; publishedAt: number }[]>;
-  workshopTrending(signal?: AbortSignal): Promise<{ title: string; previewUrl: string; url: string } | null>;
+  /** This week's trending Workshop set: its title, cover, page and the full-size screenshots its author added. */
+  workshopTrending(
+    signal?: AbortSignal
+  ): Promise<{ title: string; previewUrl: string; url: string; screenshots: string[]; clips: string[] } | null>;
 }
 
 export function createSteamPublicApi(input: { fetchImpl?: typeof fetch } = {}): SteamPublicApi {
@@ -120,10 +144,16 @@ export function createSteamPublicApi(input: { fetchImpl?: typeof fetch } = {}): 
       if (!parsed.success) throw new SteamPublicError('STEAM_SHAPE');
       const item = parsed.data.response.publishedfiledetails[0];
       if (item?.title === undefined || item.preview_url === undefined) return null;
+      const url = `https://steamcommunity.com/sharedfiles/filedetails/?id=${id}`;
+      // The item page lists the author's screenshots and the GIFs of the description; a page that fails leaves the
+      // cover alone.
+      const itemPage = await text(url, {}, signal).catch(() => '');
       return {
         title: item.title,
         previewUrl: item.preview_url,
-        url: `https://steamcommunity.com/sharedfiles/filedetails/?id=${id}`
+        url,
+        screenshots: workshopScreenshots(itemPage),
+        clips: workshopClips(itemPage)
       };
     }
   };

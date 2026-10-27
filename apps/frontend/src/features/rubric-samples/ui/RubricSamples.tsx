@@ -10,7 +10,7 @@ type Need = 'ready' | 'stratz' | 'later';
 // 1 «Кого понерфили», 2 «Кто теперь имба?», 3 «Нерф или баф?», 4 «Чья способность?», 5 «Утечка недели»; 6–10
 // «Кого понерфят?», «Valve, ты серьёзно?», «Валв-тайм», «Оцениваем», «Кто кого перебьёт?» (27.10.2026).
 const RUBRICS: { key: RubricSampleKey; label: string; note: string; need: Need }[] = [
-  { key: 'workshop_set', label: '11. Имба или пиздец?', note: 'картинка + ссылка, реакции', need: 'ready' },
+  { key: 'workshop_set', label: '11. Сеты из мастерской', note: 'фото и гифки сета, реакции', need: 'ready' },
   { key: 'hero_guide', label: '12. Гайд на героя', note: 'текст: старт, кор, поздняя игра', need: 'stratz' },
   { key: 'what_if', label: '13. Что если…', note: 'сценка, картинка ИИ', need: 'ready' },
   { key: 'confess', label: '14. Признавайтесь', note: 'текст, реакции', need: 'ready' },

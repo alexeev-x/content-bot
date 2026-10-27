@@ -82,7 +82,7 @@ export const RUBRIC_TITLES: Record<RubricKey, string> = {
   valve_time: 'Валв-тайм',
   rate_it: 'Оцениваем',
   who_beats_whom: 'Кто кого перебьёт?',
-  workshop_set: 'Имба или пиздец?',
+  workshop_set: 'Сеты из мастерской',
   hero_guide: 'Гайд на героя',
   what_if: 'Что если…',
   confess: 'Признавайтесь',

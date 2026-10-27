@@ -95,7 +95,14 @@ export interface RubricSources {
   /** The finds in the game's files committed since `since` (UTC ms), newest first, at most a few. */
   gameFinds(since: number): Promise<{ build: string; committedAt: number; note: string | null; text: string | null }[]>;
   /** A set rising in the Steam Workshop this week. */
-  workshopTrending(): Promise<{ title: string; previewUrl: string; url: string } | null>;
+  workshopTrending(): Promise<{
+    title: string;
+    previewUrl: string;
+    url: string;
+    screenshots: string[];
+    /** The description's GIFs as MP4 clips. */
+    clips: string[];
+  } | null>;
   /** Null until STRATZ_TOKEN is set. */
   stats: StatsSource | null;
 }
@@ -108,6 +115,12 @@ export interface RubricSample {
   pictureInPoll?: boolean;
   /** A source's own picture sent as its file, not drawn into a page (`picture` is then null). */
   photo?: { url: string };
+  /** A source's own photos and video clips sent as one album, the caption on the first (`picture` is then null). */
+  album?: { photos: string[]; clips: string[] };
+  /** Links shown as words in the caption, never a bare address (owner, 27.10.2026: «ссылки прятать в текст»). */
+  links?: { text: string; url: string }[];
+  /** A fixed last line under the AI's caption, kept word for word (a reactions verdict). */
+  footer?: string;
   /** Background for the AI writer that the caption need not repeat number by number. */
   reference?: string;
   /** The text is final as written (fixed captions): no AI caption. */

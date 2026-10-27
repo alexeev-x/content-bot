@@ -357,18 +357,34 @@ export async function rateIt(context: RubricContext): Promise<RubricSample> {
 export async function workshopSet(context: RubricContext): Promise<RubricSample> {
   const set = await context.sources.workshopTrending();
   if (set === null) throw noData('workshop');
-  const html = picturePage(
-    `<div class="title">Сет из <b>мастерской</b></div><img class="shot" src="${escapeHtml(set.previewUrl)}" alt="">
-<div class="sub">${escapeHtml(set.title)}</div>`,
-    `.shot{margin-top:28px;max-width:1000px;max-height:470px;border-radius:14px;border:1px solid var(--line);object-fit:contain}
-.sub{font-size:30px;font-weight:800;margin-top:18px}`
-  );
+  // The set's own photos from the Workshop, no picture of ours (owner, 27.10.2026: «фотографии из мастерской забирай и
+  // их скидывай»); the page hides behind words, the verdict is the channel's reactions.
   return {
-    picture: { html, ...PICTURE_SIZE },
-    text: `Свежий сет из мастерской Steam набирает популярность: «${set.title}».\nМастерская: ${set.url}\n🔥 — имба, 💩 — пиздец`,
+    picture: null,
+    album: {
+      photos: [...new Set([set.previewUrl, ...set.screenshots])].slice(0, WORKSHOP_ALBUM_MAX - set.clips.length),
+      clips: set.clips
+    },
+    text: `Сет из мастерской Steam, который набирает популярность: «${set.title}».`,
+    links: [{ text: 'Посмотреть в мастерской', url: set.url }],
+    footer: pick(WORKSHOP_VERDICTS, context.random),
     poll: null
   };
 }
+
+/** Telegram's album holds ten. */
+const WORKSHOP_ALBUM_MAX = 10;
+/**
+ * The verdict by the channel's reactions, one of these at random (owner, 27.10.2026: «🔥 — имба, 💩 — пиздец и третий
+ * типа обкончай меня, Педро… тут надо шутки придумать»). Only Telegram's standard reaction emoji.
+ */
+const WORKSHOP_VERDICTS = [
+  '🔥 — имба, 💩 — пиздец, 🤤 — обкончай меня, Педро',
+  '🔥 — беру, 💩 — верните деньги, 🤡 — это для Пуджа-мейнера',
+  '🔥 — шедевр, 💩 — рисовали ногой, 😭 — мама, купи',
+  '🔥 — в игру, 💩 — в помойку, 🗿 — закину 3к и пожалею',
+  '🔥 — кончил, 💩 — блеванул, 🤯 — я это развидеть не могу'
+] as const;
 
 // Twemoji, an open emoji set; a rebus is pictures only, the answer is in the quiz.
 const TWEMOJI = 'https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/svg';
