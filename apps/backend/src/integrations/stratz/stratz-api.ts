@@ -132,6 +132,7 @@ const detailSchema = z.record(
   z
     .object({
       gameVersionId: z.number().int().nullable().catch(null),
+      durationSeconds: z.number().int().nonnegative().nullable().catch(null),
       players: z
         .array(
           z.object({
@@ -189,6 +190,8 @@ export interface StratzGuideMatch {
   victory: boolean;
   startedAt: number | null;
   patch: number | null;
+  /** The match's length in minutes; null when STRATZ leaves it out. */
+  minutes: number | null;
   items: number[];
   /** The neutral item slot at the end of the match. */
   neutral: number | null;
@@ -488,7 +491,7 @@ export function createStratzApi(input: { token: string; bridgeUrl?: string; fetc
         .slice(0, GUIDE_TARGET);
       const purchases = withPurchases ? ' stats { itemPurchases { time itemId } }' : '';
       const readOf = (each: { matchId: number; steamAccountId: number }, slotNumber: number) =>
-        `m${slotNumber}: match(id: ${each.matchId}) { gameVersionId players(steamAccountId: ${each.steamAccountId}) { heroId isVictory position item0Id item1Id item2Id item3Id item4Id item5Id neutral0Id abilities { abilityId time level }${purchases} } }`;
+        `m${slotNumber}: match(id: ${each.matchId}) { gameVersionId durationSeconds players(steamAccountId: ${each.steamAccountId}) { heroId isVictory position item0Id item1Id item2Id item3Id item4Id item5Id neutral0Id abilities { abilityId time level }${purchases} } }`;
       const matches: StratzGuideMatch[] = [];
       const seen: Record<string, number> = {};
       // One request at a time with a pause (STRATZ blocked eight at once): up to ten matches a request, fewer when the
@@ -521,6 +524,7 @@ export function createStratzApi(input: { token: string; bridgeUrl?: string; fetc
             victory: player.isVictory,
             startedAt: each.at === 0 ? null : each.at,
             patch: match.gameVersionId ?? each.patch,
+            minutes: match.durationSeconds === null ? null : match.durationSeconds / 60,
             items: [
               player.item0Id,
               player.item1Id,

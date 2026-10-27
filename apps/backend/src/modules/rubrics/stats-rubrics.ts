@@ -20,7 +20,7 @@ import {
   talentRows,
   GUIDE_DAYS
 } from './guide-data';
-import { type GuideItem, guideAltPicture, guidePicture, type HeroGuideCard } from './guide-pictures';
+import { type GuideItem, guideAltPicture, guideItemsPicture, guidePicture, type HeroGuideCard } from './guide-pictures';
 import { heroImage, PICTURE_SIZE, picturePage } from './picture';
 import { type PatchOutcome, patchOutcomes } from './patch-rubrics';
 import { NERF_LOOKS, nerfQuestionPicture, nerfResultPicture } from './nerf-pictures';
@@ -413,10 +413,8 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
             .join(', ') || 'нет'
         }`
       );
-    if (built !== null && built.anchorShare < 0.5)
-      notes.push(
-        `Основа: порог снижен до ${Math.round(built.anchorShare * 100)}% (больше чем в половине матчей — меньше трёх предметов)`
-      );
+    if (built !== null && built.anchorShare < 0.3)
+      notes.push(`Основа: шестой предмет берут лишь в ${Math.round(built.anchorShare * 100)}% матчей`);
   }
 
   let core: GuideItem[] = built?.core ?? [];
@@ -532,7 +530,8 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
     abilities: order?.abilities ?? [],
     skills: order?.skills ?? [],
     ...(talents.length === 0 ? {} : { talents }),
-    ...(alt === null ? {} : { alt })
+    ...(alt === null ? {} : { alt }),
+    ...(built === null || built.late.length === 0 ? {} : { late: built.late })
   };
   const itemName = (each: GuideItem) => known.find((item) => item.key === each.key)?.name ?? each.key;
   const heroNames = (sign: 1 | -1) =>
@@ -542,10 +541,11 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
   const fears = heroNames(-1);
   const beats = heroNames(1);
   const strongest = byLength === null ? null : STRETCHES[byLength.indexOf(Math.max(...byLength))];
-  const slide = guideAltPicture(card);
+  // The carousel: the card, then the items in detail, then the alternative (owner, 27.10.2026).
+  const slides = [guideItemsPicture(card), guideAltPicture(card)].filter((each) => each !== null);
   return {
     picture: guidePicture(card),
-    ...(slide === null ? {} : { slides: [slide] }),
+    ...(slides.length === 0 ? {} : { slides }),
     notes,
     text: `Гайд на ${hero.localizedName}: что покупать, как качать и кого бояться — всё на картинке.`,
     reference: [

@@ -67,20 +67,29 @@ describe('the core from the purchase log', () => {
   );
   const split = splitAnchors(inventoryShares(matches, ITEMS, false));
 
-  it('takes items bought in over half the matches, the early Magic Wand first, in the order they were bought', () => {
+  it('takes the early Magic Wand, then the most bought real items, a 30% one too, in the order they were bought', () => {
     expect(split.core.map((row) => [row.item.key, row.minute])).toEqual([
       ['magic_wand', 5],
       ['battle_fury', 12],
       ['blink', 18],
-      ['black_king_bar', 25]
+      ['black_king_bar', 25],
+      ['nullifier', 30]
     ]);
-    expect(split.anchorShare).toBe(0.5);
+    expect(split.anchorShare).toBe(0.3);
   });
 
-  it('keeps Magic Stick out of every block, and puts a 30% item in the situational list only', () => {
+  it('keeps Magic Stick out of every block', () => {
     const everywhere = [...split.core, ...split.situational].map((row) => row.item.key);
     expect(everywhere).not.toContain('magic_stick');
-    expect(split.situational.map((row) => row.item.key)).toEqual(['nullifier']);
+  });
+
+  it('caps the real items at six, the next ones situational', () => {
+    const wide = many(10, (index) =>
+      match({ items: [1, 2, 3, 6, 12, 13, ...(index < 5 ? [18] : []), ...(index < 2 ? [5] : [])] })
+    );
+    const { core, situational } = splitAnchors(inventoryShares(wide, ITEMS, false));
+    expect(core.map((row) => row.item.key)).toHaveLength(6);
+    expect(situational.map((row) => row.item.key)).toEqual(['mekansm', 'nullifier']);
   });
 
   it('counts an item turned into another (no final inventory holds it), and drops a part upgraded within three minutes', () => {
@@ -121,11 +130,14 @@ describe('a support sample without carry items', () => {
     expect(keys).not.toContain('ward_observer');
   });
 
-  it('relaxes the anchor share to 30% when over half leaves a core of fewer than three, and never makes Nullifier an anchor', () => {
+  it('fills the core with the items bought, even under half the matches, in buy order (Tranquil Boots count)', () => {
     const split = splitAnchors(inventoryShares(support, ITEMS, true));
-    expect(split.anchorShare).toBe(0.3);
-    expect(split.core.map((row) => row.item.key)).toEqual(['tranquil_boots', 'force_staff', 'glimmer_cape']);
-    expect(split.core.map((row) => row.item.key)).not.toContain('nullifier');
+    expect(split.core.map((row) => row.item.key)).toEqual([
+      'tranquil_boots',
+      'force_staff',
+      'glimmer_cape',
+      'nullifier'
+    ]);
   });
 });
 
@@ -233,10 +245,11 @@ describe('empty blocks', () => {
 
 describe('the alternative build', () => {
   it('is the biggest group with another set: own win rate, its swaps and the item it turns on', () => {
-    // Main: Blink, BKB, Battle Fury. Eight of twenty-five swap Battle Fury for Nullifier and lose more.
+    // Main: Blink, BKB, Sange, Force Staff, Glimmer Cape and Battle Fury (the core's six). Eight of twenty-five swap
+    // Battle Fury for Nullifier, a seventh item, and lose more.
     const matches = [
-      ...many(17, () => match({ items: [1, 2, 3], victory: true })),
-      ...many(8, (index) => match({ items: [1, 2, 5], victory: index < 3 }))
+      ...many(17, () => match({ items: [1, 2, 6, 12, 13, 3], victory: true })),
+      ...many(8, (index) => match({ items: [1, 2, 6, 12, 13, 5], victory: index < 3 }))
     ];
     const rows = inventoryShares(matches, ITEMS, false);
     const { core } = splitAnchors(rows);

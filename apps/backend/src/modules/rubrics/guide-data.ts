@@ -1,4 +1,12 @@
-import type { GuideAltBuild, GuideItem, GuideMatchup, GuideRole, GuideSwap, GuideTalentRow } from './guide-pictures';
+import type {
+  GuideAltBuild,
+  GuideItem,
+  GuideLate,
+  GuideMatchup,
+  GuideRole,
+  GuideSwap,
+  GuideTalentRow
+} from './guide-pictures';
 import type { GuideMatch, HeroDetail, HeroInfo, ItemInfo, TalentDetail } from './types';
 
 // «Гайд на героя»: STRATZ's sample matches and aggregates and Valve's texts turned into the card's blocks. Pure functions only; each one
@@ -289,12 +297,14 @@ export function fallbackPurchases(
 // Anchors, starting sets, skill sequences and alternative builds are counted from the sample's individual matches, not
 // from per-item totals: a total across roles put Magic Stick into the core and Nullifier on supports.
 
-/** An item is an anchor of a build when more than half its matches buy it (Dota2ProTracker's «более чем в половине матчей»). */
-const ANCHOR_SHARE = 0.5;
-/** A role whose few anchors would leave a core of one or two items falls back to these shares, one after another (a support's builds vary: Hoodwink had two items at 50%, 27.10.2026). */
-const ANCHOR_RELAXED_SHARES = [0.3];
-const ANCHOR_MIN = 3;
-const SITUATIONAL_SHARE = 0.2;
+/** A cheap early item (Magic Wand, Bracer) leads the core when more than half the matches buy it. */
+const EARLY_SHARE = 0.5;
+/**
+ * The core is always six real items, the six most bought (owner, 27.10.2026: «основа все 6 предметов помимо стиков …
+ * там шард если надо, а то 4 предмета основы это смешно»); an item bought in fewer matches than this is no core item.
+ */
+const CORE_MIN_SHARE = 0.1;
+const SITUATIONAL_SHARE = 0.1;
 const MINUTE_MIN_BUYERS = 3;
 /** The newest patch alone is the sample when it holds at least this many matches. */
 const PATCH_MIN_MATCHES = 30;
@@ -306,7 +316,7 @@ const ALT_SHARE = 0.15;
 const ALT_GROUP_MIN = 8;
 const ALT_PICK_MIN = 5;
 const DAY_SECONDS = 86_400;
-/** Consumables, wards and the free scroll: never a build's item. Magic Stick and boots drop out as parts once upgraded. */
+/** Consumables, wards, the free scroll and plain boots (always upgraded): never a build's item. */
 const NOT_A_BUILD_ITEM = new Set([
   'branches',
   'tango',
@@ -320,6 +330,7 @@ const NOT_A_BUILD_ITEM = new Set([
   'smoke_of_deceit',
   'dust',
   'tpscroll',
+  'boots',
   'cheese',
   'refresher_shard'
 ]);
@@ -374,8 +385,10 @@ export function inventoryShares(
 ): BuildItem[] {
   if (matches.length === 0) return [];
   const floor = support ? SUPPORT_CORE_MIN_COST : CORE_MIN_COST;
-  // Cheap for any role: a support's boots or Magic Wand is an early step too, never a situational pick.
-  const isEarly = (item: ItemInfo) => item.cost >= EARLY_MIN_COST && item.cost < CORE_MIN_COST;
+  // Cheap for any role (Magic Wand, Bracer, Urn): an early step before the core, never a situational pick. Boots are
+  // a core item at any price (Tranquil Boots).
+  const isEarly = (item: ItemInfo) =>
+    item.cost >= EARLY_MIN_COST && item.cost < CORE_MIN_COST && !item.key.includes('boots');
   const buildItem = (id: number) => {
     const item = items.get(id);
     return item === undefined ||
@@ -438,26 +451,56 @@ export function inventoryShares(
 }
 
 const guideItem = (row: BuildItem): GuideItem =>
-  row.minute === null ? { key: row.item.key } : { key: row.item.key, minute: row.minute };
+  row.minute === null
+    ? { key: row.item.key, share: row.share }
+    : { key: row.item.key, minute: row.minute, share: row.share };
+
+/** Dota2ProTracker's «Поздняя игра» windows: the match's length in minutes, from (inclusive) and to. */
+const LATE_WINDOWS: { from: number; to: number | null }[] = [
+  { from: 20, to: 35 },
+  { from: 35, to: 55 },
+  { from: 55, to: null }
+];
+const LATE_MIN_MATCHES = 5;
 
 /**
- * The core: the cheap early anchors and up to six big ones (bought in over half the matches, 30% when that leaves a core
- * of fewer than three), in the order they were bought; then the situational items: big, 20% and more, not an anchor.
+ * «Поздняя игра» (owner, 27.10.2026, from Dota2ProTracker): the inventory most matches of each length window ended
+ * with — its six commonest build items, the commonest first. A window with fewer than five matches is left out.
+ */
+export function lateInventories(matches: GuideMatch[], items: Map<number, ItemInfo>): GuideLate[] {
+  return LATE_WINDOWS.flatMap(({ from, to }) => {
+    const own = matches.filter(
+      (match) => match.minutes != null && match.minutes >= from && (to === null || match.minutes < to)
+    );
+    if (own.length < LATE_MIN_MATCHES) return [];
+    const held = new Map<string, number>();
+    for (const match of own)
+      for (const id of new Set(match.items)) {
+        const item = items.get(id);
+        if (item === undefined || item.neutralTier !== null || NOT_A_BUILD_ITEM.has(item.key)) continue;
+        if (item.cost < EARLY_MIN_COST) continue;
+        held.set(item.key, (held.get(item.key) ?? 0) + 1);
+      }
+    const top = [...held.entries()]
+      .sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]))
+      .slice(0, ITEMS_MAX)
+      .map(([key, count]) => ({ key, share: count / own.length }));
+    return top.length === 0 ? [] : [{ from, to, matches: own.length, items: top }];
+  });
+}
+
+/**
+ * The core: the cheap early items most matches buy, then the six most bought real items (boots, Blink, Aghanim's
+ * Shard alike), in the order they were bought; then the situational items: the next ones, 10% and more.
+ * `anchorShare` is the share of the core's least bought item.
  */
 export function splitAnchors(rows: BuildItem[]): { core: BuildItem[]; situational: BuildItem[]; anchorShare: number } {
-  let anchorShare = ANCHOR_SHARE;
   const big = rows.filter((row) => !row.early);
-  const early = rows.filter((row) => row.early && row.share > ANCHOR_SHARE);
-  let anchors = big.filter((row) => row.share > anchorShare);
-  for (const relaxed of ANCHOR_RELAXED_SHARES) {
-    if (anchors.length + early.length >= ANCHOR_MIN) break;
-    anchorShare = relaxed;
-    anchors = big.filter((row) => row.share > anchorShare);
-  }
+  const early = rows.filter((row) => row.early && row.share > EARLY_SHARE);
+  const anchors = big.filter((row) => row.share >= CORE_MIN_SHARE).slice(0, ITEMS_MAX);
+  const anchorShare = Math.min(1, ...anchors.map((row) => row.share));
   const late = Number.POSITIVE_INFINITY;
-  const core = [...early, ...anchors.slice(0, ITEMS_MAX)].sort(
-    (a, b) => (a.minute ?? late) - (b.minute ?? late) || b.share - a.share
-  );
+  const core = [...early, ...anchors].sort((a, b) => (a.minute ?? late) - (b.minute ?? late) || b.share - a.share);
   const chosen = new Set(core.map((row) => row.item.key));
   const situational = big
     .filter((row) => !chosen.has(row.item.key) && row.share >= SITUATIONAL_SHARE)
@@ -602,7 +645,7 @@ export function altFromSample(input: {
   const need = Math.max(ALT_GROUP_MIN, Math.ceil(matches.length * ALT_SHARE));
   let best: { row: BuildItem; group: GuideMatch[] } | null = null;
   for (const row of rows) {
-    // A cheap early item (plain boots) is no build's turn.
+    // A cheap early item (Magic Wand) is no build's turn.
     if (coreKeys.has(row.item.key) || row.early || row.share < ALT_SHARE) continue;
     const group = inventories
       .filter(({ keys }) => keys.has(row.item.key) && [...coreKeys].some((key) => !keys.has(key)))
@@ -638,6 +681,24 @@ export function altFromSample(input: {
     if (picked !== undefined && instead !== undefined)
       talentDiff.push({ level: 10 + tier * 5, text: talentText(picked), instead: talentText(instead) });
   });
+  // The whole build as its own matches play it (owner, 27.10.2026: «в альтернативе … другие таланты и предметы
+  // нейтральные и обычные и старт другой»): every talent level, its start, core and neutrals.
+  const picks = talentSides(best.group, talents).flatMap((side, tier) => {
+    const picked = side === null ? undefined : talents[tier * 2 + side.side];
+    if (side === null || picked === undefined) return [];
+    const main = mainSides[tier];
+    const instead =
+      main === null || main === undefined || main.side === side.side ? undefined : talents[tier * 2 + main.side];
+    return [
+      {
+        level: 10 + tier * 5,
+        text: talentText(picked),
+        ...(instead === undefined ? {} : { instead: talentText(instead) })
+      }
+    ];
+  });
+  const start = startingSet(best.group, items)?.items ?? [];
+  const neutrals = sampleNeutrals(best.group, items);
   const ownSequence =
     plan === null || detail === null
       ? null
@@ -650,6 +711,10 @@ export function altFromSample(input: {
     keyItem: best.row.item.name,
     keyItemId: best.row.item.id,
     swaps,
+    core: own.map(guideItem),
+    ...(start.length === 0 ? {} : { start }),
+    ...(neutrals.length === 0 ? {} : { neutrals }),
+    ...(picks.length === 0 ? {} : { picks }),
     ...(talentDiff.length === 0 ? {} : { talents: talentDiff }),
     ...(plan === null || ownSequence === null || ownSequence.matches < ALT_PICK_MIN
       ? {}
@@ -658,6 +723,8 @@ export function altFromSample(input: {
 }
 
 export interface SampleGuide {
+  /** «Поздняя игра»: the commonest inventories by match length; empty without match lengths. */
+  late: GuideLate[];
   /** Matches counted (the newest patch's when enough), their win rate and the days they span. */
   matches: number;
   winRate: number;
@@ -692,6 +759,7 @@ export function guideFromSample(input: {
   const plan = input.detail === null ? null : skillPlan(matches, input.detail);
   const alt = altFromSample({ ...input, matches, rows, core, plan });
   return {
+    late: lateInventories(matches, input.items),
     matches: matches.length,
     winRate: matchWins(matches) / matches.length,
     days,

@@ -15,6 +15,8 @@ export interface GuideItem {
   key: string;
   /** The usual minute it is bought, when known. */
   minute?: number;
+  /** The share of matches that bought (or ended with) it, 0…1, when counted from a sample. */
+  share?: number;
 }
 
 /** One side of a talent level: its text, how often it is taken and how often it wins, 0…1. */
@@ -53,10 +55,24 @@ export interface GuideAltBuild {
   keyItemId?: number;
   /** Only the items that differ from the main build, at most four drawn: the shared ones would repeat slide one. */
   swaps: GuideSwap[];
+  /** The build's own core in buy order with minutes, its starting set and neutrals, as its matches play them. */
+  core?: GuideItem[];
+  start?: GuideItem[];
+  neutrals?: GuideItem[];
+  /** Every talent level this build's matches took, highest first or in any order; `instead` when the main build differs. */
+  picks?: { level: number; text: string; instead?: string }[];
   /** Only the talent levels where this build picks the other side; `instead` is the main build's pick. */
   talents?: { level: number; text: string; instead: string }[];
   /** Levels 1–10 as in `HeroGuideCard.skills`, when known; drawn only when some level differs. */
   skills?: (string | null)[];
+}
+
+/** One «Поздняя игра» window: matches `from`–`to` minutes long (`to` null: and longer) and what they ended with. */
+export interface GuideLate {
+  from: number;
+  to: number | null;
+  matches: number;
+  items: GuideItem[];
 }
 
 export interface HeroGuideCard {
@@ -84,6 +100,8 @@ export interface HeroGuideCard {
   skills: (string | null)[];
   /** The talent tree: levels 10, 15, 20, 25, each with its two options in Russian; may be empty. */
   talents?: GuideTalentRow[];
+  /** «Поздняя игра» windows for the items slide; may be empty. */
+  late?: GuideLate[];
   /** The second carousel slide: a rarer build, drawn only when present. */
   alt?: GuideAltBuild;
 }
@@ -165,16 +183,28 @@ function stat(label: string, matches: number, days: number, cls: string, note?: 
   }</p>`;
 }
 
-const six = (items: GuideItem[]) => items.slice(0, 6);
+/** The width the card's item column gives a row: six icons with their gaps. */
+const ROW_ROOM = 6 * 88 + 5 * 8;
+/** At most this many in the core row: the cheap early items and the six real ones. */
+const CORE_MAX = 9;
+const ICON_WIDTH = 88;
 
-/** Item icons; `numbered` badges the buy order, and a minute line appears under them when any minute is known. */
+/**
+ * Item icons; `numbered` (the core) gets the minute under each when known (owner, 27.10.2026: no order numbers, they hid the
+ * items). The core
+ * (`numbered`) keeps every item, the early ones and six real ones: past six the icons shrink to fit the row.
+ */
 function items(list: GuideItem[], numbered: boolean) {
-  const timed = list.some((item) => item.minute !== undefined);
-  return `<div class="items">${six(list)
-    .map((item, index) => {
-      const badge = numbered ? `<i>${index + 1}</i>` : '';
+  // Only the core carries minutes on the card: the situational ones have theirs on the «Предметы» slide.
+  const timed = numbered && list.some((item) => item.minute !== undefined);
+  const shown = numbered ? list.slice(0, CORE_MAX) : list.slice(0, 6);
+  const width = Math.min(ICON_WIDTH, Math.floor((ROW_ROOM - 8 * (shown.length - 1)) / shown.length));
+  // A shrunk row gets smaller minute labels: «14 мин» at 18 px is wider than a 58 px icon.
+  const size = width === ICON_WIDTH ? '' : ` dense" style="--iw:${width}px;--ih:${Math.round((width * 64) / 88)}px`;
+  return `<div class="items${size}">${shown
+    .map((item) => {
       const minute = timed ? `<span>${item.minute === undefined ? '' : `${Math.round(item.minute)} мин`}</span>` : '';
-      return `<figure class="it"><img src="${escapeHtml(itemImage(item.key))}" alt="">${badge}${minute}</figure>`;
+      return `<figure class="it"><img src="${escapeHtml(itemImage(item.key))}" alt="">${minute}</figure>`;
     })
     .join('')}</div>`;
 }
@@ -242,9 +272,21 @@ function spectrum(guide: HeroGuideCard, shape: SpectrumShape) {
   const faceHeight = Math.round((face * 9) / 16);
   const step = (face + SPEC.gap) / 2;
   const reach = Math.max(8, Math.ceil(Math.max(...guide.matchups.map((m) => Math.abs(m.delta) * 100)) / 2) * 2);
-  const axisX = (delta: number) => mid + (Math.max(-reach, Math.min(reach, delta * 100)) / reach) * (mid - SPEC.pad);
+  // Each side runs from its own mildest matchup to the reach (owner, 27.10.2026: «как много пустого места» around zero
+  // on one scale): the axis breaks at the middle, so the points spread over the whole half.
+  const near = (list: GuideMatchup[]) =>
+    Math.max(0, Math.floor(Math.min(reach, ...list.map((m) => Math.abs(m.delta) * 100))) - 1);
+  const [nearFear, nearPrey] = [near(fear), near(prey)];
+  const halfRoom = mid - SPEC.side - SPEC.pad;
+  const axisX = (delta: number) => {
+    const value = Math.min(reach, Math.abs(delta) * 100);
+    const from = delta < 0 ? nearFear : nearPrey;
+    const t = reach === from ? 1 : Math.max(0, (value - from) / (reach - from));
+    return delta < 0 ? mid - SPEC.side - t * halfRoom : mid + SPEC.side + t * halfRoom;
+  };
+  // Faces spread evenly over their half in the axis order; a stem joins each to its point.
   const place = (list: GuideMatchup[], lo: number, hi: number) => {
-    const xs = list.map((matchup) => Math.min(hi, Math.max(lo, axisX(matchup.delta))));
+    const xs = list.map((_, index) => lo + ((hi - lo) * (index + 0.5)) / list.length);
     pushApart(xs, lo, hi, step);
     return xs;
   };
@@ -276,15 +318,16 @@ function spectrum(guide: HeroGuideCard, shape: SpectrumShape) {
       `<span class="d${fears ? ' neg' : ''}" style="left:${left}px;top:${labelTop}px;width:${face}px">${signed(matchup.delta)}</span>`
     );
   });
-  const ticks = [-reach, -reach / 2, reach / 2, reach]
+  const ticks = [-reach, reach]
     .map((value) => `<line x1="${axisX(value / 100)}" y1="${axisY - 5}" x2="${axisX(value / 100)}" y2="${axisY + 5}"/>`)
     .join('');
   const svg = `<svg width="${width}" height="${height}" viewBox="0 0 ${width} ${height}">
 <line class="zero" x1="${mid}" y1="${SPEC.head - 4}" x2="${mid}" y2="${height}"/>
-<line class="axis" x1="${SPEC.pad - 6}" y1="${axisY}" x2="${width - SPEC.pad + 6}" y2="${axisY}"/>
+<line class="axis" x1="${SPEC.pad - 6}" y1="${axisY}" x2="${mid - SPEC.side}" y2="${axisY}"/>
+<line class="axis" x1="${mid + SPEC.side}" y1="${axisY}" x2="${width - SPEC.pad + 6}" y2="${axisY}"/>
 <g class="tick">${ticks}</g><g class="stem">${lines.join('')}</g></svg>`;
   return `<div class="z spec" style="width:${width}px;height:${height}px">${svg}
-<h3 class="fear">Кого боится</h3><span class="zl" style="left:${mid}px">0</span><h3 class="prey">Кого душит</h3>
+<h3 class="fear">Кого боится</h3><h3 class="prey">Кого душит</h3>
 <span class="end" style="left:0;top:${axisY - 10}px;width:${SPEC.pad - 12}px;text-align:right">−${reach}%</span>
 <span class="end" style="left:${width - SPEC.pad + 12}px;top:${axisY - 10}px">+${reach}%</span>${marks.join('')}</div>`;
 }
@@ -468,6 +511,7 @@ h3{font-weight:800;font-size:20px;line-height:22px;color:#8a929e;white-space:now
 .it i{position:absolute;left:0;top:0;min-width:26px;height:26px;padding:0 6px;border-radius:6px 0 6px 0;background:#0c0d0f;
 font:normal 800 18px/26px Manrope,sans-serif;text-align:center;font-variant-numeric:tabular-nums}
 .it span{font-weight:600;font-size:18px;line-height:20px;height:20px;color:#8a929e;font-variant-numeric:tabular-nums;white-space:nowrap}
+.dense .it span{font-size:15px;letter-spacing:-.02em}
 .grp{display:flex;flex-direction:column;gap:12px}
 .grp.rows .sec{display:grid;grid-template-columns:var(--lc) auto;align-items:start}
 .grp.rows h3{display:flex;align-items:center;min-height:var(--ih);padding-right:12px;white-space:normal}.skills h3{margin-bottom:10px}.skills .row{display:flex;gap:var(--sg)}
@@ -509,13 +553,6 @@ background:#1d2229;font:800 17px/1 Manrope,sans-serif;color:#f1ebe0}
 /** The card's page size; the «Чем отличается» slide uses the same. */
 export const GUIDE_SIZE = { width: 1536, height: 768 } as const;
 
-// The hero tall on the left, the item rows beside it, talents and the game-length bars in the right column; the skill
-// row and the matchup spectrum share the bottom band.
-const CARD_CSS = `html,body{width:1536px;height:768px}:root{--m:72px;--iw:88px;--ih:64px;--ig:8px;--sw:60px;--sg:8px;--lc:150px}
-.box{left:72px;top:64px}.head{left:384px;top:64px}.stat{left:384px;top:128px}.grp{left:384px;top:180px}
-.rcol{left:1134px;top:64px;width:330px;display:flex;flex-direction:column;gap:32px}
-.skills{left:72px;bottom:60px}.spec{left:784px;bottom:60px}`;
-
 // «Чем отличается»: header, swaps, then talents and skills in a bottom band (see diffSlide).
 const DIFF_CSS = `html,body{width:1536px;height:768px}:root{--m:72px;--sw:64px;--sg:8px}
 .box{left:72px;top:64px}.dif{top:64px;height:644px;display:flex;flex-direction:column}.dif .head{position:static}
@@ -537,6 +574,13 @@ border-left:12px solid #8a929e}
 .pk .row{display:flex;gap:var(--sg)}.pk .lv{opacity:.4}.pk .lv span{font-size:20px;line-height:20px}
 .pk .lv.new{opacity:1}.pk .new img,.pk .new b{border:2px solid var(--red)}.pk .new span{color:var(--red)}`;
 
+// The hero tall on the left, the item rows beside it, talents and the game-length bars in the right column; the skill
+// row and the matchup spectrum share the bottom band.
+const CARD_CSS = `html,body{width:1536px;height:768px}:root{--m:72px;--iw:88px;--ih:64px;--ig:8px;--sw:60px;--sg:8px;--lc:150px}
+.box{left:72px;top:64px}.head{left:384px;top:64px}.stat{left:384px;top:128px}.grp{left:384px;top:180px}
+.rcol{left:1134px;top:64px;width:330px;display:flex;flex-direction:column;gap:32px}
+.skills{left:72px;bottom:40px}.spec{left:784px;bottom:40px}.grp{gap:16px}`;
+
 /**
  * The guide card: the page and the size to shoot it at. A block without data is left out and the rest closes up: no
  * build line lifts the item rows; without the skill row, or with it moved aside, the hero runs the card's full height;
@@ -556,7 +600,7 @@ export function guidePicture(guide: HeroGuideCard): { html: string; width: numbe
           guide.buildDays,
           'z'
         );
-  const body = `${heroBox(guide, { width: 280, height: tall ? 644 : 492, faceX: 0.5, faceY: tall ? 0.34 : 0.38, share: tall ? 0.72 : 0.65 })}${head(guide, { room: 554, max: 52 })}
+  const body = `${heroBox(guide, { width: 280, height: tall ? 664 : 512, faceX: 0.5, faceY: tall ? 0.34 : 0.38, share: tall ? 0.72 : 0.65 })}${head(guide, { room: 554, max: 52 })}
 ${stats}${groups(guide)}
 <div class="z rcol">${talentBlock(guide)}${lengthBars(guide)}</div>${hasSkills ? skillRow(guide) : ''}
 ${hasSpectrum ? spectrum(guide, { width: 680, face: 84 }) : ''}`;
@@ -564,8 +608,164 @@ ${hasSpectrum ? spectrum(guide, { width: 680, face: 84 }) : ''}`;
   return { html: picturePage(body, BASE + CARD_CSS + closeUp), ...GUIDE_SIZE };
 }
 
+// «Предметы» (owner, 27.10.2026: «первая картинка как основа … а дальше уже подробно»): the whole core line with its
+// minutes, the situational items with how often they are bought, and Dota2ProTracker's «Поздняя игра» — what matches of
+// each length ended with.
+const ITEMS_CSS = `html,body{width:1536px;height:768px}:root{--m:72px;--iw:80px;--ih:58px;--ig:8px;--lc:150px}
+.box{left:72px;top:64px}.its{left:384px;top:64px;width:1080px;height:644px;display:flex;flex-direction:column}
+.its .head{position:static}.its h2{margin-top:16px;font-family:Tektur,sans-serif;font-weight:800;font-size:34px;line-height:40px}
+.its .grp{position:static;margin-top:28px}.its .items{gap:20px}.its .it span{font-size:16px;line-height:18px;height:18px}
+.late{margin-top:auto}.late>h3{margin-bottom:12px}.lw{display:flex;gap:32px}
+.lc{width:328px;padding:14px 16px 16px;border-radius:10px;background:#14181e;border:1px solid rgba(255,255,255,.08)}
+.lc header{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:12px}
+.lc b{font-family:Tektur,sans-serif;font-weight:800;font-size:22px;line-height:24px;color:#f1ebe0}
+.lc small{font-weight:600;font-size:16px;line-height:20px;color:#8a929e}
+.lc .grid{display:grid;grid-template-columns:repeat(3,var(--iw));gap:8px;justify-content:space-between}
+.lc .grid img{display:block;width:var(--iw);height:var(--ih);border-radius:6px;border:1px solid rgba(255,255,255,.14);background:#14181e}`;
+
+/** Icons with a line under each: the minute, and how often players buy it when \`withShare\`. */
+function timedItems(list: GuideItem[], withShare: boolean, max: number) {
+  return `<div class="items">${list
+    .slice(0, max)
+    .map((item) => {
+      const parts = [
+        item.minute === undefined ? '' : `${Math.round(item.minute)} мин`,
+        withShare && item.share !== undefined ? pct(item.share) : ''
+      ].filter((part) => part !== '');
+      return `<figure class="it"><img src="${escapeHtml(itemImage(item.key))}" alt=""><span>${parts.join(' · ')}</span></figure>`;
+    })
+    .join('')}</div>`;
+}
+
+const lateLabel = (late: GuideLate) => (late.to === null ? `${late.from}+ мин` : `${late.from}–${late.to} мин`);
+
+function lateBlock(guide: HeroGuideCard) {
+  const windows = guide.late ?? [];
+  if (windows.length === 0) return '';
+  return `<section class="late"><h3>Поздняя игра: чем заканчивают</h3><div class="lw">${windows
+    .map(
+      (late) =>
+        `<div class="lc"><header><b>${lateLabel(late)}</b><small>${count(late.matches)} ${plural(late.matches, MATCHES)}</small></header><div class="grid">${late.items
+          .slice(0, 6)
+          .map((item) => `<img src="${escapeHtml(itemImage(item.key))}" alt="">`)
+          .join('')}</div></div>`
+    )
+    .join('')}</div></section>`;
+}
+
+/** The «Предметы» slide: every item block in detail; null without a core. */
+export function guideItemsPicture(guide: HeroGuideCard): { html: string; width: number; height: number } | null {
+  if (guide.core.length === 0) return null;
+  const rows: [string, string][] = [
+    ['Стартовый закуп', guide.start.length === 0 ? '' : timedItems(guide.start, false, 7)],
+    ['Основа', timedItems(guide.core, false, CORE_MAX)],
+    ['По ситуации', guide.situational.length === 0 ? '' : timedItems(guide.situational, true, 8)]
+  ];
+  const body = `${heroBox(guide, { width: 280, height: 644, faceX: 0.5, faceY: 0.34, share: 0.72 })}
+<div class="z its">${head(guide, { room: 700, max: 52 })}<h2>Предметы по минутам</h2><div class="grp rows">${rows
+    .filter(([, html]) => html !== '')
+    .map(([label, html]) => section(label, html))
+    .join('')}</div>${lateBlock(guide)}</div>`;
+  return { html: picturePage(body, BASE + ITEMS_CSS), ...GUIDE_SIZE };
+}
+
+// The alternative as a whole build (owner, 27.10.2026: «альтернатива как-то слабо, когда один предмет меняется … там
+// другие таланты, нейтралки, обычные предметы, старт»): the card's layout with the build's own start, core, neutrals,
+// talents and skill order; what differs from the main build is outlined in red, the swaps sum it up at the bottom.
+const ALT_CSS = `html,body{width:1536px;height:768px}:root{--m:72px;--iw:88px;--ih:64px;--ig:8px;--sw:60px;--sg:8px;--lc:150px;--tw:88px;--th:64px;--fw:66px;--fh:48px}
+.box{left:72px;top:64px}.head{left:384px;top:64px}.alt-h{left:384px;top:126px;margin:0;font-family:Tektur,sans-serif;font-weight:800;
+font-size:30px;line-height:36px;white-space:nowrap}.stat{left:384px;top:168px}.grp{left:384px;top:220px;gap:16px}
+.rcol{left:1134px;top:64px;width:330px;display:flex;flex-direction:column;gap:32px}
+.skills{left:72px;bottom:40px}.skills .lv.new img,.skills .lv.new b{border:2px solid var(--red)}.skills .lv.new span{color:var(--red)}
+.it.new img{border:2px solid var(--red)}
+.sw{position:absolute;left:784px;bottom:40px}.sw h3{margin-bottom:12px}.swl{display:flex;gap:32px}
+.swp{display:flex;align-items:flex-start;gap:10px}.swp .it span{font-size:18px}
+.swp .was{margin-top:calc((var(--th) - var(--fh)) / 2)}.swp .was img{width:var(--fw);height:var(--fh);opacity:.6;filter:grayscale(.5)}
+.arr{position:relative;flex:none;width:32px;height:2px;margin:calc(var(--th) / 2 - 1px) 10px 0 0;background:#8a929e}
+.arr::after{content:'';position:absolute;right:-10px;top:-7px;border:8px solid transparent;border-right:0;border-left:12px solid #8a929e}
+.tb.new>b{background:var(--red)}.tb s{color:#6b7178}`;
+
+/** Icons with the minute under each when \`timed\`; one the main build lacks (\`main\` keys) is outlined in red. */
+function markedItems(list: GuideItem[], main: GuideItem[], timed: boolean, max: number) {
+  const known = new Set(main.map((item) => item.key));
+  const shown = list.slice(0, max);
+  const width = Math.min(88, Math.floor((6 * 88 + 5 * 8 - 8 * (shown.length - 1)) / shown.length));
+  const size = width === 88 ? '' : ` dense" style="--iw:${width}px;--ih:${Math.round((width * 64) / 88)}px`;
+  return `<div class="items${size}">${shown
+    .map(
+      (item) =>
+        `<figure class="it${known.has(item.key) ? '' : ' new'}"><img src="${escapeHtml(itemImage(item.key))}" alt="">${
+          timed ? `<span>${item.minute === undefined ? '' : `${Math.round(item.minute)} мин`}</span>` : ''
+        }</figure>`
+    )
+    .join('')}</div>`;
+}
+
+function altPicks(alt: GuideAltBuild) {
+  const picks = [...(alt.picks ?? [])].sort((a, b) => b.level - a.level);
+  if (picks.length === 0) return '';
+  return `<div class="tal"><h3>Таланты</h3><div class="list">${picks
+    .map(
+      (pick) =>
+        `<div class="tb${pick.instead === undefined ? '' : ' new'}"><b>${pick.level}</b><p${pick.text.length > TALENT_ONE_LINE ? ' class="lg"' : ''}>${escapeHtml(pick.text)}</p>${
+          pick.instead === undefined
+            ? '<small>как в основной</small>'
+            : `<small>вместо <s>${escapeHtml(pick.instead)}</s></small>`
+        }</div>`
+    )
+    .join('')}</div></div>`;
+}
+
+function altSkills(guide: HeroGuideCard, alt: GuideAltBuild) {
+  const skills = (alt.skills ?? guide.skills).slice(0, 10);
+  if (skills.length === 0 || guide.abilities.length === 0) return '';
+  const cells = skills
+    .map(
+      (skill, index) =>
+        `<div class="lv${skill !== (guide.skills[index] ?? null) ? ' new' : ''}">${skillTile(guide, skill)}<span>${index + 1}</span></div>`
+    )
+    .join('');
+  return `<div class="z skills"><h3>Как качать</h3><div class="row">${cells}</div></div>`;
+}
+
+function altSwaps(alt: GuideAltBuild) {
+  if (alt.swaps.length === 0) return '';
+  return `<section class="sw"><h3>Главное отличие</h3><div class="swl">${alt.swaps
+    .slice(0, 3)
+    .map(
+      (swap) =>
+        `<div class="swp"><figure class="it was"><img src="${escapeHtml(itemImage(swap.from.key))}" alt=""></figure><i class="arr"></i><figure class="it"><img src="${escapeHtml(itemImage(swap.to.key))}" alt=""><span>${minutes(swap.to)}</span></figure></div>`
+    )
+    .join('')}</div></section>`;
+}
+
+function altFullSlide(guide: HeroGuideCard, alt: GuideAltBuild & { core: GuideItem[] }) {
+  const line =
+    alt.winRate === undefined
+      ? `<p class="z stat"><span>Так собирают <b>${percent(alt.share)}</b> победителей</span></p>`
+      : stat(`Винрейт сборки <b>${percent(alt.winRate)}</b>`, alt.matches, guide.buildDays, 'z');
+  const rows: [string, string][] = [
+    ['Стартовый закуп', alt.start === undefined ? '' : markedItems(alt.start, guide.start, false, 6)],
+    ['Основа', markedItems(alt.core, guide.core, true, 9)],
+    ['Нейтралки', alt.neutrals === undefined ? '' : markedItems(alt.neutrals, guide.neutrals, false, 5)]
+  ];
+  const hasSkills = guide.abilities.length > 0 && (alt.skills ?? guide.skills).length > 0;
+  return `${heroBox(guide, { width: 280, height: hasSkills ? 512 : 664, faceX: 0.5, faceY: 0.38, share: 0.65 })}${head(guide, { room: 554, max: 52 })}
+<h2 class="z alt-h">Альтернатива: через ${escapeHtml(alt.keyItem)}</h2>${line}
+<div class="z grp rows">${rows
+    .filter(([, html]) => html !== '')
+    .map(([label, html]) => section(label, html))
+    .join(
+      ''
+    )}</div><div class="z rcol">${altPicks(alt)}</div>${hasSkills ? altSkills(guide, alt) : ''}${altSwaps(alt)}`;
+}
+
 /** The «Чем отличается» slide, or null when the guide has no alternative build. */
 export function guideAltPicture(guide: HeroGuideCard): { html: string; width: number; height: number } | null {
-  if (guide.alt === undefined) return null;
-  return { html: picturePage(diffSlide(guide, guide.alt), BASE + DIFF_CSS), ...GUIDE_SIZE };
+  const alt = guide.alt;
+  if (alt === undefined) return null;
+  // A build counted from its own matches is drawn whole; one with swaps only keeps the short slide.
+  if (alt.core !== undefined && alt.core.length > 0)
+    return { html: picturePage(altFullSlide(guide, { ...alt, core: alt.core }), BASE + ALT_CSS), ...GUIDE_SIZE };
+  return { html: picturePage(diffSlide(guide, alt), BASE + DIFF_CSS), ...GUIDE_SIZE };
 }

@@ -84,6 +84,8 @@ export interface GuideMatch {
   startedAt: number | null;
   /** STRATZ's game version (patch) id: grows with each patch. */
   patch: number | null;
+  /** The match's length in minutes (the late-game inventories); null or absent when unknown. */
+  minutes?: number | null;
   /** The six inventory slots at the end of the match. */
   items: number[];
   /** The neutral item slot at the end of the match. */
