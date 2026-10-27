@@ -228,49 +228,104 @@ async function lateBuild(context: RubricContext, heroId: number, items: Map<numb
     .slice(0, 6);
 }
 
-// «Кто кого перебьёт?» (owner, 27.10.2026): two carries face to face, the picture alone — no text, no poll, no answer:
-// «пусть люди сами в комментах спорят». Half the time their real late builds, half a joke build («12 танго, одни
-// рецепты, Пудж с 6 Тарасками, Антимаг с 6 БФ»).
-const SIX = (key: string) => Array.from({ length: 6 }, () => ({ key }));
-const JOKE_BUILDS: readonly { key: string }[][] = [
-  SIX('tango'),
-  SIX('branches'),
-  SIX('recipe'),
-  SIX('rapier'),
-  SIX('heart'),
-  SIX('bfury'),
-  SIX('magic_stick'),
-  ['tango', 'clarity', 'flask', 'enchanted_mango', 'faerie_fire', 'smoke_of_deceit'].map((key) => ({ key })),
-  ['ward_observer', 'dust', 'smoke_of_deceit', 'tpscroll', 'blood_grenade', 'tango'].map((key) => ({ key }))
+// «Кто кого перебьёт?» (owner, 27.10.2026): two heroes face to face, the picture alone — no text, no poll, no answer:
+// «пусть люди сами в комментах спорят». Half the time their real late builds; half a joke, and a smart one (owner: «не
+// просто все 6 одинаковых… вич доктор с радиком»): a role swap, a hero's own meme, a beggar against a rich man, or an
+// absurd set.
+type Build = { key: string }[];
+const items = (...keys: string[]): Build => keys.map((key) => ({ key }));
+const SIX = (key: string) => items(key, key, key, key, key, key);
+/** What a support carries: wards, dust, smoke, saves and auras. */
+const SUPPORT_KITS: readonly Build[] = [
+  items('ward_observer', 'ward_sentry', 'dust', 'smoke_of_deceit', 'tango', 'flask'),
+  items('arcane_boots', 'glimmer_cape', 'force_staff', 'mekansm', 'guardian_greaves', 'ward_observer')
 ];
-/** Builds a hero is a meme for: Pudge's Tarrasques, Anti-Mage's Battle Furies. */
-const HERO_JOKES: Record<string, { key: string }[]> = {
-  npc_dota_hero_pudge: SIX('heart'),
-  npc_dota_hero_antimage: SIX('bfury')
+const CHEAP = items('branches', 'tango', 'boots', 'magic_stick', 'faerie_fire', 'enchanted_mango');
+const RICH = items('rapier', 'greater_crit', 'heart', 'butterfly', 'skadi', 'abyssal_blade');
+const ABSURD: readonly Build[] = [
+  items('phase_boots', 'power_treads', 'arcane_boots', 'tranquil_boots', 'travel_boots', 'guardian_greaves'),
+  items('hand_of_midas', 'branches', 'branches', 'branches', 'branches', 'branches'),
+  SIX('rapier'),
+  SIX('tango'),
+  SIX('recipe')
+];
+/** A hero's own running joke (owner, 27.10.2026; more from the community's meme builds). */
+const HERO_MEMES: Record<string, Build> = {
+  npc_dota_hero_pudge: items('blink', 'dagon_5', 'dagon_5', 'dagon_5', 'dagon_5', 'dagon_5'),
+  npc_dota_hero_antimage: SIX('bfury'),
+  npc_dota_hero_techies: SIX('rapier'),
+  npc_dota_hero_witch_doctor: items('radiance', 'hand_of_midas', 'butterfly', 'greater_crit', 'satanic', 'rapier'),
+  npc_dota_hero_crystal_maiden: items('radiance', 'butterfly', 'greater_crit', 'satanic', 'skadi', 'rapier'),
+  // Sunder and a Dagon one-shot (Sportskeeda, «best meme builds», 7.36).
+  npc_dota_hero_terrorblade: items('armlet', 'blink', 'silver_edge', 'dagon_5', 'black_king_bar', 'ultimate_scepter'),
+  // A mid hero that never left the fountain's shopping list.
+  npc_dota_hero_invoker: items('ward_observer', 'tango', 'branches', 'magic_stick', 'boots', 'tpscroll')
 };
+type Side = { hero: HeroInfo; items: Build };
+type JokeKind = 'role_swap' | 'hero_meme' | 'beggar_rich' | 'absurd';
+const JOKE_KINDS: readonly JokeKind[] = ['role_swap', 'hero_meme', 'beggar_rich', 'absurd'];
+
+async function versusSides(context: RubricContext, heroes: HeroInfo[], known: Map<number, ItemInfo>) {
+  const realBuild = async (hero: HeroInfo) =>
+    (await lateBuild(context, hero.id, known)).map((item) => ({ key: item.key }));
+  const carries = shuffled(
+    heroes.filter((hero) => hero.roles.includes('Carry')),
+    context.random
+  );
+  const supports = shuffled(
+    heroes.filter((hero) => hero.roles.includes('Support') && !hero.roles.includes('Carry')),
+    context.random
+  );
+  const [carry, other] = carries;
+  if (carry === undefined || other === undefined) throw noData('carries');
+  if (context.random() < 0.5)
+    return [
+      { hero: carry, items: await realBuild(carry) },
+      { hero: other, items: await realBuild(other) }
+    ] satisfies [Side, Side];
+  const kind = pick(JOKE_KINDS, context.random);
+  if (kind === 'role_swap') {
+    // The support gets the carry's real late build, the carry a support's kit.
+    const support = supports[0];
+    if (support === undefined) throw noData('supports');
+    return [
+      { hero: support, items: await realBuild(carry) },
+      { hero: carry, items: pick(SUPPORT_KITS, context.random) }
+    ] satisfies [Side, Side];
+  }
+  if (kind === 'hero_meme') {
+    const memes = shuffled(
+      heroes.filter((hero) => HERO_MEMES[hero.name] !== undefined),
+      context.random
+    );
+    const [first, second] = memes;
+    if (first === undefined || second === undefined) throw noData('meme heroes');
+    return [
+      { hero: first, items: HERO_MEMES[first.name] ?? [] },
+      { hero: second, items: HERO_MEMES[second.name] ?? [] }
+    ] satisfies [Side, Side];
+  }
+  if (kind === 'beggar_rich')
+    return [
+      { hero: carry, items: CHEAP },
+      { hero: other, items: RICH }
+    ] satisfies [Side, Side];
+  const [first, second] = shuffled(ABSURD, context.random);
+  return [
+    { hero: carry, items: first ?? CHEAP },
+    { hero: other, items: second ?? RICH }
+  ] satisfies [Side, Side];
+}
 
 export async function whoBeatsWhom(context: RubricContext): Promise<RubricSample> {
   const [heroes, itemList] = await Promise.all([context.sources.heroes(), context.sources.items()]);
-  const items = new Map(itemList.map((item) => [item.id, item]));
-  const carries = heroes.filter((hero) => hero.roles.includes('Carry'));
-  const [first, second] = shuffled(carries, context.random);
-  if (first === undefined || second === undefined) throw noData('carries');
-  const joking = context.random() < 0.5;
-  const build = async (hero: HeroInfo) =>
-    joking
-      ? (HERO_JOKES[hero.name] ?? pick(JOKE_BUILDS, context.random))
-      : (await lateBuild(context, hero.id, items)).map((item) => ({ key: item.key }));
-  const [buildA, buildB] = await Promise.all([build(first), build(second)]);
-  if (buildA.length < 6 || buildB.length < 6) throw noData('builds');
+  const known = new Map(itemList.map((item) => [item.id, item]));
+  const [a, b] = await versusSides(context, heroes, known);
+  if (a.items.length < 6 || b.items.length < 6) throw noData('builds');
   const look = pick(VERSUS_LOOKS, context.random);
   return {
     picture: {
-      html: versusPicture(
-        look,
-        { hero: first, items: buildA },
-        { hero: second, items: buildB },
-        pick(VERSUS_TITLES, context.random)
-      ),
+      html: versusPicture(look, a, b, pick(VERSUS_TITLES, context.random)),
       ...PICTURE_SIZE
     },
     text: '',
