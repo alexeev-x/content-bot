@@ -32,6 +32,7 @@ const FLAGS = { disable_notification: false, protect_content: false } as const;
 const BARE_FINDS_MAX = 4;
 const BARE_TEXT_MAX = 1500;
 const GITHUB_TIMEOUT_MS = 8000;
+const STRATZ_GAP_MS = 1500;
 
 // Finds from before the check's note and the post link were kept (migration 0114) have no text: the writer gets the
 // build's own changed lines instead, read the way the game-files flow reads them. A failed read leaves the find as it was.
@@ -83,6 +84,15 @@ function rubricSources(
   stratzAccess: { token: string; bridgeUrl: string } | null
 ): RubricSources {
   const stratz = stratzAccess === null ? null : createStratzApi(stratzAccess);
+  // One STRATZ request at a time with a pause between (owner, 27.10.2026: «не надо спешить… делай по 1 запросу»):
+  // eight at once came back STRATZ_BLOCKED. The chain lives for this one sample only.
+  let turn: Promise<unknown> = Promise.resolve();
+  const inTurn = <T>(call: () => Promise<T>): Promise<T> => {
+    const run = turn.then(call);
+    const pause = () => new Promise((resolve) => setTimeout(resolve, STRATZ_GAP_MS));
+    turn = run.then(pause, pause);
+    return run;
+  };
   const constants = createDotaConstantsApi();
   const datafeed = createValveDatafeedApi();
   const steam = createSteamPublicApi();
@@ -119,22 +129,22 @@ function rubricSources(
         ? null
         : {
             async heroBracketStats(bracket) {
-              const rows = await stratz.heroWeeks(bracket, 1);
+              const rows = await inTurn(() => stratz.heroWeeks(bracket, 1));
               return rows.map((row) => ({ heroId: row.heroId, bracket, matches: row.matches, wins: row.wins }));
             },
             async heroLateItems(heroId) {
               // Items bought from minute 20 on, most bought first.
               const totals = new Map<number, number>();
-              for (const row of await stratz.heroPurchases(heroId)) {
+              for (const row of await inTurn(() => stratz.heroPurchases(heroId))) {
                 if (row.minute >= 20) totals.set(row.itemId, (totals.get(row.itemId) ?? 0) + row.matches);
               }
               return [...totals.entries()].sort((a, b) => b[1] - a[1]).map(([itemId]) => itemId);
             },
-            heroPurchases: (heroId) => stratz.heroPurchases(heroId),
-            heroTimeline: (heroId) => stratz.heroTimeline(heroId),
-            positions: () => stratz.positions(),
-            twoWeeks: (bracket) => stratz.heroWeeks(bracket, 2),
-            averages: () => stratz.averages()
+            heroPurchases: (heroId) => inTurn(() => stratz.heroPurchases(heroId)),
+            heroTimeline: (heroId) => inTurn(() => stratz.heroTimeline(heroId)),
+            positions: () => inTurn(() => stratz.positions()),
+            twoWeeks: (bracket) => inTurn(() => stratz.heroWeeks(bracket, 2)),
+            averages: () => inTurn(() => stratz.averages())
           }
   };
 }
