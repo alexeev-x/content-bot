@@ -372,7 +372,8 @@ export async function workshopSet(context: RubricContext): Promise<RubricSample>
         0,
         WORKSHOP_ALBUM_MAX - set.clips.length
       ),
-      clips: set.clips
+      clips: set.clips,
+      cover: set.previewUrl
     },
     text: `Сет из мастерской Steam, который набирает популярность: «${set.title}».`,
     links: [{ text: 'Посмотреть в мастерской', url: set.url }],

@@ -118,7 +118,12 @@ export interface RubricSample {
   /** A source's own picture sent as its file, not drawn into a page (`picture` is then null). */
   photo?: { url: string };
   /** A source's own photos and video clips sent as one album, the caption on the first (`picture` is then null). */
-  album?: { photos: string[]; clips: string[] };
+  album?: {
+    photos: string[];
+    clips: string[];
+    /** A still to open the album with when every photo turns out animated. */
+    cover?: string;
+  };
   /** Links shown as words in the caption, never a bare address (owner, 27.10.2026: «ссылки прятать в текст»). */
   links?: { text: string; url: string }[];
   /** A fixed last line under the AI's caption, kept word for word (a reactions verdict). */

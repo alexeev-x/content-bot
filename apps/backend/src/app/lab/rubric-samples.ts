@@ -63,6 +63,9 @@ function withLinks(
   return { text, entities };
 }
 
+/** The carousel's order: stills first, then GIFs, then clips. */
+const ALBUM_ORDER = { photo: 0, animation: 1, video: 2 } as const;
+
 const escapeRich = (text: string) =>
   text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 
@@ -370,6 +373,19 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
       const gif = bytes !== null && bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46;
       if (bytes !== null) album.push({ kind: gif ? 'animation' : kind, bytes });
     }
+  }
+  // A sharp still of the hero opens the carousel (owner, 27.10.2026: «сначала фотку качественную самого персонажа»):
+  // Workshop GIFs are 512 px with 256 colours. The author's still shot, else the set's cover, made sharper when narrow.
+  album.sort((a, b) => ALBUM_ORDER[a.kind] - ALBUM_ORDER[b.kind]);
+  if (sample.album?.cover !== undefined && album[0]?.kind !== 'photo') {
+    const cover = await fetchPhoto(sample.album.cover).catch(() => null);
+    if (cover !== null) album.unshift({ kind: 'photo', bytes: cover });
+  }
+  const first = album[0];
+  if (first?.kind === 'photo') {
+    first.bytes = (
+      await deps.improvePhoto({ bytes: first.bytes, contentType: 'image/png', fileName: `${rubric}.png` })
+    ).bytes;
   }
   if (sample.album !== undefined && album.length === 0) {
     throw new AppError('UNAVAILABLE', 'No photo of the album was fetched', { reason: 'PHOTO_FETCH' });
