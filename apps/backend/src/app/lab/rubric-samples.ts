@@ -3,6 +3,7 @@ import { InputFile } from 'grammy';
 import { BrowserRenderError, type PictureRenderer } from '../../integrations/browser-render/browser-render';
 import { createDotaConstantsApi, DotaConstantsError } from '../../integrations/dotaconstants/dotaconstants';
 import { createSteamPublicApi, SteamPublicError } from '../../integrations/steam-public/steam-public';
+import { createOpenDotaApi, OpenDotaError } from '../../integrations/opendota/opendota-api';
 import { createStratzApi, StratzError } from '../../integrations/stratz/stratz-api';
 import { createTelegramApi, type TelegramSendApi } from '../../integrations/telegram/telegram-api';
 import { createValveDatafeedApi, DatafeedError } from '../../integrations/valve-datafeed/valve-datafeed';
@@ -163,6 +164,7 @@ function rubricSources(
     turn = run.then(pause, pause);
     return run;
   };
+  const openDota = stratzAccess === null ? null : createOpenDotaApi({ bridgeUrl: stratzAccess.bridgeUrl });
   const constants = createDotaConstantsApi();
   const datafeed = createValveDatafeedApi();
   const steam = createSteamPublicApi();
@@ -204,10 +206,35 @@ function rubricSources(
       const notes = await datafeed.patchNotes(version);
       return { version: notes.version, timestamp: notes.timestamp, heroes: notes.heroes };
     },
+    talentLevels: (heroName) => constants.talentLevels(heroName),
     steamNews: () => steam.dotaNews(),
     workshopTrendingIds: () => steam.workshopTrendingIds(),
     workshopItem: (id) => steam.workshopItem(id),
     gameFinds,
+    fallback:
+      openDota === null
+        ? null
+        : {
+            async heroItemPopularity(heroId) {
+              const rows = await inTurn(() => openDota.heroItemPopularity(heroId));
+              const each = (counts: Record<string, number>) =>
+                Object.entries(counts).map(([itemId, matches]) => ({ itemId: Number(itemId), matches }));
+              return {
+                start: each(rows.start_game_items),
+                early: each(rows.early_game_items),
+                mid: each(rows.mid_game_items),
+                late: each(rows.late_game_items)
+              };
+            },
+            async heroMatchups(heroId) {
+              const rows = await inTurn(() => openDota.heroMatchups(heroId));
+              return rows.map((row) => ({ heroId: row.hero_id, matches: row.games_played, wins: row.wins }));
+            },
+            async heroDurations(heroId) {
+              const rows = await inTurn(() => openDota.heroDurations(heroId));
+              return rows.map((row) => ({ from: row.duration_bin, matches: row.games_played, wins: row.wins }));
+            }
+          },
     stats:
       stratz === null
         ? null
@@ -230,13 +257,9 @@ function rubricSources(
             heroPositionPurchases: (heroId, position) => inTurn(() => stratz.positionPurchases(heroId, position)),
             heroNeutralItems: (heroId, position) => inTurn(() => stratz.neutralItems(heroId, position)),
             heroTalents: (heroId, position) => inTurn(() => stratz.talents(heroId, position)),
-            async heroAbilityLevels(heroId, position) {
-              const first = await inTurn(() => stratz.abilityLevels(heroId, position, 'first'));
-              const max = await inTurn(() => stratz.abilityLevels(heroId, position, 'max'));
-              return { first, max };
-            },
             heroMatchups: (heroId) => inTurn(() => stratz.matchups(heroId)),
-            heroItemSample: (heroId, position, itemId) => inTurn(() => stratz.itemSample(heroId, position, itemId)),
+            heroGuideSample: (heroId, position, withPurchases) =>
+              inTurn(() => stratz.guideSample(heroId, position, withPurchases)),
             positions: () => inTurn(() => stratz.positions()),
             twoWeeks: (bracket) => inTurn(() => stratz.heroWeeks(bracket, 2)),
             averages: () => inTurn(() => stratz.averages())
@@ -249,7 +272,8 @@ function sourceError(error: unknown): { code: string; status: number | null } | 
     error instanceof DotaConstantsError ||
     error instanceof DatafeedError ||
     error instanceof SteamPublicError ||
-    error instanceof StratzError
+    error instanceof StratzError ||
+    error instanceof OpenDotaError
   ) {
     return { code: error.code, status: error.httpStatus };
   }

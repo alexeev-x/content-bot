@@ -1,10 +1,10 @@
 import type { GuideAltBuild, GuideItem, GuideMatchup, GuideRole, GuideSwap, GuideTalentRow } from './guide-pictures';
-import type { HeroDetail, HeroInfo, ItemInfo, TalentDetail } from './types';
+import type { GuideMatch, HeroDetail, HeroInfo, ItemInfo, TalentDetail } from './types';
 
-// «Гайд на героя»: STRATZ's aggregates and Valve's texts turned into the card's blocks. Pure functions only; each one
+// «Гайд на героя»: STRATZ's sample matches and aggregates and Valve's texts turned into the card's blocks. Pure functions only; each one
 // returns nothing (null or an empty list) when its data is too thin, and the card then leaves that block out.
 
-/** The window STRATZ's hero statistics cover, in days (a week; UNVERIFIED against the live schema). */
+/** The window assumed when the sample carries no start times (a week; UNVERIFIED against the live schema). */
 export const GUIDE_DAYS = 7;
 
 const ITEMS_MAX = 6;
@@ -12,15 +12,13 @@ const ITEMS_MAX = 6;
 // A support's whole build is cheap (Lich came with four core items and no situational ones, 27.10.2026): its floors
 // are lower.
 const CORE_MIN_COST = 1000;
-const ALT_MIN_COST = 3000;
 const SUPPORT_CORE_MIN_COST = 400;
-const SUPPORT_ALT_MIN_COST = 1500;
 const POOL = 30;
 const MATCHUP_MIN_MATCHES = 300;
+/** OpenDota's free sample holds about a hundred games a pair (Faceless Void, 27.10.2026): its own floor. */
+export const OPENDOTA_MATCHUP_MIN_MATCHES = 60;
 const TALENT_MIN_MATCHES = 50;
 const LENGTH_MIN_MATCHES = 30;
-const SAMPLE_MIN = 10;
-const ALT_MIN_MATCHES = 100;
 /** Every hero starts with a Town Portal Scroll; it says nothing about the build. */
 const FREE_START = new Set(['tpscroll']);
 
@@ -104,15 +102,25 @@ export function splitBuild(ranked: RankedItem[]): { core: GuideItem[]; situation
   };
 }
 
-/** One neutral item per tier, the most held of each, tier 1 first. */
-export function neutralPicks(rows: { itemId: number; matches: number }[], items: Map<number, ItemInfo>): GuideItem[] {
-  const best = new Map<number, { key: string; matches: number }>();
+/**
+ * One neutral item per tier, the most held of each, tier 1 first. The tier is STRATZ's own; the constants' tier (given
+ * to a few items only) stands in when STRATZ names none. A row repeats per week and bracket, so an item's rows add up.
+ */
+export function neutralPicks(
+  rows: { itemId: number; tier: number | null; matches: number }[],
+  items: Map<number, ItemInfo>
+): GuideItem[] {
+  const held = new Map<number, { tier: number; matches: number }>();
   for (const row of rows) {
-    const item = items.get(row.itemId);
-    if (item?.neutralTier == null) continue;
-    const held = best.get(item.neutralTier);
-    if (held === undefined || row.matches > held.matches)
-      best.set(item.neutralTier, { key: item.key, matches: row.matches });
+    const tier = row.tier ?? items.get(row.itemId)?.neutralTier ?? null;
+    if (tier === null || items.get(row.itemId) === undefined) continue;
+    held.set(row.itemId, { tier, matches: (held.get(row.itemId)?.matches ?? 0) + row.matches });
+  }
+  const best = new Map<number, { key: string; matches: number }>();
+  for (const [itemId, own] of held) {
+    const top = best.get(own.tier);
+    if (top === undefined || own.matches > top.matches)
+      best.set(own.tier, { key: items.get(itemId)?.key ?? '', matches: own.matches });
   }
   return [...best].sort((a, b) => a[0] - b[0]).map(([, each]) => ({ key: each.key }));
 }
@@ -170,73 +178,19 @@ export function talentRows(
   return rows;
 }
 
-// ---- skill order ----
-
-interface AbilityLevel {
-  abilityId: number;
-  level: number;
-  matches: number;
-}
-
-const modeLevel = (rows: AbilityLevel[], abilityId: number, from = 1): number | null => {
-  const own = rows.filter((row) => row.abilityId === abilityId && row.level >= from && row.matches > 0);
-  return own.sort((a, b) => b.matches - a.matches)[0]?.level ?? null;
-};
-
-/**
- * Levels 1–10 as players take them. STRATZ gives, per ability, the hero level it is first learnt at and the level it
- * reaches its maximum at, not a sequence: each ability takes its usual first level (the ultimate from 6), and a level
- * nobody starts an ability at goes to the learnt ability that usually maxes out first. A derived order, not a recorded one.
- */
-export function skillOrder(
-  detail: HeroDetail,
-  first: AbilityLevel[],
-  max: AbilityLevel[]
-): { abilities: string[]; skills: (string | null)[] } | null {
-  const learnt = new Set(first.filter((row) => row.matches > 0).map((row) => row.abilityId));
-  const ultimate = detail.abilities.find((ability) => ability.isUltimate && learnt.has(ability.id));
-  const basics = detail.abilities.filter((ability) => !ability.isUltimate && learnt.has(ability.id)).slice(0, 3);
-  if (ultimate === undefined || basics.length < 2) return null;
-  const plan = new Map<number, string>();
-  const place = (key: string, wanted: number) => {
-    let level = wanted;
-    while (plan.has(level)) level += 1;
-    plan.set(level, key);
-  };
-  const starts = basics
-    .map((ability) => ({ key: ability.key, level: modeLevel(first, ability.id) ?? 1 }))
-    .sort((a, b) => a.level - b.level);
-  for (const start of starts) place(start.key, start.level);
-  place(ultimate.key, Math.max(6, modeLevel(first, ultimate.id, 6) ?? 6));
-  const maxesAt = new Map(basics.map((ability) => [ability.key, modeLevel(max, ability.id) ?? 99]));
-  const points = new Map<string, number>();
-  const skills: (string | null)[] = [];
-  for (let level = 1; level <= 10; level += 1) {
-    let chosen = plan.get(level) ?? null;
-    if (chosen === null) {
-      chosen =
-        basics
-          .filter((ability) => (points.get(ability.key) ?? 0) > 0 && (points.get(ability.key) ?? 0) < 4)
-          .sort((a, b) => (maxesAt.get(a.key) ?? 99) - (maxesAt.get(b.key) ?? 99))[0]?.key ?? null;
-    }
-    if (chosen !== null) points.set(chosen, (points.get(chosen) ?? 0) + 1);
-    skills.push(chosen);
-  }
-  return { abilities: [...basics.map((ability) => ability.key), ultimate.key], skills };
-}
-
 // ---- matchups, game length, the build's own numbers ----
 
 /** Three or four worst and best opponents by win rate against them minus the hero's own win rate over all of them. */
 export function matchupRows(
   rows: { heroId: number; matches: number; wins: number }[],
-  heroes: Map<number, HeroInfo>
+  heroes: Map<number, HeroInfo>,
+  minMatches = MATCHUP_MIN_MATCHES
 ): GuideMatchup[] {
   const total = rows.reduce((sum, row) => sum + row.matches, 0);
   if (total === 0) return [];
   const base = rows.reduce((sum, row) => sum + row.wins, 0) / total;
   const deltas = rows
-    .filter((row) => row.matches >= MATCHUP_MIN_MATCHES && heroes.has(row.heroId))
+    .filter((row) => row.matches >= minMatches && heroes.has(row.heroId))
     .map((row) => ({ hero: { name: heroes.get(row.heroId)?.name ?? '' }, delta: row.wins / row.matches - base }));
   const worst = deltas
     .filter((each) => each.delta < 0)
@@ -275,63 +229,425 @@ export function lengthWinRates(
   return rates as [number, number, number];
 }
 
-// ---- the alternative build ----
+/**
+ * The same three stretches from OpenDota's duration bins (`from`: the bin's start in seconds); null when a stretch has
+ * too few games. OpenDota's bins are 5 minutes wide, so 35 and 50 minutes fall on bin edges.
+ */
+export function lengthWinRatesFromBins(
+  bins: { from: number; matches: number; wins: number }[]
+): [number, number, number] | null {
+  const sums = [
+    { games: 0, wins: 0 },
+    { games: 0, wins: 0 },
+    { games: 0, wins: 0 }
+  ];
+  for (const bin of bins) {
+    const stretch = sums[bin.from < 35 * 60 ? 0 : bin.from < 50 * 60 ? 1 : 2];
+    if (stretch === undefined) continue;
+    stretch.games += bin.matches;
+    stretch.wins += bin.wins;
+  }
+  const rates = sums.map((each) =>
+    each.games < LENGTH_MIN_MATCHES || each.wins > each.games ? null : each.wins / each.games
+  );
+  const [early, middle, late] = rates;
+  return early == null || middle == null || late == null ? null : [early, middle, late];
+}
+
+/** OpenDota knows no minutes, only the stretch: mid and late buys together, as purchase rows `rankPurchases` takes. */
+export function fallbackPurchases(
+  popularity: Record<'mid' | 'late', { itemId: number; matches: number }[]>
+): { itemId: number; minute: number; matches: number; wins: number }[] {
+  const totals = new Map<number, number>();
+  for (const row of [...popularity.mid, ...popularity.late])
+    totals.set(row.itemId, (totals.get(row.itemId) ?? 0) + row.matches);
+  return [...totals].map(([itemId, matches]) => ({ itemId, minute: 0, matches, wins: 0 }));
+}
+
+// ---- counting from matches, the way Dota2ProTracker does ----
+// Anchors, starting sets, skill sequences and alternative builds are counted from the sample's individual matches, not
+// from per-item totals: a total across roles put Magic Stick into the core and Nullifier on supports.
+
+/** An item is an anchor of a build when this share of its matches ends with it in the inventory. */
+const ANCHOR_SHARE = 0.7;
+/** A role whose few anchors would leave a core of one or two items falls back to this share. */
+const ANCHOR_RELAXED_SHARE = 0.5;
+const ANCHOR_MIN = 3;
+const SITUATIONAL_SHARE = 0.2;
+const MINUTE_MIN_BUYERS = 3;
+/** The newest patch alone is the sample when it holds at least this many matches. */
+const PATCH_MIN_MATCHES = 30;
+export const BUILD_SAMPLE_MIN = 20;
+const START_MIN_MATCHES = 3;
+const SEQUENCE_MIN_MATCHES = 3;
+const SKILL_LEVELS = 10;
+const ALT_SHARE = 0.15;
+const ALT_GROUP_MIN = 8;
+const ALT_PICK_MIN = 5;
+const DAY_SECONDS = 86_400;
+/** Consumables, wards and the cheap pieces every build passes through: never a build's item, whatever their price. */
+const NOT_A_BUILD_ITEM = new Set([
+  'magic_stick',
+  'magic_wand',
+  'branches',
+  'tango',
+  'flask',
+  'clarity',
+  'faerie_fire',
+  'enchanted_mango',
+  'ward_observer',
+  'ward_sentry',
+  'ward_dispenser',
+  'smoke_of_deceit',
+  'dust',
+  'tpscroll',
+  'boots',
+  'cheese',
+  'refresher_shard'
+]);
+
+const matchWins = (matches: GuideMatch[]) => matches.filter((match) => match.victory).length;
 
 /**
- * The build with the most bought key item that the main core lacks: its games and win rate come from the item's own
- * purchases, the swaps from a sample of final inventories (a main item most of those players lack, replaced by an item
- * most of them hold). Null without a clear alternative or a sample big enough to name swaps.
+ * The newest patch in the sample when enough matches were played on it (an older match does not describe the hero now),
+ * and the days the kept matches span (null without start times).
  */
-export function altBuild(input: {
-  ranked: RankedItem[];
-  core: GuideItem[];
-  sample: { matches: number; inventories: number[][] } | null;
+export function currentPatch(matches: GuideMatch[]): { matches: GuideMatch[]; days: number | null } {
+  const newest = Math.max(-1, ...matches.map((match) => match.patch ?? -1));
+  const onNewest = matches.filter((match) => match.patch === newest);
+  const kept = onNewest.length >= PATCH_MIN_MATCHES ? onNewest : matches;
+  const starts = kept.flatMap((match) => (match.startedAt === null ? [] : [match.startedAt]));
+  const days =
+    starts.length < 2 ? null : Math.max(1, Math.ceil((Math.max(...starts) - Math.min(...starts)) / DAY_SECONDS));
+  return { matches: kept, days };
+}
+
+export interface BuildItem {
+  item: ItemInfo;
+  /** The share of the sample's matches that ended with it in the inventory, 0…1. */
+  share: number;
+  /** The average minute it was first bought at; null without enough buyers' purchase times. */
+  minute: number | null;
+}
+
+/**
+ * Every item that ended in at least one inventory and can be a build's item (price floor, no consumable, no neutral, no
+ * part of another item in play), most common first, each with the average minute it was bought.
+ */
+export function inventoryShares(
+  matches: GuideMatch[],
+  items: Map<number, ItemInfo>,
+  support: boolean,
+  fallbackMinutes?: Map<number, number>
+): BuildItem[] {
+  if (matches.length === 0) return [];
+  const floor = support ? SUPPORT_CORE_MIN_COST : CORE_MIN_COST;
+  const held = new Map<number, number>();
+  const bought = new Map<number, number[]>();
+  for (const match of matches) {
+    for (const id of new Set(match.items)) {
+      const item = items.get(id);
+      if (item === undefined || item.cost < floor || item.neutralTier !== null || NOT_A_BUILD_ITEM.has(item.key))
+        continue;
+      held.set(id, (held.get(id) ?? 0) + 1);
+      const first = Math.min(
+        ...(match.purchases ?? []).filter((purchase) => purchase.itemId === id).map((purchase) => purchase.minute)
+      );
+      if (Number.isFinite(first)) bought.set(id, [...(bought.get(id) ?? []), first]);
+    }
+  }
+  const rows: BuildItem[] = [];
+  for (const [id, count] of held) {
+    const item = items.get(id);
+    if (item === undefined) continue;
+    const minutes = bought.get(id) ?? [];
+    const average = minutes.reduce((sum, minute) => sum + minute, 0) / (minutes.length || 1);
+    rows.push({
+      item,
+      share: count / matches.length,
+      minute:
+        minutes.length >= MINUTE_MIN_BUYERS ? Math.max(0, Math.round(average)) : (fallbackMinutes?.get(id) ?? null)
+    });
+  }
+  const byKey = new Map([...items.values()].map((item) => [item.key, item]));
+  const parts = new Set(
+    rows.filter((row) => row.share >= SITUATIONAL_SHARE).flatMap((row) => [...partsOf(row.item.key, byKey)])
+  );
+  return rows
+    .filter((row) => !parts.has(row.item.key))
+    .sort((a, b) => b.share - a.share || a.item.key.localeCompare(b.item.key));
+}
+
+const guideItem = (row: BuildItem): GuideItem =>
+  row.minute === null ? { key: row.item.key } : { key: row.item.key, minute: row.minute };
+
+/**
+ * Anchors (in at least 70% of the inventories, 50% when that leaves fewer than three) in the order they were bought,
+ * then the situational items: 20% and more of the inventories and not an anchor.
+ */
+export function splitAnchors(rows: BuildItem[]): { core: BuildItem[]; situational: BuildItem[]; anchorShare: number } {
+  let anchorShare = ANCHOR_SHARE;
+  let anchors = rows.filter((row) => row.share >= anchorShare);
+  if (anchors.length < ANCHOR_MIN) {
+    anchorShare = ANCHOR_RELAXED_SHARE;
+    anchors = rows.filter((row) => row.share >= anchorShare);
+  }
+  const late = Number.POSITIVE_INFINITY;
+  const core = anchors.slice(0, ITEMS_MAX).sort((a, b) => (a.minute ?? late) - (b.minute ?? late) || b.share - a.share);
+  const chosen = new Set(core.map((row) => row.item.key));
+  const situational = rows
+    .filter((row) => !chosen.has(row.item.key) && row.share >= SITUATIONAL_SHARE)
+    .slice(0, ITEMS_MAX);
+  return { core, situational, anchorShare };
+}
+
+/**
+ * The most common whole set of items bought before the horn (a second copy counts), as a set and not item by item;
+ * the free Town Portal Scroll is left out. Null without purchase times or a set seen at least three times.
+ */
+export function startingSet(
+  matches: GuideMatch[],
+  items: Map<number, ItemInfo>
+): { items: GuideItem[]; matches: number } | null {
+  const sets = new Map<string, { ids: number[]; matches: number }>();
+  for (const match of matches) {
+    if (match.purchases === null) continue;
+    const ids = match.purchases
+      .filter((purchase) => purchase.minute <= 0 && items.has(purchase.itemId))
+      .filter((purchase) => !FREE_START.has(items.get(purchase.itemId)?.key ?? ''))
+      .map((purchase) => purchase.itemId)
+      .sort((a, b) => a - b);
+    if (ids.length === 0) continue;
+    const key = ids.join(',');
+    sets.set(key, { ids, matches: (sets.get(key)?.matches ?? 0) + 1 });
+  }
+  const top = [...sets.entries()].sort((a, b) => b[1].matches - a[1].matches || a[0].localeCompare(b[0]))[0]?.[1];
+  if (top === undefined || top.matches < START_MIN_MATCHES) return null;
+  const known = top.ids.flatMap((id) => {
+    const item = items.get(id);
+    return item === undefined ? [] : [item];
+  });
+  return {
+    items: known
+      .sort((a, b) => b.cost - a.cost)
+      .map((item) => ({ key: item.key }))
+      .slice(0, ITEMS_MAX),
+    matches: top.matches
+  };
+}
+
+/** The first ten ability points of a match in the order they were spent; an id outside `known` (a talent, the attribute bonus) is 0. */
+function firstTenSkills(match: GuideMatch, known: Set<number>): number[] | null {
+  const spent = match.abilities
+    .map((ability, index) => ({ ability, index }))
+    .sort((a, b) => a.ability.time - b.ability.time || a.ability.level - b.ability.level || a.index - b.index)
+    .slice(0, SKILL_LEVELS)
+    .map(({ ability }) => (known.has(ability.abilityId) ? ability.abilityId : 0));
+  return spent.length < SKILL_LEVELS ? null : spent;
+}
+
+/** The exact sequence of levels 1–10 that most matches share, with how many; null when no sequence repeats enough. */
+export function commonSequence(matches: GuideMatch[], known: Set<number>): { ids: number[]; matches: number } | null {
+  const counts = new Map<string, { ids: number[]; matches: number }>();
+  for (const match of matches) {
+    const ids = firstTenSkills(match, known);
+    if (ids === null) continue;
+    const key = ids.join(',');
+    counts.set(key, { ids, matches: (counts.get(key)?.matches ?? 0) + 1 });
+  }
+  const top = [...counts.entries()].sort((a, b) => b[1].matches - a[1].matches || a[0].localeCompare(b[0]))[0]?.[1];
+  return top === undefined || top.matches < SEQUENCE_MIN_MATCHES ? null : top;
+}
+
+export interface SkillPlan {
+  /** Q, W, E, R keys: up to three basic abilities and the ultimate last. */
+  abilities: string[];
+  /** Levels 1–10 as ability keys; null for a talent, the attribute bonus or an ability the card does not show. */
+  skills: (string | null)[];
+  /** Matches that took exactly this sequence. */
+  matches: number;
+  keyOf: (abilityId: number) => string | null;
+}
+
+/** The most common exact sequence of levels 1–10 as the card draws it; null without a repeated sequence or a clear ultimate. */
+export function skillPlan(matches: GuideMatch[], detail: HeroDetail): SkillPlan | null {
+  const sequence = commonSequence(matches, new Set(detail.abilities.map((ability) => ability.id)));
+  if (sequence === null) return null;
+  const learnt = new Set(sequence.ids);
+  const ultimate = detail.abilities.find((ability) => ability.isUltimate && learnt.has(ability.id));
+  const basics = detail.abilities.filter((ability) => !ability.isUltimate && learnt.has(ability.id)).slice(0, 3);
+  if (ultimate === undefined || basics.length < 2) return null;
+  const shown = new Map([...basics, ultimate].map((ability) => [ability.id, ability.key]));
+  const keyOf = (abilityId: number) => shown.get(abilityId) ?? null;
+  return {
+    abilities: [...basics.map((ability) => ability.key), ultimate.key],
+    skills: sequence.ids.map(keyOf),
+    matches: sequence.matches,
+    keyOf
+  };
+}
+
+/** For each of the four talent tiers the side (0: first, 1: second) most matches took, with how many took one; null where none did. */
+export function talentSides(matches: GuideMatch[], talents: TalentDetail[]): ({ side: 0 | 1; picks: number } | null)[] {
+  if (talents.length !== 8) return [];
+  return [0, 1, 2, 3].map((tier) => {
+    const [first, second] = [talents[tier * 2]?.id, talents[tier * 2 + 1]?.id];
+    let left = 0;
+    let right = 0;
+    for (const match of matches) {
+      const tookFirst = match.abilities.some((ability) => ability.abilityId === first);
+      const tookSecond = match.abilities.some((ability) => ability.abilityId === second);
+      if (tookFirst && !tookSecond) left += 1;
+      if (tookSecond && !tookFirst) right += 1;
+    }
+    return left + right === 0 ? null : { side: right > left ? 1 : 0, picks: left + right };
+  });
+}
+
+/**
+ * The most common build that differs from the main one: matches that ended with one more common item and lack a main
+ * core item form a group per such item; the biggest (at least 15% of the sample) is the alternative, counted the same
+ * way: its own anchors against the main core as swaps, its own win rate, talent sides and skill sequence.
+ */
+export function altFromSample(input: {
+  matches: GuideMatch[];
+  rows: BuildItem[];
+  core: BuildItem[];
   items: Map<number, ItemInfo>;
-  /** The key item the sample was drawn for. */
-  keyItem: RankedItem;
-  support?: boolean;
+  support: boolean;
+  detail: HeroDetail | null;
+  talents: TalentDetail[];
+  plan: SkillPlan | null;
+  fallbackMinutes?: Map<number, number>;
 }): GuideAltBuild | null {
-  const { ranked, core, sample, items, keyItem } = input;
-  const floor = input.support === true ? SUPPORT_CORE_MIN_COST : CORE_MIN_COST;
-  if (sample === null || sample.inventories.length < SAMPLE_MIN) return null;
-  const share = (key: string) =>
-    sample.inventories.filter((held) => held.some((id) => items.get(id)?.key === key)).length /
-    sample.inventories.length;
-  const coreKeys = new Set(core.map((item) => item.key));
-  const byKey = new Map(ranked.map((each) => [each.item.key, each]));
-  const dropped = core.filter((item) => share(item.key) < 0.4).sort((a, b) => (a.minute ?? 0) - (b.minute ?? 0));
-  const added = [
-    ...new Set(
-      sample.inventories.flat().flatMap((id) => {
-        const item = items.get(id);
-        return item !== undefined && item.cost >= floor && item.neutralTier === null && !coreKeys.has(item.key)
-          ? [item.key]
-          : [];
-      })
-    )
-  ]
-    .filter((key) => share(key) >= 0.5)
-    .map((key) => ({ key, minute: byKey.get(key)?.minute }))
-    .sort((a, b) =>
-      a.key === keyItem.item.key ? -1 : b.key === keyItem.item.key ? 1 : (a.minute ?? 99) - (b.minute ?? 99)
-    );
+  const { matches, rows, core, items, support, detail, talents, plan } = input;
+  const coreKeys = new Set(core.map((row) => row.item.key));
+  const inventories = matches.map((match) => ({
+    match,
+    keys: new Set(match.items.flatMap((id) => items.get(id)?.key ?? []))
+  }));
+  const need = Math.max(ALT_GROUP_MIN, Math.ceil(matches.length * ALT_SHARE));
+  let best: { row: BuildItem; group: GuideMatch[] } | null = null;
+  for (const row of rows) {
+    if (coreKeys.has(row.item.key) || row.share < ALT_SHARE) continue;
+    const group = inventories
+      .filter(({ keys }) => keys.has(row.item.key) && [...coreKeys].some((key) => !keys.has(key)))
+      .map(({ match }) => match);
+    if (group.length >= need && (best === null || group.length > best.group.length)) best = { row, group };
+  }
+  if (best === null) return null;
+  const keyKey = best.row.item.key;
+  const own = splitAnchors(inventoryShares(best.group, items, support, input.fallbackMinutes)).core;
+  const ownKeys = new Set(own.map((row) => row.item.key));
+  const dropped = core.filter((row) => !ownKeys.has(row.item.key));
+  const added = own
+    .filter((row) => !coreKeys.has(row.item.key))
+    .sort((a, b) => (a.item.key === keyKey ? -1 : b.item.key === keyKey ? 1 : (a.minute ?? 99) - (b.minute ?? 99)));
   const swaps: GuideSwap[] = [];
   for (let index = 0; index < Math.min(dropped.length, added.length, 4); index += 1) {
     const from = dropped[index];
     const to = added[index];
-    if (from === undefined || to === undefined) continue;
-    swaps.push({
-      from,
-      to: to.minute === undefined ? { key: to.key } : { key: to.key, minute: to.minute }
-    });
+    if (from !== undefined && to !== undefined) swaps.push({ from: guideItem(from), to: guideItem(to) });
   }
-  if (swaps.length === 0 || keyItem.matches < ALT_MIN_MATCHES) return null;
-  return { winRate: keyItem.wins / keyItem.matches, matches: keyItem.matches, keyItem: keyItem.item.name, swaps };
+  if (swaps.length === 0) return null;
+  const mainSides = talentSides(matches, talents);
+  const talentDiff: { level: number; text: string; instead: string }[] = [];
+  talentSides(best.group, talents).forEach((side, tier) => {
+    const main = mainSides[tier];
+    if (side === null || main === null || main === undefined || side.side === main.side || side.picks < ALT_PICK_MIN)
+      return;
+    const picked = talents[tier * 2 + side.side];
+    const instead = talents[tier * 2 + main.side];
+    if (picked !== undefined && instead !== undefined)
+      talentDiff.push({ level: 10 + tier * 5, text: talentText(picked), instead: talentText(instead) });
+  });
+  const ownSequence =
+    plan === null || detail === null
+      ? null
+      : commonSequence(best.group, new Set(detail.abilities.map((ability) => ability.id)));
+  return {
+    winRate: matchWins(best.group) / best.group.length,
+    matches: best.group.length,
+    keyItem: best.row.item.name,
+    swaps,
+    ...(talentDiff.length === 0 ? {} : { talents: talentDiff }),
+    ...(plan === null || ownSequence === null || ownSequence.matches < ALT_PICK_MIN
+      ? {}
+      : { skills: ownSequence.ids.map(plan.keyOf) })
+  };
 }
 
-/** The key item an alternative turns on: the most bought item of cost 3000 (a support's 1500) or more not in the core. */
-export function altKeyItem(ranked: RankedItem[], core: GuideItem[], support = false): RankedItem | null {
-  const coreKeys = new Set(core.map((item) => item.key));
-  const floor = support ? SUPPORT_ALT_MIN_COST : ALT_MIN_COST;
-  return ranked.find((each) => each.item.cost >= floor && !coreKeys.has(each.item.key)) ?? null;
+export interface SampleGuide {
+  /** Matches counted (the newest patch's when enough), their win rate and the days they span. */
+  matches: number;
+  winRate: number;
+  days: number | null;
+  core: GuideItem[];
+  situational: GuideItem[];
+  /** The share of inventories an item needed to be an anchor (0.5 when 0.7 left too few). */
+  anchorShare: number;
+  /** Null without purchase times or a repeated starting set. */
+  start: GuideItem[] | null;
+  plan: SkillPlan | null;
+  alt: GuideAltBuild | null;
+  /** Whether the sample carried purchase times (core minutes and the start come from them). */
+  withPurchases: boolean;
+}
+
+/** Everything the card takes from the sample; null when the sample is too small to count a build from. */
+export function guideFromSample(input: {
+  matches: GuideMatch[];
+  items: Map<number, ItemInfo>;
+  detail: HeroDetail | null;
+  /** The talents ordered tier by tier (`pairTalents`). */
+  talents: TalentDetail[];
+  support: boolean;
+  /** The median minute STRATZ's totals give an item, for the items whose buyers' times the sample lacks. */
+  fallbackMinutes?: Map<number, number>;
+}): SampleGuide | null {
+  const { matches, days } = currentPatch(input.matches);
+  if (matches.length < BUILD_SAMPLE_MIN) return null;
+  const rows = inventoryShares(matches, input.items, input.support, input.fallbackMinutes);
+  const { core, situational, anchorShare } = splitAnchors(rows);
+  const plan = input.detail === null ? null : skillPlan(matches, input.detail);
+  const alt = altFromSample({ ...input, matches, rows, core, plan });
+  return {
+    matches: matches.length,
+    winRate: matchWins(matches) / matches.length,
+    days,
+    core: core.map(guideItem),
+    situational: situational.map(guideItem),
+    anchorShare,
+    start: startingSet(matches, input.items)?.items ?? null,
+    plan,
+    alt,
+    withPurchases: matches.some((match) => match.purchases !== null)
+  };
+}
+
+/** The median minute each item was bought at, from STRATZ's per-minute purchase totals. */
+export function medianMinutes(rows: { itemId: number; minute: number; matches: number }[]): Map<number, number> {
+  const byItem = new Map<number, { minute: number; matches: number }[]>();
+  for (const row of rows) byItem.set(row.itemId, [...(byItem.get(row.itemId) ?? []), row]);
+  const medians = new Map<number, number>();
+  for (const [id, own] of byItem) {
+    const total = own.reduce((sum, row) => sum + row.matches, 0);
+    let seen = 0;
+    const median = own.sort((a, b) => a.minute - b.minute).find((row) => (seen += row.matches) >= total / 2);
+    if (median !== undefined && total > 0) medians.set(id, Math.max(0, Math.round(median.minute)));
+  }
+  return medians;
+}
+
+/**
+ * The talents ordered tier by tier (two to a tier) the way the game lists them, from the tier numbers 1–4 of OpenDota's
+ * constants; the datafeed's own order when the constants do not pair every talent.
+ */
+export function pairTalents(talents: TalentDetail[], levels: { name: string; level: number }[]): TalentDetail[] {
+  const byKey = new Map(talents.map((talent) => [talent.key, talent]));
+  const ordered = [1, 2, 3, 4].flatMap((tier) =>
+    levels.filter((each) => each.level === tier).map((each) => byKey.get(each.name))
+  );
+  const paired = ordered.flatMap((talent) => (talent === undefined ? [] : [talent]));
+  return ordered.length === 8 && paired.length === 8 ? paired : talents;
 }

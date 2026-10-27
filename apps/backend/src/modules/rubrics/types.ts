@@ -77,6 +77,28 @@ export interface HeroBracketStat {
   wins: number;
 }
 
+/** One match of a guide sample: the player's own outcome, final inventory, buys and ability learning. */
+export interface GuideMatch {
+  victory: boolean;
+  /** Match start, UTC seconds. */
+  startedAt: number | null;
+  /** STRATZ's game version (patch) id: grows with each patch. */
+  patch: number | null;
+  /** The six inventory slots at the end of the match. */
+  items: number[];
+  /** Every purchase with its minute (negative: before the horn); null when the sample does not carry them. */
+  purchases: { itemId: number; minute: number }[] | null;
+  /** Every ability point spent. */
+  abilities: { abilityId: number; time: number; level: number }[];
+}
+
+/** The matches STRATZ returned that were played at the asked position (`fetched`: every row it sent; `total`: all it holds). */
+export interface GuideSample {
+  fetched: number;
+  total: number;
+  matches: GuideMatch[];
+}
+
 export interface StatsSource {
   /** Every hero's matches and wins in the bracket over the last days. */
   heroBracketStats(bracket: number): Promise<HeroBracketStat[]>;
@@ -96,24 +118,16 @@ export interface StatsSource {
     heroId: number,
     position: number
   ): Promise<{ itemId: number; minute: number; matches: number; wins: number }[]>;
-  heroNeutralItems(heroId: number, position: number): Promise<{ itemId: number; matches: number; wins: number }[]>;
-  heroTalents(heroId: number, position: number): Promise<{ abilityId: number; matches: number; wins: number }[]>;
-  /** The hero level an ability is first learnt at and the one it reaches its maximum at, at a position. */
-  heroAbilityLevels(
+  /** The neutral items held at a position; `tier` is STRATZ's own (null when it names none). */
+  heroNeutralItems(
     heroId: number,
     position: number
-  ): Promise<{
-    first: { abilityId: number; level: number; matches: number }[];
-    max: { abilityId: number; level: number; matches: number }[];
-  }>;
+  ): Promise<{ itemId: number; tier: number | null; matches: number; wins: number }[]>;
+  heroTalents(heroId: number, position: number): Promise<{ abilityId: number; matches: number; wins: number }[]>;
   /** A hero's matches and wins against each other hero. */
   heroMatchups(heroId: number): Promise<{ heroId: number; matches: number; wins: number }[]>;
-  /** The final inventories of a sample of the hero's matches that held an item, and the count of such matches. */
-  heroItemSample(
-    heroId: number,
-    position: number,
-    itemId: number
-  ): Promise<{ matches: number; inventories: number[][] }>;
+  /** The hero's recent matches at one position, one row per match (the guide's sample). */
+  heroGuideSample(heroId: number, position: number, withPurchases: boolean): Promise<GuideSample>;
   /** Every hero's matches and wins by position 1–5. */
   positions(): Promise<{ heroId: number; position: number; matches: number; wins: number }[]>;
   /** Every hero's last two weeks in a bracket (null: every bracket together), newest first. */
@@ -122,6 +136,20 @@ export interface StatsSource {
   averages(): Promise<
     { heroId: number; matches: number; networth: number; heroDamage: number; kills: number; deaths: number }[]
   >;
+}
+
+/** OpenDota's hero reads: the guide's fallback when STRATZ fails or comes back empty. Counts only, no minutes. */
+export interface FallbackStatsSource {
+  /** Item purchases by stretch of the match (item id → matches). */
+  heroItemPopularity(heroId: number): Promise<{
+    start: { itemId: number; matches: number }[];
+    early: { itemId: number; matches: number }[];
+    mid: { itemId: number; matches: number }[];
+    late: { itemId: number; matches: number }[];
+  }>;
+  heroMatchups(heroId: number): Promise<{ heroId: number; matches: number; wins: number }[]>;
+  /** Matches and wins by match length; `from` is the bin's start in seconds. */
+  heroDurations(heroId: number): Promise<{ from: number; matches: number; wins: number }[]>;
 }
 
 export interface RubricSources {
@@ -147,8 +175,12 @@ export interface RubricSources {
     /** The Workshop's tags; the hero's English name is one of them. */
     tags: string[];
   } | null>;
+  /** A hero's talents with the tier the game puts them at (1–4: levels 10, 15, 20, 25), two to a tier. */
+  talentLevels(heroName: string): Promise<{ name: string; level: number }[]>;
   /** Null until STRATZ_TOKEN is set. */
   stats: StatsSource | null;
+  /** OpenDota through the stats bridge; null without the bridge. */
+  fallback?: FallbackStatsSource | null;
 }
 
 export interface RubricSample {

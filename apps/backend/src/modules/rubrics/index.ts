@@ -4,6 +4,7 @@ export { PICTURE_SIZE, pictureHeading, titlePicture, withBackground } from './pi
 export { rubricRichHtml } from './rich';
 export type {
   AbilityDetail,
+  FallbackStatsSource,
   HeroBracketStat,
   HeroDetail,
   HeroInfo,

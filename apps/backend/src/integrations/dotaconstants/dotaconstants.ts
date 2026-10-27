@@ -7,6 +7,7 @@ import { readCappedText } from '../../platform/http/read-capped-text';
 
 export const DOTACONSTANTS_TIMEOUT_MS = 15_000;
 const BASE = 'https://raw.githubusercontent.com/odota/dotaconstants/master/build';
+const HERO_ABILITIES_URL = 'https://api.opendota.com/api/constants/hero_abilities';
 const MAX_BODY_BYTES = 800_000;
 
 export type DotaConstantsErrorCode = 'DOTACONSTANTS_FETCH' | 'DOTACONSTANTS_HTTP' | 'DOTACONSTANTS_SHAPE';
@@ -70,17 +71,23 @@ const heroSchema = z.object({
   projectile_speed: z.number().catch(0)
 });
 
+const talentLevelsSchema = z.object({
+  talents: z.array(z.object({ name: z.string().max(100), level: z.number().int().min(1).max(4) })).max(12)
+});
+
 export interface DotaConstantsApi {
   heroes(signal?: AbortSignal): Promise<ConstantsHero[]>;
   items(signal?: AbortSignal): Promise<ConstantsItem[]>;
+  /** A hero's talents with the tier the game puts them at: 1–4 for levels 10, 15, 20, 25, two to a tier. */
+  talentLevels(heroName: string, signal?: AbortSignal): Promise<{ name: string; level: number }[]>;
 }
 
 export function createDotaConstantsApi(input: { fetchImpl?: typeof fetch } = {}): DotaConstantsApi {
   const fetchImpl = input.fetchImpl ?? fetch;
-  async function get(file: string, signal?: AbortSignal): Promise<Record<string, unknown>> {
+  async function getUrl(url: string, signal?: AbortSignal): Promise<Record<string, unknown>> {
     let response: Response;
     try {
-      response = await fetchImpl(`${BASE}/${file}`, {
+      response = await fetchImpl(url, {
         signal: signal ?? AbortSignal.timeout(DOTACONSTANTS_TIMEOUT_MS)
       });
     } catch {
@@ -99,6 +106,7 @@ export function createDotaConstantsApi(input: { fetchImpl?: typeof fetch } = {})
       throw new DotaConstantsError('DOTACONSTANTS_SHAPE');
     return body as Record<string, unknown>;
   }
+  const get = (file: string, signal?: AbortSignal) => getUrl(`${BASE}/${file}`, signal);
   return {
     async heroes(signal) {
       const heroes: ConstantsHero[] = [];
@@ -150,6 +158,13 @@ export function createDotaConstantsApi(input: { fetchImpl?: typeof fetch } = {})
       }
       if (items.length < 100) throw new DotaConstantsError('DOTACONSTANTS_SHAPE');
       return items;
+    },
+    async talentLevels(heroName, signal) {
+      // OpenDota's own constants (170 KB for every hero): the GitHub copy's talent order is not a documented pairing.
+      const all = await getUrl(HERO_ABILITIES_URL, signal);
+      const parsed = talentLevelsSchema.safeParse(all[heroName]);
+      if (!parsed.success) throw new DotaConstantsError('DOTACONSTANTS_SHAPE');
+      return parsed.data.talents;
     }
   };
 }

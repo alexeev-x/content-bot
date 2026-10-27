@@ -1,13 +1,17 @@
 import { AppError } from '../../shared/app-error';
 import {
-  altBuild,
-  altKeyItem,
+  BUILD_SAMPLE_MIN,
+  fallbackPurchases,
+  guideFromSample,
   lengthWinRates,
+  lengthWinRatesFromBins,
   matchupRows,
+  medianMinutes,
+  OPENDOTA_MATCHUP_MIN_MATCHES,
   neutralPicks,
+  pairTalents,
   rankPurchases,
   roleOf,
-  skillOrder,
   splitBuild,
   startItems,
   talentRows,
@@ -19,6 +23,7 @@ import { type PatchOutcome, patchOutcomes } from './patch-rubrics';
 import { NERF_LOOKS, nerfQuestionPicture, nerfResultPicture } from './nerf-pictures';
 import { VERSUS_LOOKS, VERSUS_TITLES, versusPicture } from './versus-pictures';
 import {
+  type FallbackStatsSource,
   type HeroInfo,
   type ItemInfo,
   needStats,
@@ -307,76 +312,178 @@ const STRETCHES = ['до 35 минут', 'от 35 до 50 минут', 'посл
 const ROLE_NAMES = { carry: 'керри', mid: 'мид', offlane: 'оффлейн', support: 'саппорт' } as const;
 
 // «Гайд на героя»: one card (and a second slide for an alternative build) from the hero's own numbers at its main
-// position. Every STRATZ read is one call after another and every block is optional: a read that fails or comes back
-// thin leaves its block out of the card and puts a line in the owner's notes; only the core build is required.
+// position. The build, the starting set, the skill order and the alternative are counted from a sample of the hero's
+// individual matches at that position (STRATZ `heroStats.guide`), the way Dota2ProTracker does; talents, neutrals,
+// matchups and win rate by length are STRATZ's aggregates. Every STRATZ read is one call after another and every block
+// is optional: a read that fails or comes back thin leaves its block out of the card and puts a line, with its error
+// code, in the owner's notes; only the core build is required.
 const GUIDE_POPULAR = 30;
+
+const codeOf = (error: unknown) =>
+  error instanceof Error && 'code' in error ? String((error as { code: unknown }).code) : 'ошибка';
 
 export async function heroGuide(context: RubricContext): Promise<RubricSample> {
   const popular = (await shares(context, 7)).sort((a, b) => b.pickRate - a.pickRate).slice(0, GUIDE_POPULAR);
   const hero = pick(popular, context.random).hero;
   const stats = needStats(context);
-  const position = mainPositions(await stats.positions()).get(hero.id)?.position;
+  const positionRows = await stats.positions();
+  const position = mainPositions(positionRows).get(hero.id)?.position;
   if (position === undefined) throw noData('hero positions');
   const [known, heroes] = await Promise.all([context.sources.items(), context.sources.heroes()]);
   const items = new Map(known.map((item) => [item.id, item]));
   const notes: string[] = [];
-  const attempt = async <T>(block: string, read: () => Promise<T>): Promise<T | null> => {
+  // A block OpenDota can stand in for fails quietly: its note is written once the fallback has had its turn.
+  const failures = new Map<string, string>();
+  const attempt = async <T>(block: string, read: () => Promise<T>, quiet = false): Promise<T | null> => {
     try {
       return await read();
     } catch (error) {
       // The error's code tells a wrong STRATZ argument (STRATZ_SHAPE) from a refusal or a timeout.
-      const code = error instanceof Error && 'code' in error ? String((error as { code: unknown }).code) : 'ошибка';
-      notes.push(`Нет данных: ${block} (${code})`);
+      const code = codeOf(error);
+      if (quiet) failures.set(block, code);
+      else notes.push(`Нет данных: ${block} (${code})`);
       return null;
     }
   };
+  const fallback = context.sources.fallback ?? null;
+  const quiet = fallback !== null;
+  const missing = (block: string, openDotaBlock = `${block} OpenDota`) => {
+    const codes = [failures.get(block), failures.get(openDotaBlock)].filter((code) => code !== undefined);
+    notes.push(`Нет данных: ${block}${codes.length === 0 ? '' : ` (${codes.join(', ')})`}`);
+  };
+  // One OpenDota read serves both the start items and the core.
+  let popularity: Promise<Awaited<ReturnType<FallbackStatsSource['heroItemPopularity']>> | null> | undefined;
+  const openDotaItems = () =>
+    (popularity ??=
+      fallback === null
+        ? Promise.resolve(null)
+        : attempt('предметы OpenDota', () => fallback.heroItemPopularity(hero.id), true));
   const detail = await attempt('способности и таланты', () => context.sources.heroDetail(hero.id));
-
-  const purchases = await attempt('предметы', () => stats.heroPositionPurchases(hero.id, position));
   // Positions 4 and 5 buy cheap: their item floors are lower.
   const support = position >= 4;
-  const ranked = purchases === null ? [] : rankPurchases(purchases, items, support);
-  const { core, situational } = splitBuild(ranked);
-  if (core.length === 0) throw noData('hero purchases');
-  const startRows = await attempt('стартовый закуп', () => stats.heroStartingItems(hero.id, position));
-  const start = startRows === null ? [] : startItems(startRows, items);
-  if (start.length === 0 && startRows !== null) notes.push('Нет данных: стартовый закуп');
+  const levels =
+    detail === null ? null : await attempt('уровни талантов', () => context.sources.talentLevels(hero.name));
+  const talentList = detail === null ? [] : levels === null ? detail.talents : pairTalents(detail.talents, levels);
+
+  // The sample: with the purchases (minutes, the starting set); without them when STRATZ refuses that field.
+  const sample = await attempt('выборка матчей', async () => {
+    try {
+      return await stats.heroGuideSample(hero.id, position, true);
+    } catch (error) {
+      if (codeOf(error) !== 'STRATZ_SHAPE') throw error;
+      notes.push('Покупки по минутам не пришли (STRATZ_SHAPE): выборка без них');
+      return await stats.heroGuideSample(hero.id, position, false);
+    }
+  });
+  const counted = (fallbackMinutes?: Map<number, number>) =>
+    sample === null
+      ? null
+      : guideFromSample({
+          matches: sample.matches,
+          items,
+          detail,
+          talents: talentList,
+          support,
+          ...(fallbackMinutes === undefined ? {} : { fallbackMinutes })
+        });
+  let built = counted();
+  if (built !== null && built.core.some((item) => item.minute === undefined)) {
+    // Buyers' times missing: the order and the minutes come from STRATZ's per-minute totals.
+    const totals = await attempt('минуты покупки', () => stats.heroPositionPurchases(hero.id, position));
+    if (totals !== null) built = counted(medianMinutes(totals));
+  }
+  if (sample !== null) {
+    notes.push(
+      `Выборка: ${sample.matches.length} матчей на позиции ${position} из ${sample.fetched}, окно ${built?.days ?? '?'} дн.` +
+        (built === null ? ` (мало для сборки: нужно ${BUILD_SAMPLE_MIN})` : `, посчитано ${built.matches}`)
+    );
+    if (built !== null && built.anchorShare < 0.7)
+      notes.push(`Якоря: порог снижен до ${Math.round(built.anchorShare * 100)}% (при 70% их меньше трёх)`);
+  }
+
+  let core: GuideItem[] = built?.core ?? [];
+  let situational: GuideItem[] = built?.situational ?? [];
+  if (core.length === 0) {
+    // No usable sample: the per-item totals (and OpenDota behind them) give the build.
+    const purchases = await attempt('предметы', () => stats.heroPositionPurchases(hero.id, position), quiet);
+    if (purchases !== null) ({ core, situational } = splitBuild(rankPurchases(purchases, items, support)));
+    if (core.length > 0) notes.push('Предметы — суммы по предметам, не по матчам');
+    if (core.length === 0 && fallback !== null) {
+      const bought = await openDotaItems();
+      const fromOpenDota =
+        bought === null ? null : splitBuild(rankPurchases(fallbackPurchases(bought), items, support));
+      if (fromOpenDota !== null && fromOpenDota.core.length > 0) {
+        // No minutes: OpenDota counts stretches of the match, not buy times.
+        core = fromOpenDota.core.map((item) => ({ key: item.key }));
+        situational = fromOpenDota.situational;
+        notes.push('Предметы — из OpenDota (без минут покупки)');
+      }
+    }
+    if (core.length === 0) throw noData('hero purchases');
+  }
+
+  let start = built?.start ?? [];
+  if (start.length === 0) {
+    if (built !== null)
+      notes.push(
+        `Нет данных: стартовый набор из матчей (${built.withPurchases ? 'ни один набор не повторился' : 'покупки не пришли'})`
+      );
+    const startRows = await attempt('стартовый закуп', () => stats.heroStartingItems(hero.id, position), quiet);
+    start = startRows === null ? [] : startItems(startRows, items);
+    if (start.length === 0 && fallback !== null) {
+      const bought = await openDotaItems();
+      start = bought === null ? [] : startItems(bought.start, items);
+      if (start.length > 0) notes.push('Стартовый закуп — из OpenDota');
+    }
+    if (start.length === 0 && (startRows !== null || quiet)) missing('стартовый закуп', 'предметы OpenDota');
+  }
   const neutralRows = await attempt('нейтралки', () => stats.heroNeutralItems(hero.id, position));
   const neutrals = neutralRows === null ? [] : neutralPicks(neutralRows, items);
   if (neutrals.length === 0 && neutralRows !== null)
-    notes.push(`Нет данных: нейтралки (STRATZ вернул ${neutralRows.length} строк)`);
+    notes.push(
+      `Нет данных: нейтралки (STRATZ вернул ${neutralRows.length} строк, из них с уровнем ${neutralRows.filter((row) => row.tier !== null).length})`
+    );
 
   const talentStats = await attempt('таланты', () => stats.heroTalents(hero.id, position));
-  const talents = detail === null || talentStats === null ? [] : talentRows(detail.talents, talentStats);
+  const talents = detail === null || talentStats === null ? [] : talentRows(talentList, talentStats);
   if (talents.length === 0 && detail !== null && talentStats !== null) notes.push('Нет данных: таланты');
-  const levels = await attempt('прокачка', () => stats.heroAbilityLevels(hero.id, position));
-  const order = detail === null || levels === null ? null : skillOrder(detail, levels.first, levels.max);
-  if (order === null && detail !== null && levels !== null) notes.push('Нет данных: прокачка');
-  const versus = await attempt('матчапы', () => stats.heroMatchups(hero.id));
-  const matchups = versus === null ? [] : matchupRows(versus, new Map(heroes.map((each) => [each.id, each])));
-  if (matchups.length === 0 && versus !== null) notes.push('Нет данных: матчапы');
-  const timeline = await attempt('винрейт по длине матча', () => stats.heroTimeline(hero.id));
-  const byLength = timeline === null ? null : lengthWinRates(timeline);
-  if (byLength === null && timeline !== null) notes.push('Нет данных: винрейт по длине матча');
-  const own = (await attempt('винрейт сборки', () => stats.positions()))?.find(
-    (row) => row.heroId === hero.id && row.position === position
-  );
+  const order = built?.plan ?? null;
+  if (built !== null && order === null && detail !== null)
+    notes.push('Нет данных: прокачка (ни одна последовательность не повторилась или не видна ульта)');
+  const heroById = new Map(heroes.map((each) => [each.id, each]));
+  const versus = await attempt('матчапы', () => stats.heroMatchups(hero.id), quiet);
+  let matchups = versus === null ? [] : matchupRows(versus, heroById);
+  if (matchups.length === 0 && fallback !== null) {
+    const rows = await attempt('матчапы OpenDota', () => fallback.heroMatchups(hero.id), true);
+    matchups = rows === null ? [] : matchupRows(rows, heroById, OPENDOTA_MATCHUP_MIN_MATCHES);
+    if (matchups.length > 0) notes.push('Матчапы — из OpenDota');
+  }
+  if (matchups.length === 0 && (versus !== null || quiet)) missing('матчапы');
+  const timeline = await attempt('винрейт по длине матча', () => stats.heroTimeline(hero.id), quiet);
+  let byLength = timeline === null ? null : lengthWinRates(timeline);
+  if (byLength === null && fallback !== null) {
+    const bins = await attempt('винрейт по длине матча OpenDota', () => fallback.heroDurations(hero.id), true);
+    byLength = bins === null ? null : lengthWinRatesFromBins(bins);
+    if (byLength !== null) notes.push('Винрейт по длине матча — из OpenDota');
+  }
+  if (byLength === null && (timeline !== null || quiet)) missing('винрейт по длине матча');
 
-  const keyItem = altKeyItem(ranked, core, support);
-  const sample =
-    keyItem === null
-      ? null
-      : await attempt('альтернативная сборка', () => stats.heroItemSample(hero.id, position, keyItem.item.id));
-  const alt = keyItem === null ? null : altBuild({ ranked, core, sample, items, keyItem, support });
-  if (keyItem !== null && alt === null && sample !== null) notes.push('Нет данных: альтернативная сборка');
+  const alt = built?.alt ?? null;
+  if (built !== null && alt === null) notes.push('Нет данных: альтернативная сборка (нет другого набора в 15% матчей)');
+  // The build's own numbers are the sample's; without a sample, STRATZ's win rate of the hero at the position.
+  const own = positionRows.find((row) => row.heroId === hero.id && row.position === position);
+  const ownRate =
+    built !== null
+      ? { buildWinRate: built.winRate, buildMatches: built.matches }
+      : own === undefined || own.matches === 0
+        ? {}
+        : { buildWinRate: own.wins / own.matches, buildMatches: own.matches };
 
   const card: HeroGuideCard = {
     hero: { name: hero.name, localizedName: hero.localizedName },
     role: roleOf(position),
-    ...(own === undefined || own.matches === 0
-      ? {}
-      : { buildWinRate: own.wins / own.matches, buildMatches: own.matches }),
-    buildDays: GUIDE_DAYS,
+    ...ownRate,
+    buildDays: built?.days ?? GUIDE_DAYS,
     start,
     core,
     situational,

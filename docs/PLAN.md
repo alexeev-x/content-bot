@@ -224,7 +224,7 @@ Built on DEV 25.10.2026: «Тестирование» → «Рубрики» (`/
 (`POST /api/v1/lab/rubrics`; the pressed rubric only, its caption by the AI writer, a rubric with a layout of its own drawn by code alone in the flat style the owner chose 26.10.2026 after Riot's patch graphics, a rubric without one as the model's scene under its title); approved rubrics 01–10 leave the list, which shows the new list of 27.10.2026 (11–34) as rough samples to rework one by one. OpenDota's
 API answers 429 to Cloudflare's shared addresses, so the game data comes from dotaconstants on GitHub and Valve's
 datafeed; pick, win, build, game-length and position rates come from STRATZ (`STRATZ_TOKEN`, owner's free sign-up,
-chosen 25.10.2026) through the owner's stats bridge, since STRATZ refuses Cloudflare (`bridge/stats-bridge`). Every listed rubric builds a sample except «Исповедальня», which waits for the channel's direct messages.
+chosen 25.10.2026) through the owner's stats bridge, since STRATZ refuses Cloudflare (`bridge/stats-bridge`); OpenDota is «Гайд на героя»'s fallback through the same bridge (start items, core, matchups, win rate by length when STRATZ fails or is empty; the owner's note says «из OpenDota»). Every listed rubric builds a sample except «Исповедальня», which waits for the channel's direct messages.
 What wiring rubrics to the scheduler and to real autopublishing must still cover: `docs/RUBRICS_SCHEDULER.md`.
 - Step 1, from data we already have:
   1. «Кого понерфили» (renamed from «Что сломали в патче» 26.10.2026): after a patch, the heroes weakened most, then the next day a poll «Кто теперь имба?».
