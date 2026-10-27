@@ -197,6 +197,19 @@ function auditStatement(db: D1Database, action: string, change: PostChange, deta
 
 export function createD1PostRepository(db: D1Database): PostRepository {
   return {
+    async createdBy(actor, postIds) {
+      const ids = [...new Set(postIds)].slice(0, 100);
+      if (ids.length === 0) return new Set();
+      const { results } = await db
+        .prepare(
+          `SELECT DISTINCT entity_id AS id FROM audit_log
+           WHERE entity_id IN (SELECT value FROM json_each(?1)) AND action = 'post.create' AND actor_telegram_id = ?2`
+        )
+        .bind(JSON.stringify(ids), actor)
+        .all<{ id: string }>();
+      return new Set(results.map((row) => row.id));
+    },
+
     async create({ record, actor, idempotency, response }) {
       const claim = [idempotency.scope, idempotency.key, idempotency.requestHash, idempotency.claimedAt];
       const entities = JSON.stringify(record.entities);

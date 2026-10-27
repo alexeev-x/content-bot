@@ -43,7 +43,8 @@ const QUIET_JOKES = [
   (build: string) => `Сборка ${build} прилетела тихо: в файлах ничего интересного, Valve просто протёрла пыль.`
 ];
 
-const JOKE_TIMEOUT_MS = 30_000;
+/** Both calls together: the writer's three variants and the critic's verdict. */
+const JOKE_TIMEOUT_MS = 90_000;
 
 /** The post: the joke (or a stand-in picked by the build number) and the version lines. */
 export function quietBuildPost(build: string, previous: string | null, joke: string | null = null): string {
@@ -108,9 +109,11 @@ export async function runQuietBuild(
             clock: container.clock,
             timezone,
             newId: container.newId,
+            random: container.random,
+            jokes: container.aiJokes,
             provider: container.aiProvider
           },
-          { build, theme, signal: AbortSignal.timeout(JOKE_TIMEOUT_MS) }
+          { build, previous, theme, signal: AbortSignal.timeout(JOKE_TIMEOUT_MS) }
         ).catch((error: unknown) => {
           onError(error);
           return null;

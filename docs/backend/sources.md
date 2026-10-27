@@ -129,9 +129,12 @@ SteamTracking/GameTracking-Dota2 (SteamDB's tracker, one commit per game build),
 - Known gap: a run stopped by the platform between the claim and the queue send leaves the build `queued` with no post.
 - A build with nothing worth a post (owner, 24.10.2026: «если ничего не нашлось можно смешную добавить текст и сам
   diff»): the newest build of a run that touches nothing a player sees, one whose diff has no changes, and one the cheap
-  check finds dull get one short post — a joke the cheap model writes on a theme drawn at random («шуточные посты
-  всегда разные», `modules/ai/quiet-build-joke.ts`; a stand-in line when it cannot, or when its joke lacks the build
-  number), asked only once the post may go out — and the version lines as a
+  check finds dull get one short post — a joke («шуточные посты всегда разные», `modules/ai/quiet-build-joke.ts`):
+  the cheap model writes three on the diff's +1 (a theme drawn at random as a fallback angle), seeing three of eight fixed tone
+  examples and three drawn from the 20 newest of the joke bank; the draft model, as critic, keeps the best, sharpens it
+  or turns all down (owner, 27.10.2026). What it keeps goes into the bank (`quiet_build_jokes`, migration 0115, one per
+  build); turned-down jokes are never kept, so the writer never copies them. A stand-in line when the critic turns all
+  down or AI cannot run; asked only once the post may go out — and the version lines as a
   ```diff block (`- ClientVersion=<previous>` / `+ ClientVersion=<build>`), key `files-quiet:<build>`, under the
   automatic publishing's switch and limit (`app/workflows/publish-fixed-post.ts`). A build one of whose commits had a
   find gets none; an official patch build none either (the patch notes tell it). The post is its own queue job

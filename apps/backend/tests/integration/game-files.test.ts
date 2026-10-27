@@ -1,7 +1,12 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import type { AiJob } from '../../src/app/bot/ai-job';
 import { createContainer, type Container } from '../../src/app/container';
-import { ownerOperationsSettingsSchema } from '@alexeev/contracts';
+import {
+  activityPageSchema,
+  ownerOperationsSettingsSchema,
+  postPageSchema,
+  publicationPageSchema
+} from '@alexeev/contracts';
 import {
   prepareGameFilesPost,
   quietBuildPost,
@@ -264,7 +269,7 @@ describe('a build with nothing in it (owner, 24.10.2026: «смешную доб
     expect(await count('posts')).toBe(1);
   });
 
-  it('has the joke written by the cheap model, different each time; one without the build number is not used', async () => {
+  it('has the cheap model offer three jokes and the draft model keep one; a kept joke teaches the next, a turned-down build gets the stand-in (owner, 27.10.2026)', async () => {
     await autopublishOn();
     await updateAiSettings(
       { repo: createD1AiRepository(testDb()), clock: fakeClock() },
@@ -281,18 +286,27 @@ describe('a build with nothing in it (owner, 24.10.2026: «смешную доб
         warnAtPercent: 80
       }
     );
-    const jokes = [
-      'Сборка 6962 вышла, в файлах тишина — Рошан опять отдыхает.',
-      'Valve что-то сделала, но что — загадка.'
-    ];
-    const inputs: string[] = [];
+    const verdicts = ['Версия +1, а у Рошана всё ещё перерыв на обед.', ''];
+    const writerInputs: string[] = [];
+    const criticInputs: string[] = [];
     container = make({
       provider: 'openai',
       complete: async (request) => {
-        inputs.push(request.input);
+        const critic = request.model === 'gpt-6.1-sol';
+        (critic ? criticInputs : writerInputs).push(request.input);
         return {
-          text: JSON.stringify({ joke: jokes.shift() ?? '' }),
-          model: 'gpt-6-luna',
+          text: JSON.stringify(
+            critic
+              ? { joke: verdicts.shift() ?? '' }
+              : {
+                  jokes: [
+                    'Молчание Valve на уровне Immortal, смешно же.',
+                    'Номер +1, MMR −25.',
+                    'https://x.y шутка тут'
+                  ]
+                }
+          ),
+          model: request.model,
           usage: { inputTokens: 50, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 20 }
         };
       }
@@ -304,11 +318,28 @@ describe('a build with nothing in it (owner, 24.10.2026: «смешную доб
     await step();
     const bodies = (await testDb().prepare('SELECT body FROM posts ORDER BY created_at').all<{ body: string }>())
       .results;
-    expect(bodies[0]?.body).toContain('Рошан опять отдыхает');
-    // The second joke has no build number: the stand-in goes out instead.
+    expect(bodies[0]?.body).toContain('перерыв на обед');
+    // The critic never sees a joke with an address.
+    expect(criticInputs[0]).not.toContain('https://');
+    expect(criticInputs[0]).toContain('MMR −25');
+    // The critic turned the second build's jokes down: the stand-in goes out, not the writer's variant.
     expect(bodies[1]?.body).toContain('6963');
-    expect(bodies[1]?.body).not.toContain('загадка');
-    expect(inputs[0]).toContain('Тема шутки:');
+    expect(bodies[1]?.body).not.toContain('Immortal');
+    // The kept joke is in the bank and the writer reads it as an example for the next build.
+    expect(writerInputs[1]).toContain('перерыв на обед');
+    const bank = await testDb().prepare('SELECT count(*) AS n FROM quiet_build_jokes').first<{ n: number }>();
+    expect(bank?.n).toBe(1);
+    // No one approved these posts: the studio marks them «ИИ» as the automatic publishing's (owner, 27.10.2026).
+    const api = createApi({ clock: fakeClock() });
+    const posts = postPageSchema.parse(await (await api.request('/api/v1/posts')).json());
+    expect(posts.items.map((post) => post.origin?.source)).toEqual(['auto', 'auto']);
+    const publications = publicationPageSchema.parse(await (await api.request('/api/v1/publications')).json());
+    expect(publications.items.every((item) => item.postOrigin?.source === 'auto')).toBe(true);
+    const activity = activityPageSchema.parse(await (await api.request('/api/v1/activity')).json());
+    expect(activity.items.filter((item) => item.action === 'post.create').map((item) => item.actor)).toEqual([
+      'autopublish',
+      'autopublish'
+    ]);
   });
 
   it('gets no joke when another commit of the same build has a find, and one joke however often it is queued (QA 24.10.2026)', async () => {

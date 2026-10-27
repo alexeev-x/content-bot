@@ -68,11 +68,13 @@ export function ActivityDialog({
                   <div>
                     <dt>{copy.activity.who}</dt>
                     <dd>
-                      {item.actor === 'ai'
-                        ? copy.activity.ai
-                        : item.actor === 'owner'
-                          ? copy.activity.owner
-                          : copy.activity.system}
+                      {item.actor === 'autopublish'
+                        ? copy.activity.autopublish
+                        : item.actor === 'ai'
+                          ? copy.activity.ai
+                          : item.actor === 'owner'
+                            ? copy.activity.owner
+                            : copy.activity.system}
                     </dd>
                   </div>
                   {item.channelTitle ? (

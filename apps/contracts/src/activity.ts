@@ -61,9 +61,10 @@ export const activityItemSchema = z.object({
   category: activityCategorySchema,
   /**
    * `owner` for the owner's own actions (admin or bot), `system` for Cron and automations, `ai` for a post the
-   * AI editor wrote (made from an approved AI draft; owner, 17.10.2026: «Кто: Вы» there was wrong).
+   * AI editor wrote (made from an approved AI draft; owner, 17.10.2026: «Кто: Вы» there was wrong), `autopublish` for
+   * what the automatic publishing did with no one approving (owner, 27.10.2026).
    */
-  actor: z.enum(['owner', 'system', 'ai']),
+  actor: z.enum(['owner', 'system', 'ai', 'autopublish']),
   entityType: z.enum(['post', 'media', 'publication', 'destination', 'automation', 'incident', 'job']),
   entityId: z.string(),
   /** Post title, file name, channel or automation name at read time; null when the object is gone. */

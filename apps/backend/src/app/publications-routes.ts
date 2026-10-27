@@ -22,7 +22,7 @@ import {
   reschedulePublication,
   resolveUnknownPublication
 } from '../modules/publishing';
-import { readPostOrigins } from '../modules/ai';
+import { readStudioOrigins } from './post-origins';
 import { getOwnerOperationsSettings } from '../modules/settings';
 import { AppError } from '../shared/app-error';
 import { appOriginOf } from './bot/app-origin';
@@ -146,8 +146,8 @@ export const publicationsRoutes = new Hono<AppBindings>()
       c.req.valid('query')
     );
     // Which posts the AI editor wrote: «ИИ» beside the title (owner, 17.10.2026), as in the posts list.
-    const origins = await readPostOrigins(
-      { writer: container.aiWriter },
+    const origins = await readStudioOrigins(
+      container,
       page.items.map((item) => item.postId)
     );
     return c.json({
@@ -159,9 +159,7 @@ export const publicationsRoutes = new Hono<AppBindings>()
     const container = c.get('container');
     const id = publicationId(c.req.valid('param').id);
     const publication = await getPublication({ repo: container.publications, now: container.clock.now() }, id);
-    const origin = (await readPostOrigins({ writer: container.aiWriter }, [publication.postId])).get(
-      publication.postId
-    );
+    const origin = (await readStudioOrigins(container, [publication.postId])).get(publication.postId);
     return c.json({ ...publication, postOrigin: origin ?? null });
   })
   .get('/:id/history', validated('param', idParamSchema), async (c) => {

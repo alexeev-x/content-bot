@@ -5,6 +5,7 @@ import {
   type DashboardPublicationDto,
   type DashboardQuery,
   type DashboardSentDto,
+  type PostOriginDto,
   DASHBOARD_TODAY_TOTAL_CAP
 } from '@alexeev/contracts';
 import { projectPublicationStatus } from '../domain/status-projection';
@@ -73,7 +74,12 @@ function toAttentionDto(row: DashboardAttentionRow): DashboardAttentionDto {
 
 /** The owner's day on one screen: five bounded reads in one batch, projected to the contract. */
 export async function readDashboard(
-  deps: { repo: DashboardRepository; now: number },
+  deps: {
+    repo: DashboardRepository;
+    now: number;
+    /** Consumer-owned port: who wrote these posts (the «ИИ» mark of the day line; owner, 27.10.2026). */
+    origins?: (postIds: readonly string[]) => Promise<ReadonlyMap<string, PostOriginDto>>;
+  },
   query: DashboardQuery
 ): Promise<DashboardDto> {
   const { now } = deps;
@@ -82,13 +88,22 @@ export async function readDashboard(
     to: Date.parse(query.to),
     stuckBefore: now - STUCK_AFTER_MS
   });
+  const rows = [...snapshot.today, ...snapshot.upcoming, ...snapshot.recentSent];
+  const origins =
+    deps.origins === undefined || rows.length === 0
+      ? new Map<string, PostOriginDto>()
+      : await deps.origins(rows.map((row) => row.postId));
+  const withOrigin = <T extends DashboardPublicationDto>(dto: T, row: DashboardPublicationRow): T => ({
+    ...dto,
+    postOrigin: origins.get(row.postId) ?? null
+  });
   return {
     attention: snapshot.attention.map(toAttentionDto),
     attentionTotal: Math.min(snapshot.openIncidents + snapshot.stuck, DASHBOARD_ATTENTION_TOTAL_CAP),
-    today: snapshot.today.map((row) => toPublicationDto(row, now)),
+    today: snapshot.today.map((row) => withOrigin(toPublicationDto(row, now), row)),
     todayTotal: Math.min(snapshot.todayTotal, DASHBOARD_TODAY_TOTAL_CAP),
-    upcoming: snapshot.upcoming.map((row) => toPublicationDto(row, now)),
-    recentSent: snapshot.recentSent.map((row) => toSentDto(row, now)),
+    upcoming: snapshot.upcoming.map((row) => withOrigin(toPublicationDto(row, now), row)),
+    recentSent: snapshot.recentSent.map((row) => withOrigin(toSentDto(row, now), row)),
     generatedAt: iso(now)
   };
 }

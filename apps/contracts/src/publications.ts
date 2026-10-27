@@ -75,7 +75,10 @@ export const publicationSchema = z.object({
    * longer be opened or edited, so `postSnapshot` carries what was sent. The server always sends the flag.
    */
   postDeleted: z.boolean().optional(),
-  /** Studio-only: the post came from an approved AI draft (as `PostDto.origin`); null — the owner wrote it. */
+  /**
+   * Studio-only: the post came from an approved AI draft or the automatic publishing (as `PostDto.origin`); null —
+   * the owner wrote it.
+   */
   postOrigin: postOriginSchema.nullable().optional(),
   /**
    * The series this publication belongs to (owner, 22.10.2026: posts of one event go out in order with a gap);

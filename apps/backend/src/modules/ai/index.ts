@@ -43,6 +43,7 @@ export {
 } from './d1-style-lessons-repository';
 export { readDraftChain, readDrafts } from './draft-history';
 export { createD1DraftHistoryRepository, type DraftHistoryRepository } from './d1-draft-history-repository';
+export { createD1JokeRepository, type JokeRepository } from './d1-joke-repository';
 export {
   CONSOLIDATION_MAX_VIDEOS,
   CONSOLIDATION_MIN_VIDEOS,

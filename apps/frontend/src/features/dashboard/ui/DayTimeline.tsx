@@ -111,6 +111,7 @@ export function DayTimeline({
                 {markers.map(({ item, percent, lane }) => {
                   const meta = statusMeta(item.status);
                   const clock = formatClock(item.scheduledAt, timezone);
+                  const status = item.postOrigin ? copy.line.byAi(meta.label, item.postOrigin.source) : meta.label;
                   return (
                     <li
                       key={item.publicationId}
@@ -126,14 +127,14 @@ export function DayTimeline({
                             <strong>{item.postTitle}</strong>
                             <span>{item.destinationName}</span>
                             <span>
-                              {clock} · {meta.label}
+                              {clock} · {status}
                             </span>
                           </span>
                         }
                       >
                         <AriaButton
                           className={styles.marker}
-                          aria-label={copy.line.marker(item.postTitle, item.destinationName, clock, meta.label)}
+                          aria-label={copy.line.marker(item.postTitle, item.destinationName, clock, status)}
                           onPress={() => onOpenPublication(item.publicationId)}
                         >
                           {phone ? (
@@ -179,6 +180,9 @@ export function DayTimeline({
                               .map((event) => (
                                 <span key={event.id}>
                                   {formatClock(event.at, timezone)} · {activityView(event).text}
+                                  {event.actor === 'autopublish' || event.actor === 'ai'
+                                    ? ` · ${copy.activity.aiShort}`
+                                    : ''}
                                 </span>
                               ))}
                             {events.length > 3 ? <span>{copy.activity.andMore(events.length - 3)}</span> : null}
