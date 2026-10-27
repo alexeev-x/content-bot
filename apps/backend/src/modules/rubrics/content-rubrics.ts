@@ -1,4 +1,4 @@
-import { escapeHtml, heroImage, itemImage, PICTURE_SIZE, picturePage } from './picture';
+import { escapeHtml, itemImage, PICTURE_SIZE, picturePage } from './picture';
 import { LEAK_EGGS } from './leak-eggs';
 import { noData, pick, plural, poll, quiz, type RubricContext, type RubricSample, shuffled, withJoke } from './types';
 
@@ -365,7 +365,7 @@ export async function workshopSet(context: RubricContext): Promise<RubricSample>
   );
   return {
     picture: { html, ...PICTURE_SIZE },
-    text: `Свежий сет из мастерской Steam набирает популярность: «${set.title}».\nОцениваем: 🔥 или 💩?\nМастерская: ${set.url}`,
+    text: `Свежий сет из мастерской Steam набирает популярность: «${set.title}».\nМастерская: ${set.url}\n🔥 — имба, 💩 — пиздец`,
     poll: null
   };
 }
@@ -403,45 +403,6 @@ export async function rebus(context: RubricContext): Promise<RubricSample> {
     picture: { html, ...PICTURE_SIZE },
     text: 'Ребус: какой это герой?',
     poll: quiz('Какой это герой?', options, options.indexOf(chosen.answer), `${chosen.answer}.`)
-  };
-}
-
-export async function guessStreak(context: RubricContext): Promise<RubricSample> {
-  const heroes = await context.sources.heroes();
-  const hero = pick(heroes, context.random);
-  const others = shuffled(
-    heroes.filter((each) => each.id !== hero.id && each.attackType === hero.attackType),
-    context.random
-  ).slice(0, 3);
-  const options = shuffled([hero, ...others], context.random);
-  return {
-    picture: null,
-    text: `🔥 Угадай-серия, вопрос дня.\nУ кого из них скорость ${hero.moveSpeed} и дальность атаки ${hero.attackRange}? Держи серию до воскресенья — там топ-10 знатоков.`,
-    poll: quiz(
-      'Чьи это цифры?',
-      options.map((each) => each.localizedName),
-      options.findIndex((each) => each.id === hero.id),
-      `${hero.localizedName}.`
-    )
-  };
-}
-
-export async function tierListVote(context: RubricContext): Promise<RubricSample> {
-  const heroes = await context.sources.heroes();
-  const hero = pick(heroes, context.random);
-  const html = picturePage(
-    `<div class="title">Куда в <b>тир-листе?</b></div><img class="portrait big" src="${heroImage(hero.name)}" alt="">
-<div class="sub">${escapeHtml(hero.localizedName)}</div><div class="tiers"><span class="s">S</span><span class="a">A</span><span class="b">B</span><span class="c">C</span><span class="d">D</span></div>`,
-    `.portrait.big{width:512px;height:288px;margin-top:24px}
-.sub{font-size:36px;font-weight:800;margin-top:14px}
-.tiers{display:flex;gap:16px;margin-top:18px}
-.tiers span{width:72px;height:72px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:40px;color:#0b0e13}
-.s{background:var(--tier-s)}.a{background:var(--tier-a)}.b{background:var(--tier-b)}.c{background:var(--tier-c)}.d{background:var(--tier-d)}`
-  );
-  return {
-    picture: { html, ...PICTURE_SIZE },
-    text: `Собираем тир-лист подписчиков. Куда бы ты поставил ${hero.localizedName}? Итог — картинкой через день.`,
-    poll: poll(`${hero.localizedName}: какой тир?`, ['S', 'A', 'B', 'C', 'D'])
   };
 }
 

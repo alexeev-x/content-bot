@@ -77,7 +77,7 @@ async function latestPatch(context: RubricContext) {
     })
     .filter((each): each is { hero: HeroInfo; notes: number; balance: number } => each.hero !== undefined)
     .sort((a, b) => b.notes - a.notes);
-  return { version: latest.version, timestamp: latest.timestamp, changes, scored, byId };
+  return { version: latest.version, timestamp: latest.timestamp, notes, changes, scored, byId };
 }
 
 export type PatchOutcome = 'nerfed' | 'buffed' | 'changed' | 'untouched';
@@ -639,6 +639,40 @@ export async function valveTime(context: RubricContext): Promise<RubricSample> {
     // The board carries the numbers; the caption is the joke alone (owner, 27.10.2026: the sample repeated the board).
     text: 'Патча всё нет.',
     reference: `${days} ${plural(days, 'день', 'дня', 'дней')} без патча; последний патч ${latest.version} вышел ${date}.`,
+    poll: null
+  };
+}
+
+// «Дед» (owner, 27.10.2026): one real change of the latest patch, grumbled about by an old man «а вот в наше время».
+export async function grandpa(context: RubricContext): Promise<RubricSample> {
+  const patch = await latestPatch(context);
+  const change = pick(patch.changes, context.random);
+  const hero = patch.byId.get(change.heroId)?.localizedName ?? 'Герой';
+  return {
+    picture: null,
+    text: `${hero} в новом патче. Дед недоволен.`,
+    // The note's numbers are background: the grumble need not repeat them all.
+    reference: `Патч ${patch.version}, ${hero}: ${change.note}`,
+    poll: null
+  };
+}
+
+// «Valve исправила» (owner, 27.10.2026): one real note of the latest patch, then what «the fix» led to; the joke is in
+// the escalation, the note itself stays true.
+export async function valveFixed(context: RubricContext): Promise<RubricSample> {
+  const patch = await latestPatch(context);
+  const notes = patch.notes.heroes.flatMap((each) =>
+    each.notes.map((note) => ({ heroId: each.heroId, note: note.note.trim() }))
+  );
+  const chosen = pick(
+    notes.filter((each) => each.note !== ''),
+    context.random
+  );
+  const hero = patch.byId.get(chosen.heroId)?.localizedName ?? 'Герой';
+  return {
+    picture: null,
+    text: `Valve исправила ${hero}.`,
+    reference: `Патч ${patch.version}, ${hero}: ${chosen.note}`,
     poll: null
   };
 }

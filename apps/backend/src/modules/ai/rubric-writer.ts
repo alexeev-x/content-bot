@@ -74,7 +74,7 @@ export async function writeRubricCaption(
         `Черновик:\n${draft}`,
         ...(input.reference === undefined
           ? []
-          : [`Справка (из неё бери, что это за новинка; цифры переносить не обязательно):\n${input.reference}`]),
+          : [`Справка (факты для поста; цифры из неё переносить не обязательно):\n${input.reference}`]),
         input.poll === null ? 'Опроса нет.' : `Опрос под постом: ${input.poll}`
       ].join('\n\n'),
       // Room for a reasoning model's thinking.

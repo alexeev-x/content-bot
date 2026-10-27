@@ -221,12 +221,10 @@ code. The model draws only scenes without exact characters, or one hero per call
 composed by Cloudflare Browser Rendering (free plan, 10 browser minutes a day; owner, 25.10.2026: «давай попробуем»):
 the picture is an HTML page with Valve's real icons and real text, screenshotted, so numbers on it are exact too.
 Built on DEV 25.10.2026: «Тестирование» → «Рубрики» (`/lab`, a DEV-only menu item; DECISIONS 26.10.2026) sends a rubric's post from live data to the owner's chat
-(`POST /api/v1/lab/rubrics`; the pressed rubric only, its caption by the AI writer, a rubric with a layout of its own drawn by code alone in the flat style the owner chose 26.10.2026 after Riot's patch graphics, a rubric without one as the model's scene under its title), all 32 rubrics listed. OpenDota's
+(`POST /api/v1/lab/rubrics`; the pressed rubric only, its caption by the AI writer, a rubric with a layout of its own drawn by code alone in the flat style the owner chose 26.10.2026 after Riot's patch graphics, a rubric without one as the model's scene under its title); approved rubrics 01–10 leave the list, which shows the new list of 27.10.2026 (11–34) as rough samples to rework one by one. OpenDota's
 API answers 429 to Cloudflare's shared addresses, so the game data comes from dotaconstants on GitHub and Valve's
 datafeed; pick, win, build, game-length and position rates come from STRATZ (`STRATZ_TOKEN`, owner's free sign-up,
-chosen 25.10.2026) through the owner's stats bridge, since STRATZ refuses Cloudflare (`bridge/stats-bridge`). 31 rubrics work; «Угадай матч» has no source of recent high-rank matches yet (STRATZ's live list
-was empty). The rubric list
-with each one's picture is `.logs/rubrics-best.html` (local, not in Git).
+chosen 25.10.2026) through the owner's stats bridge, since STRATZ refuses Cloudflare (`bridge/stats-bridge`). Every listed rubric builds a sample except «Исповедальня», which waits for the channel's direct messages.
 What wiring rubrics to the scheduler and to real autopublishing must still cover: `docs/RUBRICS_SCHEDULER.md`.
 - Step 1, from data we already have:
   1. «Кого понерфили» (renamed from «Что сломали в патче» 26.10.2026): after a patch, the heroes weakened most, then the next day a poll «Кто теперь имба?».

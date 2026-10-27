@@ -1,5 +1,5 @@
 import { AppError } from '../../shared/app-error';
-import { escapeHtml, heroImage, itemImage, PICTURE_SIZE, picturePage, rankMedalImage } from './picture';
+import { heroImage, PICTURE_SIZE, picturePage } from './picture';
 import { type PatchOutcome, patchOutcomes } from './patch-rubrics';
 import { NERF_LOOKS, nerfQuestionPicture, nerfResultPicture } from './nerf-pictures';
 import { VERSUS_LOOKS, VERSUS_TITLES, versusPicture } from './versus-pictures';
@@ -11,7 +11,6 @@ import {
   percent,
   pick,
   poll,
-  quiz,
   type RubricContext,
   type RubricSample,
   shuffled,
@@ -55,120 +54,6 @@ async function shares(context: RubricContext, bracket: number): Promise<Share[]>
       winRate: each.matches === 0 ? 0 : each.wins / each.matches
     }))
     .filter((each): each is Share => each.hero !== undefined);
-}
-
-export async function rankMeta(context: RubricContext): Promise<RubricSample> {
-  const bracket = pick(BRACKETS, context.random);
-  const worst = context.random() < 0.5;
-  const list = (await shares(context, bracket)).filter((each) => each.pickRate >= 0.02);
-  const top = worst
-    ? [...list].sort((a, b) => a.winRate - b.winRate).slice(0, 5)
-    : [...list].sort((a, b) => b.pickRate - a.pickRate).slice(0, 5);
-  const leader = top[0];
-  if (leader === undefined) throw noData('heroes');
-  const cards = top
-    .map(
-      (each, index) => `<div class="card${index === 0 ? ' first' : ''}"><div class="place">${index + 1}</div>
-<img class="portrait" src="${heroImage(each.hero.name)}" alt=""><div class="name">${escapeHtml(each.hero.localizedName)}</div>
-<div class="value">${worst ? `${percent(each.winRate)} побед` : `в ${percent(each.pickRate)} игр`}</div></div>`
-    )
-    .join('');
-  const html = picturePage(
-    `<div class="title">${worst ? 'Худшие' : 'Топ-5'} на <b>${rank(bracket).on}</b></div>
-<div class="row"><img class="medal" src="${rankMedalImage(bracket)}" alt=""><div class="cards">${cards}</div></div>`,
-    `.row{display:flex;align-items:center;gap:40px;margin-top:64px}
-.medal{width:230px;height:230px;filter:drop-shadow(0 10px 24px rgba(0,0,0,.6))}
-.cards{display:flex;gap:18px;align-items:flex-end}
-.card{display:flex;flex-direction:column;align-items:center;gap:12px;width:228px}
-.card .portrait{width:228px;height:128px}
-.card.first .portrait{border-color:var(--red);width:244px;height:137px}
-.place{font-weight:900;font-size:52px;color:var(--red)}
-.name{font-weight:800;font-size:28px;text-align:center}
-.value{font-weight:600;font-size:26px;color:${worst ? 'var(--red)' : 'var(--good)'}}`
-  );
-  const names = top.map((each) => each.hero.localizedName).join(', ');
-  return {
-    picture: { html, ...PICTURE_SIZE },
-    text: worst
-      ? `Худшие по винрейту на ${rank(bracket).on}: ${names}. ${leader.hero.localizedName} выигрывает только ${percent(leader.winRate)}.\nУзнал свою тиму? 🫡`
-      : `Кого чаще всего пикают на ${rank(bracket).on}: ${names}. ${leader.hero.localizedName} — в каждой ${Math.max(1, Math.round(1 / leader.pickRate))}-й игре.\nУзнал себя? 🫡`,
-    poll: null
-  };
-}
-
-const WINRATE_BUCKETS = [
-  { label: 'до 45%', max: 0.45 },
-  { label: '45–48%', max: 0.48 },
-  { label: '48–51%', max: 0.51 },
-  { label: 'больше 51%', max: Number.POSITIVE_INFINITY }
-];
-
-export async function guessWinrate(context: RubricContext): Promise<RubricSample> {
-  const bracket = pick(BRACKETS, context.random);
-  const popular = (await shares(context, bracket))
-    .filter((each) => each.matches >= 500)
-    .sort((a, b) => b.pickRate - a.pickRate)
-    .slice(0, 40);
-  const chosen = pick(popular, context.random);
-  const html = picturePage(
-    `<div class="title">Угадай <b>винрейт</b></div>
-<div class="row"><img class="portrait big" src="${heroImage(chosen.hero.name)}" alt=""><div class="on">на</div>
-<img class="medal" src="${rankMedalImage(bracket)}" alt=""></div><div class="sub">${escapeHtml(chosen.hero.localizedName)} · ${rank(bracket).name}</div>`,
-    `.row{display:flex;align-items:center;gap:40px;margin-top:48px}
-.portrait.big{width:576px;height:324px}
-.on{font-weight:900;font-size:56px;color:var(--red)}
-.medal{width:240px;height:240px}
-.sub{font-size:34px;font-weight:800;margin-top:22px}`
-  );
-  return {
-    picture: { html, ...PICTURE_SIZE },
-    text: `Сколько побеждает ${chosen.hero.localizedName} на ${rank(bracket).on}? Ответ — в опросе.`,
-    poll: quiz(
-      `Винрейт ${chosen.hero.localizedName} на ${rank(bracket).on}?`,
-      WINRATE_BUCKETS.map((bucket) => bucket.label),
-      WINRATE_BUCKETS.findIndex((bucket) => chosen.winRate < bucket.max),
-      `${percent(chosen.winRate)} по ${chosen.matches.toLocaleString('ru-RU')} играм.`
-    )
-  };
-}
-
-export async function banOrPick(context: RubricContext): Promise<RubricSample> {
-  const list = (await shares(context, 7)).filter((each) => each.matches >= 300);
-  const [first, second] = shuffled(list, context.random);
-  if (first === undefined || second === undefined) throw noData('heroes');
-  const html = picturePage(
-    `<div class="title">Бан <b>или пик?</b></div><div class="row"><img class="portrait big" src="${heroImage(first.hero.name)}" alt="">
-<div class="vs">VS</div><img class="portrait big" src="${heroImage(second.hero.name)}" alt=""></div>
-<div class="names"><span>${escapeHtml(first.hero.localizedName)}</span><span>${escapeHtml(second.hero.localizedName)}</span></div>`,
-    `.row{display:flex;align-items:center;gap:48px;margin-top:48px}
-.portrait.big{width:480px;height:270px}
-.vs{font-weight:900;font-size:100px;color:var(--red)}
-.names{display:flex;justify-content:space-between;width:1100px;font-weight:800;font-size:34px;margin-top:16px}`
-  );
-  return {
-    picture: { html, ...PICTURE_SIZE },
-    text: `Последний пик: ${first.hero.localizedName} или ${second.hero.localizedName}? Винрейты — после голосования.`,
-    poll: poll('Кого берёшь последним пиком?', [first.hero.localizedName, second.hero.localizedName])
-  };
-}
-
-export async function poisonForLow(context: RubricContext): Promise<RubricSample> {
-  const [low, high] = await Promise.all([shares(context, 1), shares(context, 7)]);
-  const lowById = new Map(low.map((each) => [each.hero.id, each]));
-  const gaps = high
-    .map((each) => ({ high: each, low: lowById.get(each.hero.id) }))
-    .filter(
-      (each): each is { high: Share; low: Share } =>
-        each.low !== undefined && each.low.matches >= 300 && each.high.matches >= 300
-    )
-    .sort((a, b) => b.high.winRate - b.low.winRate - (a.high.winRate - a.low.winRate));
-  const top = gaps[0];
-  if (top === undefined) throw noData('heroes');
-  return {
-    picture: null,
-    text: `☠️ Яд для низов: ${top.high.hero.localizedName}.\nНа Божествах — ${percent(top.high.winRate)} побед, на Рекрутах — ${percent(top.low.winRate)}. Не берите, если не умеете.`,
-    poll: null
-  };
 }
 
 export async function forgottenHero(context: RubricContext): Promise<RubricSample> {
@@ -345,48 +230,27 @@ export async function whoBeatsWhom(context: RubricContext): Promise<RubricSample
   };
 }
 
-export async function whoseBuild(context: RubricContext): Promise<RubricSample> {
-  const [heroes, itemList] = await Promise.all([context.sources.heroes(), context.sources.items()]);
-  const items = new Map(itemList.map((item) => [item.id, item]));
-  const carries = heroes.filter((hero) => hero.roles.includes('Carry'));
-  const hero = pick(carries, context.random);
-  const build = await lateBuild(context, hero.id, items);
-  if (build.length < 6) throw noData('build');
-  const others = shuffled(
-    carries.filter((each) => each.id !== hero.id && each.attackType === hero.attackType),
-    context.random
-  ).slice(0, 3);
-  const options = shuffled([hero, ...others], context.random);
-  const html = picturePage(
-    `<div class="title">Чья <b>сборка?</b></div><div class="row"><div class="slots">${build
-      .map((item) => `<img class="item" src="${itemImage(item.key)}" alt="">`)
-      .join('')}</div><div class="q">?</div></div>`,
-    `.row{display:flex;align-items:center;gap:64px;margin-top:56px}
-.slots{display:grid;grid-template-columns:repeat(3,176px);gap:16px}
-.slots .item{width:176px;height:128px}
-.q{width:320px;height:300px;border:5px dashed var(--red);border-radius:16px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:200px;color:var(--red)}`
-  );
-  return {
-    picture: { html, ...PICTURE_SIZE },
-    text: 'Шесть слотов поздней игры. Чья это сборка?',
-    poll: quiz(
-      'Чья сборка?',
-      options.map((each) => each.localizedName),
-      options.findIndex((each) => each.id === hero.id),
-      `${hero.localizedName}: самая частая поздняя сборка.`
-    )
-  };
-}
-
+// «Криминальная хроника» (owner, 27.10.2026): the week's record of per-match averages told as a tabloid crime note;
+// each record has its «статья».
 const RECORDS = [
-  { title: 'самый богатый герой', value: (row: Average) => row.networth, unit: 'золота к концу игры', digits: 0 },
-  { title: 'больше всех урона по героям', value: (row: Average) => row.heroDamage, unit: 'урона за игру', digits: 0 },
-  { title: 'самый кровожадный герой', value: (row: Average) => row.kills, unit: 'убийств за игру', digits: 1 },
-  { title: 'главный фидер', value: (row: Average) => row.deaths, unit: 'смертей за игру', digits: 1 }
+  {
+    crime: 'отмывание золота в особо крупных размерах',
+    value: (row: Average) => row.networth,
+    unit: 'золота к концу игры',
+    digits: 0
+  },
+  {
+    crime: 'причинение тяжких телесных',
+    value: (row: Average) => row.heroDamage,
+    unit: 'урона по героям за игру',
+    digits: 0
+  },
+  { crime: 'серийные убийства', value: (row: Average) => row.kills, unit: 'убийств за игру', digits: 1 },
+  { crime: 'систематическая сдача себя врагу', value: (row: Average) => row.deaths, unit: 'смертей за игру', digits: 1 }
 ];
 type Average = { heroId: number; matches: number; networth: number; heroDamage: number; kills: number; deaths: number };
 
-export async function weeklyRecord(context: RubricContext): Promise<RubricSample> {
+export async function crimeNews(context: RubricContext): Promise<RubricSample> {
   const [rows, heroes] = await Promise.all([needStats(context).averages(), context.sources.heroes()]);
   const record = pick(RECORDS, context.random);
   const best = rows.filter((row) => row.matches >= 500).sort((a, b) => record.value(b) - record.value(a))[0];
@@ -398,98 +262,93 @@ export async function weeklyRecord(context: RubricContext): Promise<RubricSample
       : record.value(best).toFixed(record.digits).replace('.', ',');
   return {
     picture: null,
-    text: `🏆 Рекорд недели: ${record.title} — ${hero.localizedName}.\nВ среднем ${value} ${record.unit} на Божествах и Титанах. А у тебя сколько?`,
+    text: `Задержан ${hero.localizedName}. Статья: ${record.crime}.\nВ среднем ${value} ${record.unit} на Божествах и Титанах за неделю — больше всех героев.`,
     poll: null
   };
 }
 
-export async function heroPeak(context: RubricContext): Promise<RubricSample> {
-  const heroes = shuffled(await context.sources.heroes(), context.random);
-  for (const hero of heroes.slice(0, 5)) {
-    const timeline = await needStats(context).heroTimeline(hero.id);
-    const start = timeline.find((row) => row.minute === 0);
-    const at = (minute: number) => timeline.find((row) => row.minute === minute);
-    const early = at(25);
-    const late = at(45);
-    if (start === undefined || early === undefined || late === undefined || late.remaining < 200) continue;
-    // Games over by minute 25 are the start minus those still going; games past 45 are the ones still going.
-    const shortGames = start.remaining - early.remaining;
-    const shortWins = start.wins - early.wins;
-    if (shortGames < 200) continue;
-    const shortRate = shortWins / shortGames;
-    const longRate = late.wins / late.remaining;
-    const html = picturePage(
-      `<div class="title">Когда <b>${escapeHtml(hero.localizedName)}</b> сильнее всего</div>
-<div class="row"><img class="portrait big" src="${heroImage(hero.name)}" alt="">
-<div class="bars"><div class="bar"><span>игра до 25 минут</span><b class="${shortRate >= 0.5 ? 'good' : 'bad'}">${percent(shortRate)}</b></div>
-<div class="bar"><span>игра дольше 45 минут</span><b class="${longRate >= 0.5 ? 'good' : 'bad'}">${percent(longRate)}</b></div></div></div>`,
-      `.row{display:flex;align-items:center;gap:64px;margin-top:48px}
-.portrait.big{width:448px;height:252px}
-.bars{display:flex;flex-direction:column;gap:28px}
-.bar{display:flex;flex-direction:column}
-.bar span{font-weight:600;font-size:32px;color:var(--muted)}
-.bar b{font-weight:900;font-size:88px}
-.good{color:var(--good)}.bad{color:var(--red)}`
-    );
-    const verdict = longRate > shortRate ? 'Тяните игру.' : 'Заканчивайте быстро.';
-    return {
-      picture: { html, ...PICTURE_SIZE },
-      text: `${hero.localizedName}: игры до 25 минут — ${percent(shortRate)} побед, дольше 45 минут — ${percent(longRate)}.\n${verdict}`,
-      poll: null
-    };
-  }
-  throw noData('timeline');
+// «Что брать рекруту» (owner, 27.10.2026): the newbie author's side, «бери и побеждай» — the heroes that win most on
+// Рекрут with enough matches to trust.
+const RECRUIT_MIN_MATCHES = 500;
+const RECRUIT_TOP = 5;
+
+export async function recruitPicks(context: RubricContext): Promise<RubricSample> {
+  const top = (await shares(context, 1))
+    .filter((each) => each.matches >= RECRUIT_MIN_MATCHES)
+    .sort((a, b) => b.winRate - a.winRate)
+    .slice(0, RECRUIT_TOP);
+  if (top.length < 3) throw noData('recruit heroes');
+  return {
+    picture: null,
+    text: [
+      'Кого брать на Рекрутах, чтобы побеждать:',
+      ...top.map((each) => `${each.hero.localizedName} — ${percent(each.winRate)} побед`)
+    ].join('\n'),
+    poll: null
+  };
 }
 
-/** Greedy items whose win rate falls the later they are bought. */
-const ANTI_ITEMS = ['hand_of_midas', 'battle_fury', 'radiance', 'maelstrom', 'armlet'];
+// «Гайд на героя» (owner, 27.10.2026): a popular hero's build by stage from what players really buy — the start
+// (bought before the horn or in the first minute), the core (10–25 minutes, the bigger items) and the late game.
+const GUIDE_POPULAR = 30;
+const GUIDE_ITEMS_MAX = 5;
 
-export async function antiBuild(context: RubricContext): Promise<RubricSample> {
-  const [heroes, itemList] = await Promise.all([context.sources.heroes(), context.sources.items()]);
-  const anti = new Map(itemList.filter((item) => ANTI_ITEMS.includes(item.key)).map((item) => [item.id, item]));
-  for (const hero of shuffled(
-    heroes.filter((each) => each.roles.includes('Carry')),
-    context.random
-  ).slice(0, 5)) {
-    const purchases = await needStats(context).heroPurchases(hero.id);
-    for (const [itemId, item] of anti) {
-      const rows = purchases.filter((row) => row.itemId === itemId);
-      const sum = (list: typeof rows) =>
-        list.reduce((acc, row) => ({ matches: acc.matches + row.matches, wins: acc.wins + row.wins }), {
-          matches: 0,
-          wins: 0
-        });
-      const early = sum(rows.filter((row) => row.minute <= 14));
-      const late = sum(rows.filter((row) => row.minute >= 22));
-      if (early.matches < 100 || late.matches < 100) continue;
-      const earlyRate = early.wins / early.matches;
-      const lateRate = late.wins / late.matches;
-      if (earlyRate - lateRate < 0.05) continue;
-      const html = picturePage(
-        `<div class="title"><b>Антисборка</b></div>
-<div class="row"><img class="portrait" src="${heroImage(hero.name)}" alt="">
-<div class="itemwrap"><img class="bigitem" src="${itemImage(item.key)}" alt=""><div class="cross"></div></div>
-<div class="facts"><div class="fact"><span>до 14-й минуты</span><b class="good">${percent(earlyRate)}</b></div>
-<div class="fact"><span>после 22-й минуты</span><b class="bad">${percent(lateRate)}</b></div></div></div>`,
-        `.row{display:flex;align-items:center;gap:48px;margin-top:56px}
-.portrait{width:320px;height:180px}
-.itemwrap{position:relative}
-.bigitem{width:220px;height:160px;border-radius:12px;border:1px solid var(--line)}
-.cross{position:absolute;inset:-8px;background:linear-gradient(35deg,transparent 46%,var(--red) 46%,var(--red) 54%,transparent 54%),linear-gradient(-35deg,transparent 46%,var(--red) 46%,var(--red) 54%,transparent 54%)}
-.facts{display:flex;flex-direction:column;gap:16px}
-.fact{display:flex;flex-direction:column}
-.fact span{font-weight:600;font-size:30px;color:var(--muted)}
-.fact b{font-weight:900;font-size:76px}
-.good{color:var(--good)}.bad{color:var(--red)}`
-      );
-      return {
-        picture: { html, ...PICTURE_SIZE },
-        text: `${item.name} на ${hero.localizedName}: до 14-й минуты — ${percent(earlyRate)} побед, после 22-й — ${percent(lateRate)}.\nЗачем вы его покупаете так поздно? 🤡`,
-        poll: null
-      };
-    }
-  }
-  throw noData('item timings');
+/** Items bought in the rows, most matches first, each once. */
+function topItems(rows: { itemId: number; matches: number }[], items: Map<number, ItemInfo>): ItemInfo[] {
+  const totals = new Map<number, number>();
+  for (const row of rows) totals.set(row.itemId, (totals.get(row.itemId) ?? 0) + row.matches);
+  return [...totals]
+    .sort((a, b) => b[1] - a[1])
+    .map(([itemId]) => items.get(itemId))
+    .filter((item): item is ItemInfo => item !== undefined);
+}
+
+export async function heroGuide(context: RubricContext): Promise<RubricSample> {
+  const popular = (await shares(context, 7)).sort((a, b) => b.pickRate - a.pickRate).slice(0, GUIDE_POPULAR);
+  const hero = pick(popular, context.random).hero;
+  const known = new Map((await context.sources.items()).map((item) => [item.id, item]));
+  // One stats call after another: the bridge serialises them anyway, and a burst got STRATZ_BLOCKED (27.10.2026).
+  const purchases = await needStats(context).heroPurchases(hero.id);
+  const late = await lateBuild(context, hero.id, known);
+  const start = topItems(
+    purchases.filter((row) => row.minute <= 1),
+    known
+  ).slice(0, GUIDE_ITEMS_MAX);
+  const core = topItems(
+    purchases.filter((row) => row.minute >= 10 && row.minute <= 25),
+    known
+  )
+    .filter((item) => item.cost >= 1000)
+    .slice(0, GUIDE_ITEMS_MAX);
+  const coreKeys = new Set(core.map((item) => item.key));
+  const lateOnly = late.filter((item) => !coreKeys.has(item.key)).slice(0, GUIDE_ITEMS_MAX);
+  if (start.length === 0 || core.length === 0 || lateOnly.length === 0) throw noData('hero purchases');
+  const names = (list: ItemInfo[]) => list.map((item) => item.name).join(', ');
+  return {
+    picture: null,
+    text: [
+      `Гайд на ${hero.localizedName}: что покупают те, кто на нём побеждает.`,
+      `Старт: ${names(start)}`,
+      `Кор: ${names(core)}`,
+      `Поздняя игра: ${names(lateOnly)}`
+    ].join('\n'),
+    poll: null
+  };
+}
+
+// «Суд» (owner, 27.10.2026): a hero on trial with this week's numbers on Божество; the subscribers give the verdict.
+const TRIAL_MIN_MATCHES = 500;
+const TRIAL_JOKES = ['Расстрелять, патч не ждать', 'Судья тоже на нём играет', 'Мне похуй, я на Пудже'] as const;
+
+export async function heroTrial(context: RubricContext): Promise<RubricSample> {
+  const list = (await shares(context, 7)).filter((each) => each.matches >= TRIAL_MIN_MATCHES);
+  const accused = pick(list, context.random);
+  return {
+    picture: null,
+    text: `На скамье подсудимых — ${accused.hero.localizedName}.`,
+    reference: `${accused.hero.localizedName} на Божествах за неделю: ${percent(accused.winRate)} побед, берут в ${percent(accused.pickRate)} игр, ${accused.matches.toLocaleString('ru-RU')} матчей.`,
+    poll: poll('Приговор', withJoke(['Виновен — в нерф', 'Оправдан'], context.random, TRIAL_JOKES))
+  };
 }
 
 type PositionRow = { heroId: number; position: number; matches: number; wins: number };
@@ -505,28 +364,6 @@ function mainPositions(rows: PositionRow[]): Map<number, { position: number; sha
     if (top !== undefined && total > 0) main.set(heroId, { position: top.position, share: top.matches / total, total });
   }
   return main;
-}
-
-export async function carryOnFive(context: RubricContext): Promise<RubricSample> {
-  const [rows, heroes] = await Promise.all([needStats(context).positions(), context.sources.heroes()]);
-  const main = mainPositions(rows);
-  // Real carries (most matches at position 1) that some still play as a five.
-  const found = heroes
-    .map((hero) => {
-      const own = main.get(hero.id);
-      const five = rows.find((row) => row.heroId === hero.id && row.position === 5);
-      return { hero, own, five, share: five === undefined || own === undefined ? 0 : five.matches / own.total };
-    })
-    .filter(
-      (each) => each.own?.position === 1 && each.own.total >= 1000 && each.five !== undefined && each.five.matches >= 50
-    )
-    .sort((a, b) => b.share - a.share)[0];
-  if (found === undefined || found.five === undefined) throw noData('positions');
-  return {
-    picture: null,
-    text: `Керри на пятой 🤡\n${found.hero.localizedName} — керри, но в ${percent(found.share)} игр его берут пятой позицией. И знаете что? Там он выигрывает ${percent(found.five.wins / found.five.matches)}.`,
-    poll: null
-  };
 }
 
 const SIGNS: Record<number, string> = { 1: 'Керри', 2: 'Мидеры', 3: 'Хардлайнеры', 4: 'Четвёрки', 5: 'Пятёрки' };
