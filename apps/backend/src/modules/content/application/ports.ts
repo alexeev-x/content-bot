@@ -71,6 +71,8 @@ export interface PostRepository {
    * Returns false when the idempotency claim is no longer ours, in which case nothing was written.
    */
   create(input: NewPost): Promise<boolean>;
+  /** Which of these posts (at most 100) `actor` created, read from their `post.create` audit rows. */
+  createdBy(actor: string, postIds: readonly string[]): Promise<Set<string>>;
   findById(id: string): Promise<PostRecord | null>;
   /** Marks the post's pictures as being attached until `until`, or clears it (null). Not a revision. */
   setMediaPending(postId: string, until: number | null): Promise<void>;

@@ -24,7 +24,7 @@ const COUNT_PROBE = DASHBOARD_ATTENTION_TOTAL_CAP + 1;
 const TITLE_AND_CHANNEL = `
   JOIN post_revisions r ON r.post_id = p.post_id AND r.revision = p.post_revision
   JOIN destinations d ON d.id = p.destination_id`;
-const PUBLICATION_COLUMNS = `p.id AS publication_id, p.scheduled_at AS scheduled_at,
+const PUBLICATION_COLUMNS = `p.id AS publication_id, p.post_id AS post_id, p.scheduled_at AS scheduled_at,
   substr(r.title, 1, ${TITLE_MAX_CHARS}) AS post_title, d.title AS destination_name`;
 
 // (a) Open incidents, `unknown` before `failed`, newest first. Each kind is its own bounded walk of
@@ -43,7 +43,7 @@ const ATTENTION_SQL = `
       ORDER BY created_at DESC, id DESC LIMIT ${DASHBOARD_ATTENTION_LIMIT})
   )
   SELECT t.id AS incident_id, t.kind AS kind, t.code AS code, t.created_at AS created_at,
-         p.id AS publication_id, p.scheduled_at AS scheduled_at,
+         p.id AS publication_id, p.post_id AS post_id, p.scheduled_at AS scheduled_at,
          substr(r.title, 1, ${TITLE_MAX_CHARS}) AS post_title, d.title AS destination_name,
          j.status AS job_status, j.run_at AS job_run_at, j.send_started_at AS job_send_started_at,
          (SELECT count(*) FROM (SELECT 1 FROM incidents WHERE resolved_at IS NULL LIMIT ${COUNT_PROBE})) AS open_total
@@ -131,6 +131,7 @@ interface JobColumns {
 
 interface PublicationColumns extends JobColumns {
   publication_id: string | null;
+  post_id: string | null;
   scheduled_at: number | null;
   post_title: string | null;
   destination_name: string | null;
@@ -159,6 +160,7 @@ interface SentRow extends PublicationColumns {
 function publicationOf(row: PublicationColumns): DashboardPublicationRow | null {
   if (
     row.publication_id === null ||
+    row.post_id === null ||
     row.scheduled_at === null ||
     row.post_title === null ||
     row.destination_name === null ||
@@ -169,6 +171,7 @@ function publicationOf(row: PublicationColumns): DashboardPublicationRow | null 
   }
   return {
     publicationId: row.publication_id,
+    postId: row.post_id,
     scheduledAt: row.scheduled_at,
     postTitle: row.post_title,
     destinationName: row.destination_name,

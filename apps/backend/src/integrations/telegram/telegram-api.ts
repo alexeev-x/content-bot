@@ -57,8 +57,12 @@ export interface TelegramPollParams extends TelegramSendFlags {
   options: string[];
   type: 'regular' | 'quiz';
   allows_multiple_answers: boolean;
+  /** Each voter sees the options in their own random order. */
+  shuffle_options?: boolean;
   correct_option_ids?: number[];
   explanation?: string;
+  /** A photo over the poll (Bot API 10.3): a rubric can be one poll message with its picture. */
+  media?: { type: 'photo'; media: InputFile };
 }
 
 // grammY's raw Api: no auto-retry plugin and no retry of its own, so a failed send is reported
@@ -121,8 +125,8 @@ export interface BotCommandDescription {
   description: string;
 }
 
-/** The updates the webhook asks for; `chat_member` (joins and leaves of the channel) is only sent when asked. */
-export type TelegramUpdateKind = 'message' | 'callback_query' | 'chat_member';
+/** The updates the webhook asks for. */
+export type TelegramUpdateKind = 'message' | 'callback_query';
 
 // What registering the bot needs. Answers stay `unknown`: the caller parses what it relies on.
 // `deleteMyCommands` takes a scope and a language because Telegram keeps one list per pair, and a
@@ -268,20 +272,5 @@ export function createTelegramOwnerMessageApi(token: string): TelegramOwnerMessa
       if (kind === 'video') return api.sendVideo(chatId, file, other, signal as never);
       return api.sendAnimation(chatId, file, other, signal as never);
     }
-  };
-}
-
-// Named invite links of a channel (the bot must be its admin with the right to invite users). Answers stay
-// `unknown`: the caller parses what it relies on.
-export interface TelegramInviteLinkApi {
-  createChatInviteLink(chatId: string, name: string, signal: AbortSignal): Promise<unknown>;
-  revokeChatInviteLink(chatId: string, inviteLink: string, signal: AbortSignal): Promise<unknown>;
-}
-
-export function createTelegramInviteLinkApi(token: string): TelegramInviteLinkApi {
-  const api = new Api(token);
-  return {
-    createChatInviteLink: (chatId, name, signal) => api.createChatInviteLink(chatId, { name }, signal as never),
-    revokeChatInviteLink: (chatId, inviteLink, signal) => api.revokeChatInviteLink(chatId, inviteLink, signal as never)
   };
 }

@@ -8,16 +8,14 @@ type Props = {
   timezone: string;
   state: SourceTableView;
   onChange: (patch: Partial<SourceTableView>) => void;
-  /** DEV only: the side panel offers the automatic publishing test. */
-  autopublishTest?: boolean;
 };
 
 /** «Источники»: feed health in one quiet row, then every event in one table; a row opens its side panel. */
-export function SourcesBoard({ timezone, state, onChange, autopublishTest = false }: Props) {
+export function SourcesBoard({ timezone, state, onChange }: Props) {
   return (
     <div className={styles.board}>
       <FeedHealth timezone={timezone} />
-      <SourceTable state={state} timezone={timezone} onChange={onChange} autopublishTest={autopublishTest} />
+      <SourceTable state={state} timezone={timezone} onChange={onChange} />
     </div>
   );
 }

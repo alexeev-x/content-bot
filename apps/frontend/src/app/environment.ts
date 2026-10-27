@@ -23,3 +23,8 @@ export function readTelegramBotUsername(): string | undefined {
   const raw = typeof __TELEGRAM_BOT_USERNAME__ === 'string' ? __TELEGRAM_BOT_USERNAME__.replace(/^@/, '') : '';
   return BOT_USERNAME.test(raw) ? raw : undefined;
 }
+
+// «Тестирование» (owner, 26.10.2026): true under Vite unless CLOUDFLARE_ENV=production (vite.config.ts); tests have none.
+declare const __LAB__: boolean | undefined;
+
+export const isLabBuild = () => typeof __LAB__ === 'boolean' && __LAB__;

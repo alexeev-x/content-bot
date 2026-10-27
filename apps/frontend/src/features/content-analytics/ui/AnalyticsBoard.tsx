@@ -18,7 +18,6 @@ import { CompareVideosPanel } from './CompareVideosPanel';
 import { CrossPostedPanel } from './CrossPostedPanel';
 import { TrendingPanel } from './TrendingPanel';
 import { FollowersGoalsPanel } from './FollowersGoalsPanel';
-import { InviteLinksPanel } from './InviteLinksPanel';
 import { FormatsPanel } from './FormatsPanel';
 import { RubricsPanel } from './RubricsPanel';
 import { InsightsPanel } from './InsightsPanel';
@@ -60,7 +59,6 @@ const RANKED_LIMIT = 5;
  * leaders and laggards, and every row in a paged table. All of it is computed from one report.
  */
 const COMPARE_ANCHOR = 'compare-videos';
-const INVITES_ANCHOR = 'invite-links';
 
 export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }: Props) {
   const { days, platform } = view;
@@ -72,17 +70,6 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
   const lastSynced = useLastSynced();
   // «Сравнить по часам» in the item panel switches the tab first; the panel exists only after that render.
   const [scrollToCompare, setScrollToCompare] = useState(false);
-  // «Создать ссылку» on «Ролики не приводят людей в Telegram» opens Аудитория at the invite links.
-  const [scrollToInvites, setScrollToInvites] = useState(false);
-  const onAudienceTab = view.tab === 'audience';
-  useEffect(() => {
-    if (!scrollToInvites || !onAudienceTab) return;
-    const frame = requestAnimationFrame(() => {
-      document.getElementById(INVITES_ANCHOR)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
-      setScrollToInvites(false);
-    });
-    return () => cancelAnimationFrame(frame);
-  }, [scrollToInvites, onAudienceTab]);
   const onItemsTab = view.tab === 'items';
   useEffect(() => {
     if (!scrollToCompare || !onItemsTab) return;
@@ -157,15 +144,7 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
           <TabPanel id="overview">
             <div className={styles.sections}>
               <PlatformTiles report={report} platform={platform} days={days} />
-              <InsightsPanel
-                insights={derived?.insights}
-                days={days}
-                onOpenItem={open}
-                onAction={() => {
-                  onViewChange({ tab: 'audience', platform: undefined });
-                  setScrollToInvites(true);
-                }}
-              />
+              <InsightsPanel insights={derived?.insights} days={days} onOpenItem={open} />
               <FormatsPanel series={derived?.series} onOpen={open} />
               {showRubrics && !rubricsQuery.isError ? (
                 <RubricsPanel summary={rubrics} onOpen={open} onOpenSettings={onOpenSettings} />
@@ -231,11 +210,6 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
           <TabPanel id="audience">
             <div className={styles.sections}>
               <FollowersGoalsPanel report={report} platform={platform} />
-              {platform === undefined || platform === 'telegram' ? (
-                <div id={INVITES_ANCHOR} className={styles.anchor}>
-                  <InviteLinksPanel days={days} onOpenSettings={onOpenSettings} />
-                </div>
-              ) : null}
               <CrossPostedPanel items={derived?.current} now={now} onOpen={open} />
               <PostingTimesPanel items={derived?.current} platform={platform} timezone={timezone} />
             </div>

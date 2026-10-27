@@ -108,7 +108,7 @@ function PostCell({
       <MediaTile size={40} />
       <span className={styles.cellTitle}>
         <strong className={styles.title} title={headline}>
-          {origin ? <AiMark text={copy.list.aiPost} /> : null} {headline || value.title}
+          {origin ? <AiMark text={copy.list.aiPost(origin.source)} /> : null} {headline || value.title}
           {deleted ? <span className={styles.deletedBadge}>{copy.list.postDeleted}</span> : null}
         </strong>
         {value.kind === 'poll' ? (

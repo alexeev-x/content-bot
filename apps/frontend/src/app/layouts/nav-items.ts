@@ -1,5 +1,6 @@
 import type { IconName } from '../../shared/ui';
 import { ru } from '../../shared/lib/ru';
+import { isLabBuild } from '../environment';
 
 export type NavItem = {
   to: string;
@@ -23,6 +24,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/ai', label: ru.nav.ai, icon: 'sparkle', primary: false },
   { to: '/media', label: ru.nav.media, icon: 'image', primary: false },
   { to: '/sources', label: ru.nav.sources, icon: 'link', primary: false },
+  // «Тестирование» (owner, 26.10.2026): DEV-only tools; a production build has neither the item nor the page.
+  ...(isLabBuild() ? [{ to: '/lab', label: ru.nav.lab, icon: 'flask' as const, primary: false }] : []),
   { to: '/settings', label: ru.nav.settings, icon: 'settings', primary: false, pinned: true }
 ];
 

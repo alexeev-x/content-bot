@@ -203,19 +203,19 @@ describe('POST /api/v1/sources/events/{id}/ai-draft', () => {
     expect(sourceEventPageSchema.parse(await (await get('?view=past')).json()).totalCount).toBe(0);
   });
 
-  it('runs the automatic way only where AUTOPUBLISH_TEST allows it (DEV)', async () => {
+  it('runs the automatic way only through «Тестирование» (a DEV build)', async () => {
     const test = (target: Api) =>
-      target.request(`/api/v1/sources/events/${encodeURIComponent('steam_news:0999')}/ai-draft`, {
-        method: 'POST',
-        json: { autopublishTest: true }
-      });
+      target.request(`/api/v1/lab/autopublish/${encodeURIComponent('steam_news:0999')}`, { method: 'POST' });
     const production = createApi({ clock: fakeClock(), botToken: null });
-    const refused = await test(production);
-    expect(refused.status).toBe(403);
-    expect(await refused.json()).toMatchObject({ error: { details: { reason: 'AUTOPUBLISH_TEST_OFF' } } });
+    expect((await test(production)).status).toBe(404);
+    const old = await production.request(`/api/v1/sources/events/${encodeURIComponent('steam_news:0999')}/ai-draft`, {
+      method: 'POST',
+      json: { autopublishTest: true }
+    });
+    expect(old.status).toBe(400);
     expect(production.aiJobs.sent).toHaveLength(0);
 
-    const dev = createApi({ clock: fakeClock(), botToken: null, env: { AUTOPUBLISH_TEST: 'true' } });
+    const dev = createApi({ clock: fakeClock(), botToken: null, lab: true });
     expect((await test(dev)).status).toBe(202);
     expect(dev.aiJobs.sent).toMatchObject([{ kind: 'source_event', externalId: '0999', automatic: true }]);
     await dev.settle();
@@ -456,19 +456,25 @@ describe('the Cron workflow: auto-draft and one owner notice per event', () => {
     expect(requested(queue.jobs)).toEqual(['1002']);
   });
 
-  it('with the source alerts preference off the patch is drafted but never announced, and not later either', async () => {
+  it('with «Новость пришла» off the patch is drafted but never announced, and not later either', async () => {
     const messenger = fakeOwnerMessenger();
     const off = {
       warningsEnabled: true,
       publicationAlerts: true,
-      sourceAlerts: false,
+      sourceAlerts: true,
       automationAlerts: true,
       recoveryAlerts: true,
       dotaWatchlistAlerts: true,
       scheduleNotices: true,
       sentNotices: true,
       dailyReport: false,
-      dailyReportHour: 9
+      dailyReportHour: 9,
+      draftOffers: false,
+      weeklyReport: true,
+      contentAlerts: true,
+      aiReviews: true,
+      scriptPrompts: true,
+      aiLearning: true
     };
     await processDotaUpdates(deps({ messenger, readNotificationPreferences: () => Promise.resolve(off) }));
     await processDotaUpdates(deps({ messenger }));

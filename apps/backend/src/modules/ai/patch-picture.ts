@@ -9,16 +9,16 @@ import { assertAiReady, costMicroUsd, effectivePrices, priceFor, readAiSettings 
 // references in a random theme, with the exact number and points; a second call reads it back, and a number or a
 // caption that differs means another try. After three tries the post goes without a picture.
 
-const IMAGE_MODEL = 'gpt-image-2.5-sunburst';
+export const IMAGE_MODEL = 'gpt-image-2.5-sunburst';
 // OpenAI's price (model page, read 23.10.2026): image input $8, text input $5, image output $30 per 1M tokens. Its
 // usage does not split our input, so all of it is priced as the image input (the references are most of it).
 const IMAGE_PRICE = { model: IMAGE_MODEL, inputPerMillion: 8, cachedInputPerMillion: 2, outputPerMillion: 30 };
 /** Reads pictures; the owner named it for the read-back (plan 22.10.2026). */
 const READ_MODEL = 'gpt-6.1-sol';
-const SIZE = '1536x768';
+export const SIZE = '1536x768';
 const TRIES = 3;
 /** A picture takes up to ~2 minutes (plan 22.10.2026); the read-back is one ordinary call. */
-const DRAW_TIMEOUT_MS = 150_000;
+export const DRAW_TIMEOUT_MS = 150_000;
 const READ_TIMEOUT_MS = 60_000;
 // A queue consumer has 15 minutes: no new try starts after this.
 const TOTAL_MS = 8 * 60_000;
@@ -121,7 +121,7 @@ export function hotfixPicturePrompt(input: { scene: string; caption: string }): 
   ].join('\n');
 }
 
-const decodeReference = (base64: string) => new Uint8Array(Buffer.from(base64, 'base64'));
+export const decodeReference = (base64: string) => new Uint8Array(Buffer.from(base64, 'base64'));
 
 /** Text as the read-back compares it: case, «ё», spacing and line breaks do not matter. */
 const same = (a: string, b: string) => {
@@ -150,7 +150,7 @@ export type PatchPictureResult =
   /** `unavailable`: AI is off, its key or the budget is missing; `mismatch`: three pictures read back wrong. */
   | { kind: 'failed'; reason: 'unavailable' | 'mismatch' | 'provider' };
 
-type PictureDeps = {
+export type PictureDeps = {
   repo: AiRepository;
   clock: Clock;
   timezone: string;
@@ -160,7 +160,7 @@ type PictureDeps = {
   onError?: (error: unknown) => void;
 };
 
-type Ready = {
+export type Ready = {
   reader: AiTextProvider;
   images: AiImageProvider;
   cheap: string | null;
@@ -168,7 +168,7 @@ type Ready = {
 };
 
 /** The read-back's provider, the image provider and the ledger; null when AI is off, a key or the budget is missing. */
-async function prepare(deps: PictureDeps): Promise<Ready | null> {
+export async function prepare(deps: PictureDeps): Promise<Ready | null> {
   const settings = await readAiSettings(deps.repo);
   let reader: AiTextProvider;
   try {

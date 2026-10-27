@@ -10,6 +10,7 @@ export {
 export {
   createD1GameFileBuilds,
   type GameFileBuildRepository,
+  type GameFind,
   type GameFileBuildRow,
   type GameFileBuildStatus
 } from './d1-game-file-builds';

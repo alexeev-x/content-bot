@@ -18,6 +18,10 @@ export type AppEnv = Env & {
   TIKTOK_CLIENT_SECRET?: string;
   /** A GitHub token with no scopes: the game-files tracker (owner, 24.10.2026). */
   GITHUB_TOKEN?: string;
+  /** STRATZ GraphQL token: pick and win rates for the rubrics (owner, 25.10.2026). */
+  STRATZ_TOKEN?: string;
+  /** The owner's stats bridge (`bridge/stats-bridge`), e.g. https://alexeev-stats.deno.dev: STRATZ refuses Cloudflare. */
+  STATS_BRIDGE_URL?: string;
 };
 
 export type AppBindings = {

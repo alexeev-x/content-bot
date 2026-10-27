@@ -14,8 +14,6 @@ export type Insight = {
   badge?: { value: string; sub?: string };
   /** A cover when the conclusion is about one publication. */
   thumb?: string | null;
-  /** What to do about it, right on the card (actions.ts). `invite`: create an invite link for a source. */
-  action?: { kind: 'invite'; label: string };
 };
 
 function signed(percent: number): string {

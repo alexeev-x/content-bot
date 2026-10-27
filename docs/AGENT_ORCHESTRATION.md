@@ -33,10 +33,8 @@ Scripts in `.agents/hooks/`, wired into `.claude/settings.json` and `.codex/hook
 | Hook | What it does | Token cost |
 |---|---|---|
 | `guard-command` (PreToolUse) | rejects known deploy/remote/secrets/force-push/main-push/PR-merge commands and common secret-file reads; best-effort only, not a security boundary | 0 |
-| `verify-on-stop` (Stop/SubagentStop) | runs `npm run verify:changed` through the Windows-safe runner; reuses only an unchanged snapshot and does not cache if files change or another builder remains active | no model usage |
-| `track-builders` (SubagentStart/SubagentStop) | records running builder agents so `verify-on-stop` waits for parallel work | 0 |
 
-Codex loads project hooks only after the owner trusts the project hook definitions. Claude and Codex hook payloads differ; shared scripts accept known agent-type field variants. Disable verify-on-stop with `AGENT_VERIFY_ON_STOP=0`. Neither hooks nor prompt rules restrict production access by themselves; owner-controlled sandbox and credential isolation are required.
+Codex loads project hooks only after the owner trusts the project hook definitions. Claude and Codex hook payloads differ; shared scripts accept known agent-type field variants. Checks run before a push, not after every reply (owner, 27.10.2026: the stop hook spent minutes on each answer): the Git pre-push hook runs `npm run verify:changed`. Neither hooks nor prompt rules restrict production access by themselves; owner-controlled sandbox and credential isolation are required.
 
 ## Process
 Defined only in skill `orchestrate` (`.agents/skills/orchestrate/SKILL.md`).

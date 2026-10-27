@@ -149,6 +149,33 @@ describe('analytics review', () => {
     expect(week.review?.steps).toHaveLength(3);
   });
 
+  it('gives the week room to think and asks once more with twice the room when the answer is cut (26.10.2026)', async () => {
+    // The week's report said «модель ответила не в том формате»: the reasoning model ran out of output tokens and its
+    // JSON was cut off. The week comes once a week, so a cut answer is asked again at once.
+    const asked: number[] = [];
+    const cutThenWhole = (cuts: number): AiTextProvider => ({
+      provider: 'openai',
+      complete: async (request) => {
+        asked.push(request.maxOutputTokens);
+        const cut = asked.length <= cuts;
+        return {
+          text: cut ? '{"main":"Неделя.","points":[{"text":"вывод' : JSON.stringify({ ...base, main: 'Неделя.' }),
+          model: 'gpt-6.1-sol',
+          usage: { inputTokens: 1000, cachedInputTokens: 0, cacheWriteTokens: 0, outputTokens: 4000 },
+          ...(cut ? { truncated: true } : {})
+        };
+      }
+    });
+    const week = { facts: FACTS, videos: ['Y1'], period: 'week' as const, signal: AbortSignal.timeout(1000) };
+    const second = await writeAnalyticsReview(deps(cutThenWhole(1)), week);
+    expect(second).toMatchObject({ review: { main: 'Неделя.' }, errorCode: null });
+    expect(asked).toEqual([16000, 32000]);
+    asked.length = 0;
+    const never = await writeAnalyticsReview(deps(cutThenWhole(2)), week);
+    expect(never).toMatchObject({ review: null, errorCode: 'AI_TRUNCATED' });
+    expect(asked).toHaveLength(2);
+  });
+
   it('keeps the short names of listed videos only, short and never one name twice (22.10.2026)', async () => {
     const result = await writeAnalyticsReview(
       deps(

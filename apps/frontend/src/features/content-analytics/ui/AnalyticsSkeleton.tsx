@@ -12,7 +12,6 @@ import { PostingTimesPanel } from './PostingTimesPanel';
 import { RankedLists } from './RankedLists';
 import styles from './Report.module.css';
 import { FormatsPanel } from './FormatsPanel';
-import { InviteLinksPanelSkeleton } from './InviteLinksPanel';
 import { PlatformTiles } from './PlatformTiles';
 import { TrendingPanel } from './TrendingPanel';
 
@@ -42,7 +41,7 @@ export function AnalyticsSkeleton({ tab, timezone }: { tab: AnalyticsTab; timezo
           <TabPanel id="overview">
             <div className={styles.sections}>
               <PlatformTiles report={undefined} platform={undefined} days={30} />
-              <InsightsPanel insights={undefined} days={30} onOpenItem={ignore} onAction={ignore} />
+              <InsightsPanel insights={undefined} days={30} onOpenItem={ignore} />
               <FormatsPanel series={undefined} onOpen={ignore} />
               <TrendingPanel
                 items={undefined}
@@ -94,7 +93,6 @@ export function AnalyticsSkeleton({ tab, timezone }: { tab: AnalyticsTab; timezo
           <TabPanel id="audience">
             <div className={styles.sections}>
               <FollowersGoalsPanelSkeleton />
-              <InviteLinksPanelSkeleton />
               <CrossPostedPanel items={undefined} now={0} onOpen={ignore} />
               <PostingTimesPanel items={undefined} platform={undefined} timezone={timezone} />
             </div>

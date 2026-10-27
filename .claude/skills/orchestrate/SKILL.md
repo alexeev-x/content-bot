@@ -1,6 +1,6 @@
 ---
 name: orchestrate
-description: "Main-session playbook: when to do the work yourself vs delegate, risk gate, task packets, repair loop, commit and push to develop. Use for any task spanning several areas or steps."
+description: "Main-session playbook: when to do the work yourself vs delegate, risk gate, task packets, repair loop, commit and push to develop, batched releases and hotfixes. Use for any task spanning several areas or steps."
 ---
 # Orchestrate a task
 
@@ -33,7 +33,7 @@ No prototype stage: build UI directly in production code from `design-refs/<task
 | R2 | contract and consumers, shared primitives, verification tooling | — | `npm run verify` |
 | R3 | auth, sessions, webhook, migrations, publishing/Telegram, secrets, command safety | `qa-security` before commit | `npm run verify` + the relevant failure tests |
 
-The stop hook runs `verify:changed` automatically; a green hook result on the unchanged tree counts for R1. The pre-push hook runs `verify:changed` with the tests; CI on a `develop` push checks, scans for secrets and deploys without running the tests again, and runs every test on PRs and `main`.
+The pre-push hook runs `verify:changed` with the tests named after the changed files (a contract change runs a whole suite); CI on a `develop` push checks, scans for secrets and deploys without running the tests again, and runs every test on PRs and `main`.
 
 ## Task packet (when delegating)
 ≤ 40 lines: goal, owned paths, acceptance criteria, pointers (`path:lines`, doc §), constraints, report cap. Never paste documents, code or transcripts. Builders never edit `apps/contracts`; they answer `BLOCKED: contract`. Serialize `apps/contracts/**`, migrations, `container.ts`, the router and the token file (one task at a time). Parallel builders use worktrees: `references/parallel-worktrees.md`.
@@ -43,3 +43,7 @@ A failure goes back to its owner with only the failing lines and file. Same firs
 
 ## Deliver
 Commit (conventional message), push `develop`/branch (CI applies DEV migrations before deploying), then the final message from root `AGENTS.md`. Never touch `main`.
+
+## Releases and hotfixes (owner, 25.10.2026)
+- Work piles up on `develop`; small tasks never go to production alone. After a release (the owner's `develop → main`), the first `develop` commit raises the minor version (`0.2.0 → 0.3.0`) in the root and `apps/contracts` `package.json`.
+- Only a critical production bug (posts lost, duplicated or wrong in the channel, the bot or the studio down, data loss, a security hole) gets a hotfix: branch `hotfix/…` from `main`, the fix and a patch version (`0.1.0 → 0.1.1`), a PR into `main` for the owner to merge, then `main` merged back into `develop`.

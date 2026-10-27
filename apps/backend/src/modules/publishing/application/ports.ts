@@ -554,6 +554,7 @@ export interface IncidentRepository {
 
 export interface DashboardPublicationRow {
   publicationId: string;
+  postId: string;
   /** UTC epoch milliseconds. */
   scheduledAt: number;
   /** Truncated by the repository. */

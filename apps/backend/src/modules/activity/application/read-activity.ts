@@ -56,7 +56,12 @@ function parseDetails(raw: string | null): z.infer<typeof detailsSchema> {
   }
 }
 
-function toItem(row: ActivityRow, ownerId: string, aiPosts: ReadonlySet<string>): ActivityItemDto | null {
+function toItem(
+  row: ActivityRow,
+  ownerId: string,
+  autopublishActor: string | undefined,
+  aiPosts: ReadonlySet<string>
+): ActivityItemDto | null {
   const action = activityActionSchema.safeParse(row.action);
   const entityType = ENTITY_TYPES.find((type) => type === row.entityType);
   if (!action.success || entityType === undefined) return null;
@@ -66,13 +71,16 @@ function toItem(row: ActivityRow, ownerId: string, aiPosts: ReadonlySet<string>)
     at: new Date(row.at).toISOString(),
     action: action.data,
     category: CATEGORY[action.data],
-    // A post made from an approved AI draft was written by the AI editor, though the owner's tap created it.
+    // The automatic publishing acts with no one approving (owner, 27.10.2026: its posts read «ИИ» everywhere); a post
+    // made from an approved AI draft was written by the AI editor, though the owner's tap created it.
     actor:
-      action.data === 'post.create' && row.postId !== null && aiPosts.has(row.postId)
-        ? 'ai'
-        : row.actor === ownerId
-          ? 'owner'
-          : 'system',
+      autopublishActor !== undefined && row.actor === autopublishActor
+        ? 'autopublish'
+        : action.data === 'post.create' && row.postId !== null && aiPosts.has(row.postId)
+          ? 'ai'
+          : row.actor === ownerId
+            ? 'owner'
+            : 'system',
     entityType,
     entityId: row.entityId,
     title: row.title,
@@ -91,6 +99,8 @@ export async function readActivity(
     ownerId: string;
     /** Consumer-owned port: which of these posts came from an approved AI draft (the AI module knows). */
     aiPosts?: (postIds: readonly string[]) => Promise<ReadonlySet<string>>;
+    /** The automatic publishing's audit actor: its rows are the AI's own, not the system's. */
+    autopublishActor?: string;
   },
   query: ActivityQuery
 ): Promise<ActivityPageDto> {
@@ -114,7 +124,7 @@ export async function readActivity(
       ? new Set<string>()
       : await deps.aiPosts(created.map((row) => row.postId ?? ''));
   return {
-    items: page.flatMap((row) => toItem(row, deps.ownerId, aiPosts) ?? []),
+    items: page.flatMap((row) => toItem(row, deps.ownerId, deps.autopublishActor, aiPosts) ?? []),
     nextCursor: rows.length > query.limit && last !== undefined ? encodeKeysetCursor([last.at, last.id]) : null
   };
 }

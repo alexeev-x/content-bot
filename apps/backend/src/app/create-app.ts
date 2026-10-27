@@ -66,6 +66,8 @@ export function createApp(
   > & {
     /** Routes registered before the session guard: the `npm run dev` sign-in (local-sign-in-route.ts). */
     mountBeforeGuard?: (app: Hono<AppBindings>) => void;
+    /** Routes behind the session guard that only a `__LAB__` build has: «Тестирование» (lab/lab-routes.ts). */
+    mountLab?: (app: Hono<AppBindings>) => void;
   } = {}
 ) {
   const app = new Hono<AppBindings>();
@@ -119,6 +121,7 @@ export function createApp(
   app.route('/api/v1/dota', dotaRoutes);
   app.route('/api/v1/sources', sourcesRoutes);
   app.route('/api/v1/publications', publicationsRoutes);
+  options.mountLab?.(app);
   app.route('/api/v1/dashboard', dashboardRoutes);
   app.route('/api/v1/activity', activityRoutes);
   app.route('/api/v1/incidents', incidentsRoutes);

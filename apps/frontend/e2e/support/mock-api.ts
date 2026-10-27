@@ -1185,42 +1185,6 @@ export async function mockApi(page: Page): Promise<void> {
       ]
     })
   );
-  await page.route(/\/api\/v1\/content-analytics\/invite-links(\?.*)?$/, (route) =>
-    json(route, {
-      channel: 'alexeev_x',
-      links: [
-        {
-          id: 'a1b2c3d4-0000-4000-8000-000000000001',
-          name: 'TikTok — шапка профиля',
-          url: 'https://t.me/+AbCdEf123456',
-          createdAt: T,
-          revokedAt: null,
-          joined: 41,
-          left: 6
-        },
-        {
-          id: 'a1b2c3d4-0000-4000-8000-000000000002',
-          name: 'YouTube — описание',
-          url: 'https://t.me/+GhIjKl789012',
-          createdAt: T,
-          revokedAt: null,
-          joined: 12,
-          left: 1
-        },
-        {
-          id: 'a1b2c3d4-0000-4000-8000-000000000003',
-          name: 'Реклама в «Доте без воды»',
-          url: 'https://t.me/+MnOpQr345678',
-          createdAt: T,
-          revokedAt: T,
-          joined: 23,
-          left: 14
-        }
-      ],
-      withoutLink: { joined: 9, left: 3 },
-      trackingSince: T
-    })
-  );
   await page.route('**/api/v1/health', (route) =>
     json(route, { status: 'ok', service: 'e2e', publishingEnabled: false, time: T })
   );

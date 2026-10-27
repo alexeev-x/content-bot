@@ -27,6 +27,7 @@ import {
 import { runSeriesPublishStep } from './workflows/autopublish-series';
 import { runTreasureWatch } from './workflows/treasure-watch';
 import { gameFilesExternalId, prepareGameFilesPost, runGameFilesWatch, runQuietBuild } from './workflows/game-files';
+import type { LabQueue } from './lab';
 import { runSteamWatch } from './workflows/steam-watch';
 import { getOwnerOperationsSettings } from '../modules/settings';
 import { escapeHtml } from './notifications/notice-template';
@@ -310,7 +311,13 @@ async function runPatchPublishJob(
  * charts the jobs in Workers Logs — which ran, how long, which failed — and finds a cause by its request id). The
  * job's own failures are logged by its handler with their codes; this line is the summary.
  */
-export async function handleAiQueue(batch: MessageBatch<unknown>, container: Container, token: string) {
+export async function handleAiQueue(
+  batch: MessageBatch<unknown>,
+  container: Container,
+  token: string,
+  /** «Тестирование»'s jobs; null outside a `__LAB__` build, where such a job is dropped (nothing there sends one). */
+  lab: LabQueue | null = null
+) {
   for (const message of batch.messages) {
     const startedAt = Date.now();
     const body: unknown = message.body;
@@ -320,7 +327,7 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
         : 'unknown';
     let status = 'done';
     try {
-      await handleAiQueueMessages({ ...batch, messages: [message] }, container, token);
+      await handleAiQueueMessages({ ...batch, messages: [message] }, container, token, lab);
     } catch (error) {
       status = 'crashed';
       throw error;
@@ -337,7 +344,12 @@ export async function handleAiQueue(batch: MessageBatch<unknown>, container: Con
   }
 }
 
-async function handleAiQueueMessages(batch: MessageBatch<unknown>, container: Container, token: string) {
+async function handleAiQueueMessages(
+  batch: MessageBatch<unknown>,
+  container: Container,
+  token: string,
+  lab: LabQueue | null
+) {
   const { logger } = container;
   for (const message of batch.messages) {
     const requestId = `queue:${message.id}`;
@@ -409,6 +421,17 @@ async function handleAiQueueMessages(batch: MessageBatch<unknown>, container: Co
     }
     if (job.kind === 'patch_publish') {
       await runPatchPublishJob(job, container, token, requestId, onError);
+      message.ack();
+      continue;
+    }
+    if (job.kind === 'rubric_sample') {
+      // Claimed once: the pictures and the caption are paid calls.
+      try {
+        if (lab !== null && (await container.aiWriter.claimJob(job.id, container.clock.now())))
+          await lab.runRubricSample(container, token, job.rubric, requestId, onError);
+      } catch (error) {
+        onError(error);
+      }
       message.ack();
       continue;
     }
@@ -693,6 +716,11 @@ async function handleAiQueueMessages(batch: MessageBatch<unknown>, container: Co
           requestId,
           status: outcome.kind === 'skipped' ? outcome.reason : outcome.kind
         });
+        // The find's post, kept with its build for the rubric «Утечка недели».
+        if (eventJob.own !== undefined && 'postId' in outcome && outcome.postId !== null)
+          await container.gameFileBuilds
+            .attachPost(eventJob.externalId.replace(/^files:/u, ''), outcome.postId)
+            .catch(onError);
         // For the studio's «Автопубликация»: a queued post is recorded by its own job, when it is published or held.
         const source = eventJob.own === undefined ? 'event' : 'game_files';
         if (outcome.kind === 'published' || outcome.kind === 'held')

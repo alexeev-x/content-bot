@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { publicationStatusSchema } from './publications';
+import { postOriginSchema } from './post-origin';
 
 /** The longest day the client may ask for: a 25-hour DST day plus slack. */
 export const DASHBOARD_MAX_RANGE_MS = 48 * 60 * 60 * 1000;
@@ -38,7 +39,9 @@ export const dashboardPublicationSchema = z.object({
   status: publicationStatusSchema,
   /** Truncated to 120 characters. */
   postTitle: z.string(),
-  destinationName: z.string()
+  destinationName: z.string(),
+  /** Studio-only: who wrote the post (as `PostDto.origin`); null — the owner. */
+  postOrigin: postOriginSchema.nullable().optional()
 });
 export type DashboardPublicationDto = z.infer<typeof dashboardPublicationSchema>;
 

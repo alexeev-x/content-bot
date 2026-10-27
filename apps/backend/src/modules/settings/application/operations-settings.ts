@@ -1,5 +1,6 @@
 import {
   AUTOPUBLISH_DEFAULTS,
+  BACKGROUND_DEFAULTS,
   type OwnerOperationsSettingsDto,
   ownerOperationsSettingsSchema,
   type UpdateOwnerOperationsSettingsInput
@@ -22,11 +23,18 @@ const DEFAULTS = {
     scheduleNotices: false,
     sentNotices: false,
     dailyReport: false,
-    dailyReportHour: 9
+    dailyReportHour: 9,
+    draftOffers: true,
+    weeklyReport: true,
+    contentAlerts: true,
+    aiReviews: true,
+    scriptPrompts: true,
+    aiLearning: true
   },
-  autopublish: AUTOPUBLISH_DEFAULTS
+  autopublish: AUTOPUBLISH_DEFAULTS,
+  background: BACKGROUND_DEFAULTS
 } as const;
-const DOCUMENT_FIELDS = ['timezone', 'notifications', 'autopublish'] as const;
+const DOCUMENT_FIELDS = ['timezone', 'notifications', 'autopublish', 'background'] as const;
 
 function validEpoch(value: unknown): value is number {
   return typeof value === 'number' && Number.isSafeInteger(value) && Math.abs(value) <= 8.64e15;
@@ -90,7 +98,8 @@ export async function saveOwnerOperationsSettings(
   const document = {
     timezone: input.timezone,
     notifications: input.notifications,
-    autopublish: input.autopublish ?? current.dto.autopublish
+    autopublish: input.autopublish ?? current.dto.autopublish,
+    background: input.background ?? current.dto.background
   };
   const fields = DOCUMENT_FIELDS.filter(
     (field) => current.corrupt || JSON.stringify(current.dto[field]) !== JSON.stringify(document[field])

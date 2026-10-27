@@ -28,20 +28,13 @@ import {
   CONTENT_FORECAST_ACCURACY_DAYS,
   contentForecastAccuracySchema,
   type ContentReportSummaryDto,
-  inviteLinkInputSchema,
-  inviteLinkParamsSchema,
-  inviteLinkSchema,
-  inviteLinksSchema,
   tiktokConnectSchema
 } from '@alexeev/contracts';
 import { Hono } from 'hono';
 import { z } from 'zod';
 import {
   collectContentAnalytics,
-  createInviteLink,
   listContentItems,
-  readInviteLinks,
-  revokeInviteLink,
   listReports,
   readForecastAccuracy,
   readReport,
@@ -76,7 +69,6 @@ import { deleteCookie, getCookie, setCookie } from 'hono/cookie';
 import { rateLimitClientKey } from '../platform/rate-limit/client-key';
 import type { AppBindings } from './env';
 import { validated } from './validation';
-import { createInviteLinkTelegram } from './telegram-invite-links';
 
 const itemParamsSchema = z.strictObject({ id: contentItemIdSchema });
 // TikTok's redirect: every field optional and bounded; anything else in the query is ignored.
@@ -115,17 +107,6 @@ async function withCosts(container: Container, reports: readonly ReportSummary[]
     costUsd: report.usageId === null ? null : (costs.get(report.usageId) ?? null),
     headline: report.headline
   }));
-}
-
-// The invite link use cases: the repository, the channel and, built only when a call needs it, Telegram.
-function inviteDeps(container: Container, requestId: string) {
-  return {
-    repo: container.inviteLinks,
-    clock: container.clock,
-    channel: container.analyticsTelegramChannel,
-    newId: container.newId,
-    telegram: () => createInviteLinkTelegram(container.inviteLinkApi, { logger: container.logger, requestId })
-  };
 }
 
 export const contentAnalyticsRoutes = new Hono<AppBindings>()
@@ -422,16 +403,4 @@ export const contentAnalyticsRoutes = new Hono<AppBindings>()
       );
       return c.json(contentPostRubricSchema.parse(picked));
     }
-  )
-  .get('/invite-links', validated('query', contentReportQuerySchema), async (c) => {
-    const links = await readInviteLinks(inviteDeps(c.get('container'), c.get('requestId')), c.req.valid('query').days);
-    return c.json(inviteLinksSchema.parse(links));
-  })
-  .post('/invite-links', validated('json', inviteLinkInputSchema), async (c) => {
-    const link = await createInviteLink(inviteDeps(c.get('container'), c.get('requestId')), c.req.valid('json').name);
-    return c.json(inviteLinkSchema.parse(link), 201);
-  })
-  .post('/invite-links/:id/revoke', validated('param', inviteLinkParamsSchema), async (c) => {
-    const link = await revokeInviteLink(inviteDeps(c.get('container'), c.get('requestId')), c.req.valid('param').id);
-    return c.json(inviteLinkSchema.parse(link));
-  });
+  );

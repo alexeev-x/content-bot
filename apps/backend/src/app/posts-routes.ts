@@ -28,7 +28,7 @@ import {
   updatePost,
   uploadPostMedia
 } from '../modules/content';
-import { readPostOrigins } from '../modules/ai';
+import { readStudioOrigins } from './post-origins';
 import { deletePost, deletePosts, restorePosts } from '../modules/lifecycle';
 import { AppError } from '../shared/app-error';
 import type { AppBindings } from './env';
@@ -80,8 +80,8 @@ export const postsRoutes = new Hono<AppBindings>()
     const container = c.get('container');
     if (c.env.DB === undefined) throw new AppError('UNAVAILABLE', 'Database is not configured');
     const page = await listPostsFromApp({ container, db: c.env.DB, now: container.clock.now() }, c.req.valid('query'));
-    const origins = await readPostOrigins(
-      { writer: container.aiWriter },
+    const origins = await readStudioOrigins(
+      container,
       page.items.map((post) => post.id)
     );
     return c.json({ ...page, items: page.items.map((post) => ({ ...post, origin: origins.get(post.id) ?? null })) });
@@ -121,7 +121,7 @@ export const postsRoutes = new Hono<AppBindings>()
     // The origin needs only the id from the URL, so it is read together with the post.
     const [post, origins] = await Promise.all([
       getPost({ repo: container.posts, summaries: container.postSummaries, now: container.clock.now() }, id),
-      readPostOrigins({ writer: container.aiWriter }, [id])
+      readStudioOrigins(container, [id])
     ]);
     const origin = origins.get(post.id) ?? null;
     return c.json({ ...post, origin });

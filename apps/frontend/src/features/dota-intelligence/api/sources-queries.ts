@@ -128,8 +128,7 @@ export function useCreateSourceEventDraft() {
 export function useRequestSourceEventAiDraft() {
   const queryClient = useQueryClient();
   return useMutation({
-    mutationFn: (input: string | { id: string; autopublishTest: true }) =>
-      typeof input === 'string' ? requestSourceEventAiDraft(input) : requestSourceEventAiDraft(input.id, true),
+    mutationFn: requestSourceEventAiDraft,
     retry: false,
     onSettled: () => queryClient.invalidateQueries({ queryKey: sourceEventKeys.all })
   });

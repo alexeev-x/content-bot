@@ -1,5 +1,5 @@
 import { Button as AriaButton } from 'react-aria-components';
-import { Button, Icon, type IconName, Panel, Skeleton } from '../../../shared/ui';
+import { Icon, type IconName, Panel, Skeleton } from '../../../shared/ui';
 import { CARDS_MAX } from '../model/actions';
 import type { Insight } from '../model/insights';
 import { copy } from './copy';
@@ -10,17 +10,15 @@ type Props = {
   insights: readonly Insight[] | undefined;
   days: number;
   onOpenItem: (id: string) => void;
-  onAction: (kind: NonNullable<Insight['action']>['kind']) => void;
 };
 
 const ICON: Record<Insight['tone'], IconName> = { good: 'arrow-up', bad: 'arrow-down', neutral: 'info' };
 const TONE_LABEL = { good: 'Хорошо', bad: 'Внимание', neutral: 'Наблюдение' } as const;
 
 /**
- * «Что сделать»: at most four conclusions that change the next step (composeCards), each with the figure it rests on
- * and its action. An odd last card spans the row, so the grid stays even (owner, 20.10.2026: «сделай их четными»).
+ * «Что сделать»: at most four conclusions that change the next step (composeCards), each with the figure it rests on. An odd last card spans the row, so the grid stays even (owner, 20.10.2026: «сделай их четными»).
  */
-export function InsightsPanel({ insights, days, onOpenItem, onAction }: Props) {
+export function InsightsPanel({ insights, days, onOpenItem }: Props) {
   if (insights === undefined) return <InsightsSkeleton days={days} />;
   return (
     <Panel title={copy.insights.title(days)} headingLevel={2} quiet>
@@ -44,13 +42,6 @@ export function InsightsPanel({ insights, days, onOpenItem, onAction }: Props) {
                     <span className={styles.title}>{insight.title}</span>
                   )}
                   <span className={styles.detail}>{insight.detail}</span>
-                  {insight.action ? (
-                    <span className={styles.actionRow}>
-                      <Button size="sm" icon="link" onPress={() => onAction(insight.action!.kind)}>
-                        {insight.action.label}
-                      </Button>
-                    </span>
-                  ) : null}
                 </span>
                 {insight.badge ? (
                   <span className={styles.badge} data-tone={insight.tone}>

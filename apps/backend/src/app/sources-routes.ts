@@ -16,13 +16,13 @@ import { parseSourceEventId } from '../modules/dota';
 import { AppError } from '../shared/app-error';
 import type { AppBindings } from './env';
 import { validated } from './validation';
-import { appOriginOf } from './bot/app-origin';
 import { rateLimit } from './rate-limit';
 import { createWriterDeps } from './bot/writer-deps';
 import { approveSourceAiDraft, readSourceAiDraft } from './workflows/approve-source-ai-draft';
 import { createSourceEventDraft } from './workflows/create-source-event-draft';
 import { queuePictureJob } from './workflows/picture-jobs';
-import { readSourceEventContent, requestSourceEventDraft } from './workflows/source-event-ai-draft';
+import { readSourceEventContent } from './workflows/source-event-ai-draft';
+import { requestSourceAiDraft } from './source-ai-draft-request';
 
 // Every «Написать через ИИ» is a paid model call.
 const AI_DRAFT_LIMIT = 10;
@@ -79,47 +79,11 @@ export const sourcesRoutes = new Hono<AppBindings>()
     rateLimit({ name: 'source-ai-draft', limit: AI_DRAFT_LIMIT, windowMs: AI_DRAFT_WINDOW_MS }),
     validated('param', eventParamsSchema),
     async (c) => {
-      const container = c.get('container');
-      if (c.env.DB === undefined) throw new AppError('UNAVAILABLE', 'Database is not configured');
-      // An empty body is the ordinary request; only dev lets a test go the automatic way (it may publish).
+      // An empty body: the automatic test lives in «Тестирование» (app/lab) since 26.10.2026.
       const raw: unknown = await c.req.json().catch(() => ({}));
-      const input = requestSourceEventAiDraftInputSchema.safeParse(raw ?? {});
-      if (!input.success) throw new AppError('VALIDATION_ERROR', 'Invalid request body');
-      const automatic = input.data.autopublishTest === true;
-      if (automatic && c.env.AUTOPUBLISH_TEST !== 'true')
-        throw new AppError('FORBIDDEN', 'The automatic publishing test is off here', {
-          reason: 'AUTOPUBLISH_TEST_OFF'
-        });
-      const key = parseSourceEventId(c.req.valid('param').id);
-      const event = key === null ? null : await container.sourceEvents.find(key);
-      if (key === null || event === null) throw new AppError('NOT_FOUND', 'Event not found');
-      if (key.sourceKey !== 'steam_news')
-        throw new AppError('CONFLICT', 'Only a Steam announcement is written by the AI', { reason: 'NOT_AI_SOURCE' });
-      if (event.status === 'hidden') throw new AppError('CONFLICT', 'Event is hidden', { reason: 'EVENT_HIDDEN' });
-      if (event.aiWriting) throw new AppError('CONFLICT', 'The AI is writing it already', { reason: 'AI_WRITING' });
-      const chatId = Number(container.ownerChatId);
-      // The draft arrives in the owner's bot chat: without it there is nowhere to send it.
-      if (container.ownerChatId === null || !Number.isSafeInteger(chatId))
-        throw new AppError('UNAVAILABLE', 'The owner chat is not configured', { reason: 'NO_OWNER_CHAT' });
-      const queued = await requestSourceEventDraft(
-        {
-          repo: container.dotaRepository,
-          enqueue: (job) => container.aiJobs.send(job),
-          newId: container.newId,
-          now: () => container.clock.now()
-        },
-        { externalId: key.externalId, chatId, appOrigin: appOriginOf(c.req.url), replay: true, automatic }
-      );
-      // Lost a race with another tap (or a hide): the claim decides, the read says which.
-      if (!queued) {
-        const now = await container.sourceEvents.find(key);
-        throw now?.aiWriting
-          ? new AppError('CONFLICT', 'The AI is writing it already', { reason: 'AI_WRITING' })
-          : new AppError('CONFLICT', 'Event is hidden', { reason: 'EVENT_HIDDEN' });
-      }
-      const updated = await container.sourceEvents.find(key);
-      if (updated === null) throw new AppError('NOT_FOUND', 'Event not found');
-      return c.json(updated, 202);
+      if (!requestSourceEventAiDraftInputSchema.safeParse(raw ?? {}).success)
+        throw new AppError('VALIDATION_ERROR', 'Invalid request body');
+      return c.json(await requestSourceAiDraft(c, c.req.valid('param').id, false), 202);
     }
   )
   .get('/events/:id/ai-draft', validated('param', eventParamsSchema), async (c) => {

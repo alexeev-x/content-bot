@@ -70,7 +70,7 @@ Settings → Общие → «Автопубликация» (`OwnerOperationsSe
 **A series (migration 0100, owner 22.10.2026).** A series planned from Cron's draft is `source_series.automatic`, and each post keeps its fact check (`source_series_posts.fact_check`). When the last post is written and every post is ready and clean, no «Серия готова» note is sent: `series_publish` jobs run one post per queue message, then one more for the publication (`app/workflows/autopublish-series.ts`; each message stays inside the Free plan's queries and subrequests). The first step checks the switch, an enabled channel, the limit (a series counts once) and that nobody touched the series: every post is still its first, fact-checked version with no rewrite or owner edit, and none is in the studio yet (QA 22.10.2026). Refused there, the owner gets the usual note. Each post step checks its post again, approves it into a studio post (`OWNER_PREAPPROVED`, actor `autopublish`), attaches up to 5 of its pictures and approves the post. The publication step refuses if the switch went off or any of the posts already has a publication (one the owner made by hand meanwhile), else creates the series publication (`autopublish-series:<series id>`, now, 10 minutes apart). Notes are silent while the automatic publishing is on; a step that stops says the posts wait in the studio, where «Опубликовать серию» publishes them; a step whose Worker dies is reported by Cron's lost-job check (its claim carries the chat). With the switch off, a Cron series' «Серия готова» keeps its sound.
 
 
-A test on DEV (owner, 23.10.2026): the side panel's «Проверить автопубликацию (DEV)» (shown on the dev build for a Steam announcement without a post) asks for the AI draft with `autopublishTest`, so the job is `automatic` as Cron's own and takes the same way: the hotfix check, the writer, the fact check, the approval and publishing when the automatic publishing is on (a patch through `patch_publish`). Only the dev Worker allows it (`AUTOPUBLISH_TEST`); the post goes to the channel chosen in DEV's «Автопубликация».
+A test on DEV (owner, 23.10.2026): «Тестирование» → «Автопубликация» (`/lab?tab=autopublish`, DEV builds only; was the side panel's button until 26.10.2026) lists Steam announcements without a post and sends one through `POST /api/v1/lab/autopublish/{id}`, so the job is `automatic` as Cron's own and takes the same way: the hotfix check, the writer, the fact check, the approval and publishing when the automatic publishing is on (a patch through `patch_publish`). The post goes to the channel chosen in DEV's «Автопубликация».
 ## Picture quality (owner, 23.10.2026: a project law, `docs/DECISIONS.md`)
 Every picture a source post takes (`attachSourceEventImages`) is checked before it is attached: its size is read from
 the PNG, JPEG or WebP header (`app/workflows/picture-quality.ts`); narrower than 800 px, it goes through OpenAI's image
@@ -129,9 +129,12 @@ SteamTracking/GameTracking-Dota2 (SteamDB's tracker, one commit per game build),
 - Known gap: a run stopped by the platform between the claim and the queue send leaves the build `queued` with no post.
 - A build with nothing worth a post (owner, 24.10.2026: «если ничего не нашлось можно смешную добавить текст и сам
   diff»): the newest build of a run that touches nothing a player sees, one whose diff has no changes, and one the cheap
-  check finds dull get one short post — a joke the cheap model writes on a theme drawn at random («шуточные посты
-  всегда разные», `modules/ai/quiet-build-joke.ts`; a stand-in line when it cannot, or when its joke lacks the build
-  number), asked only once the post may go out — and the version lines as a
+  check finds dull get one short post — a joke («шуточные посты всегда разные», `modules/ai/quiet-build-joke.ts`):
+  the cheap model writes three on the diff's +1 (a theme drawn at random as a fallback angle), seeing three of eight fixed tone
+  examples and three drawn from the 20 newest of the joke bank; the draft model, as critic, keeps the best, sharpens it
+  or turns all down (owner, 27.10.2026). What it keeps goes into the bank (`quiet_build_jokes`, migration 0115, one per
+  build); turned-down jokes are never kept, so the writer never copies them. A stand-in line when the critic turns all
+  down or AI cannot run; asked only once the post may go out — and the version lines as a
   ```diff block (`- ClientVersion=<previous>` / `+ ClientVersion=<build>`), key `files-quiet:<build>`, under the
   automatic publishing's switch and limit (`app/workflows/publish-fixed-post.ts`). A build one of whose commits had a
   find gets none; an official patch build none either (the patch notes tell it). The post is its own queue job

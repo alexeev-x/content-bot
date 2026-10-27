@@ -23,6 +23,8 @@ export { hotfixWorthPost } from './hotfix-check';
 export { condensePatchNotes } from './patch-condense';
 export { drawHotfixPicture, drawPatchPicture, type PatchPictureResult } from './patch-picture';
 export { enhancePicture, type EnhanceResult } from './picture-enhance';
+export { drawRubricScene, type RubricScene } from './rubric-picture';
+export { writeRubricCaption } from './rubric-writer';
 export {
   ACTIVE_HYPOTHESES_MAX,
   createD1HypothesesRepository,
@@ -41,6 +43,7 @@ export {
 } from './d1-style-lessons-repository';
 export { readDraftChain, readDrafts } from './draft-history';
 export { createD1DraftHistoryRepository, type DraftHistoryRepository } from './d1-draft-history-repository';
+export { createD1JokeRepository, type JokeRepository } from './d1-joke-repository';
 export {
   CONSOLIDATION_MAX_VIDEOS,
   CONSOLIDATION_MIN_VIDEOS,

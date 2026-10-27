@@ -1,5 +1,6 @@
 import {
   type AppearanceDto,
+  BACKGROUND_DEFAULTS,
   appearanceSchema,
   CUSTOM_PRESETS_MAX,
   ownerOperationsSettingsSchema
@@ -117,10 +118,19 @@ describe('GET and PUT /api/v1/settings/operations', () => {
         scheduleNotices: false,
         sentNotices: false,
         dailyReport: false,
-        dailyReportHour: 9
+        dailyReportHour: 9,
+        // Each notice its own switch, on as before (owner, 25.10.2026).
+        draftOffers: true,
+        weeklyReport: true,
+        contentAlerts: true,
+        aiReviews: true,
+        scriptPrompts: true,
+        aiLearning: true
       },
       // Off until the owner picks a channel and switches it on (owner, 22.10.2026).
       autopublish: { enabled: false, destinationId: null, dailyLimit: 3 },
+      // DEV only: every background job off until switched on.
+      background: BACKGROUND_DEFAULTS,
       revision: 0,
       updatedAt: null
     });

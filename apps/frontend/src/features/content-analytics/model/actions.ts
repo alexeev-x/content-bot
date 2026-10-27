@@ -101,9 +101,8 @@ export function buildActions(input: {
         id: 'funnel',
         tone: 'bad',
         title: 'Ролики не приводят людей в Telegram',
-        detail: `За ${days} дней ролики набрали ${formatCount(videoViews)} просмотров, а в канале ${change} ${pluralRu(Math.abs(telegram.change), 'подписчик', 'подписчика', 'подписчиков')}. Поставьте пригласительную ссылку в шапку TikTok и описание YouTube — так будет видно, что приводит людей.`,
-        badge: { value: change, sub: 'в Telegram' },
-        action: { kind: 'invite', label: 'Создать ссылку' }
+        detail: `За ${days} дней ролики набрали ${formatCount(videoViews)} просмотров, а в канале ${change} ${pluralRu(Math.abs(telegram.change), 'подписчик', 'подписчика', 'подписчиков')}.`,
+        badge: { value: change, sub: 'в Telegram' }
       });
     }
   }

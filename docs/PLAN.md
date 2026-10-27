@@ -86,7 +86,7 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
     goes without a picture and the owner gets a short note.
   - Built 22.10.2026: the patch post from Valve's notes and the hotfix check; 23.10.2026: the patch picture
     (`docs/backend/sources.md` «Patch posts», «Patch picture»; its price per picture is measured on the first DEV calls).
-    Seen on DEV 23.10.2026: 7.41e went out without the owner with its picture (the DEV-only «Проверить автопубликацию»), so
+    Seen on DEV 23.10.2026: 7.41e went out without the owner with its picture (the DEV-only automatic publishing test, now «Тестирование» → «Автопубликация»), so
     the AI over Dota's sources is closed; other sources come next. Renaming a video's short name in the studio is dropped
     (owner, 23.10.2026: «мелочи», the AI's names will do).
 - Find and add more that give a post a day without the owner's work; each must be free, keyless or with a free key,
@@ -183,18 +183,91 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
 Many repeatable rubrics the AI drafts from the sources on its own schedule; the owner approves or edits. Their results
 show in Аналитика → «Рубрики Telegram».
 
-Idea, kept for later (owner, 24.10.2026): twice a week a new set from the Steam Workshop for the subscribers to rate
-(«вот новый сет из мастерской»), e.g. as a poll.
+Research of 25.10.2026 (about 200 Telegram channels, sources, Telegram's features; reports in `.logs/handoff/research-*.md`):
+the post's format barely moves views; an explicit ask («оцениваем», «голосуй») gives about 1.6× reactions; short
+image-first channels at about 3 posts a day hold the best reach; named rubrics, polls and quizzes are almost absent in
+Dota channels, and so are plain-Russian patch breakdowns and game-file finds.
 
-Ideas from Liquipedia, kept for later (owner, 22.10.2026: recorded, not chosen):
-- «Чей сет?»: a treasure set's image without the hero and a poll with four heroes; the answer the next day, or a
-  Telegram quiz poll (our polls are regular only today).
-- «Что сломали в патче»: after a patch, short posts on who was buffed or killed from the heroes' changelogs, then a
-  poll «кто теперь имба?».
-- Transfers of the week: who moved where, in the owner's voice.
-- «Этот день в Доте»: which tournament was won on this date years ago.
-- «Кто победит?»: a poll before a big match and the result after it; harder, it needs the tournament brackets parsed.
-- Open question: does the channel want esports (the last three) or only the game itself.
+Chosen with the owner (25.10.2026): the game only, no esports for now; giveaways are the owner's own, by hand.
+Many rubrics, dosed (owner, 25.10.2026: «много идей, но давать в канал дозированно»): one pool and one weekly
+budget for all of them; a rubric rests about two weeks between its posts (owner: «1 идея раз в 2 недели, чтобы людям не
+наскучало»; a per-rubric setting), the next post goes to the rubric that has rested longest and has material, and news
+always comes first. Every interactive post stands alone, at most one a day and 3–4 a week; a poll always closes (`open_period`), and a
+rubric with few participants pauses itself.
+
+The AI writer learns the community's memes to joke with them in any post (owner, 25.10.2026: «чтобы ты шутки мог
+строить, типо про маму Габена»): мама Габена, Valve time and «Гейб считает до трёх», zxc and «1000-7», «12 танго»,
+«шаманчик, связывай», «первый скилл и третий», toxic chat lines, rank and role jokes (рекруты, «керри на пятой»);
+crude humor and мат are allowed. They are vocabulary, not rubrics; the glossary is `.logs/handoff/research-humor.md`.
+
+In the bot, rubrics live under their own command `/rubrics` (owner, 25.10.2026), apart from posts and the editor:
+the rubrics with their state and next turn, a pause or a resume, and the banks to approve (e.g. «Ребус»).
+
+All of it runs by itself (owner, 25.10.2026: «она сама решает, когда лучше публиковать какую рубрику»): Аналитика
+gets a «Рубрики» tab, each Telegram rubric's views, reactions, poll votes and comments against the channel's usual,
+by weekday and hour, which rubric is better or worse. The scheduler learns from these numbers: better rubrics and
+hours come more often, weak ones less, with some posts still trying other hours so the picture stays fresh; the rest
+and the weekly limits above always hold. The research found the hour barely changes views in other channels, so our
+own numbers decide.
+
+Each rubric has a picture rule (owner, 25.10.2026: «разбавляй картинками где можно», then «не должны везде картинки
+пихать», «понять, где картинка обязательно, а где нет»): mandatory where the picture is the content (several heroes
+or items, «VS», a look to rate, a picture-riddle, a visual joke); optional for one or two heroes or one ability, and
+the scheduler alternates picture and text; forbidden where it gives a quiz answer away; not needed for a number, a
+text joke or a poll. The text stays 2–4 lines. Rubric pictures are layered (owner, 25.10.2026: the image model repeats one character from one photo exactly, but
+mixes up five characters with text): a simple HTML layout per rubric drawn by code (owner, 26.10.2026: no image templates, «простые как сейчас»;
+what each shows: `design-refs/rubrics/<NN>-<key>/README.md`), Valve's real hero, item and ability images placed in it by
+code. The model draws only scenes without exact characters, or one hero per call from one reference. The layers are
+composed by Cloudflare Browser Rendering (free plan, 10 browser minutes a day; owner, 25.10.2026: «давай попробуем»):
+the picture is an HTML page with Valve's real icons and real text, screenshotted, so numbers on it are exact too.
+Built on DEV 25.10.2026: «Тестирование» → «Рубрики» (`/lab`, a DEV-only menu item; DECISIONS 26.10.2026) sends a rubric's post from live data to the owner's chat
+(`POST /api/v1/lab/rubrics`; the pressed rubric only, its caption by the AI writer, a rubric with a layout of its own drawn by code alone in the flat style the owner chose 26.10.2026 after Riot's patch graphics, a rubric without one as the model's scene under its title), all 32 rubrics listed. OpenDota's
+API answers 429 to Cloudflare's shared addresses, so the game data comes from dotaconstants on GitHub and Valve's
+datafeed; pick, win, build, game-length and position rates come from STRATZ (`STRATZ_TOKEN`, owner's free sign-up,
+chosen 25.10.2026) through the owner's stats bridge, since STRATZ refuses Cloudflare (`bridge/stats-bridge`). 31 rubrics work; «Угадай матч» has no source of recent high-rank matches yet (STRATZ's live list
+was empty). The rubric list
+with each one's picture is `.logs/rubrics-best.html` (local, not in Git).
+- Step 1, from data we already have:
+  1. «Кого понерфили» (renamed from «Что сломали в патче» 26.10.2026): after a patch, the heroes weakened most, then the next day a poll «Кто теперь имба?».
+  2. «Оцениваем»: a reaction vote on a new set, arcana or hero change.
+  3. «Чей сет?»: a treasure set's image without the hero, a quiz poll with four heroes and the answer inside the poll.
+  4. «Чья способность?»: a quiz poll from the game files; the whole icon is too easy (owner, 25.10.2026: «важна
+     сложность, чтобы люди сразу не угадывали»). The four answers are always heroes with similar abilities, picked by
+     code from the numbers; five levels take turns: the ability's numbers only (cooldown, mana, duration), a
+     black-and-white 20% crop of its icon, a talent or facet, several correct answers, the odd one out.
+  4a. «Ребус» (owner, 25.10.2026: «как ёж + ружьё»): pictures of objects that add up to a hero's name as players say it
+     or an item's; from a bank the AI fills and the owner approves in the studio, so a weak rebus never goes out.
+  5. «Утечка недели» (was «Файлы не врут»): of the week's finds in the game's files, the one most interesting detail told as a leak.
+  6. «Кого понерфят?»: a poll when a new build shows up before its patch; after the patch a result post that
+     restates the question.
+  7. «Valve, ты серьёзно?»: the oddest change of a patch or a file find, rated with reactions.
+- Step 2, from OpenDota and Steam (free, no key; checked 25.10.2026): «Мета недели» (who rose and fell by winrate),
+  «Баттл героев» (an A-or-B poll for 24 hours), Dota's online records and a new #1 on Valve's leaderboard, item
+  timings and counters (what Dota2ProTracker and Dotabuff show; both forbid scraping and have no API).
+  «Оцени сет из мастерской» (owner, 25.10.2026: «если появились там»): a set that has just appeared in the Steam
+  Workshop and is rising there goes out for a rating with a link to its Workshop page (owner, 25.10.2026), under the
+  same two-week rest (Steam Web API `QueryFiles` with the
+  owner's `STEAM_WEB_API_KEY`; not checked yet).
+  «Мета по рангам» (owner, 25.10.2026): the five most picked heroes in one rank (Рекруты … Божества), or the five
+  worst by winrate; the rank and «top or worst» change each time; OpenDota's `heroStats` per bracket (Immortal is
+  empty there, STRATZ only).
+  «Антисборка недели» (the item with the worst winrate on a hero, in the spirit of the owner's «Учу фидить»),
+  «Забытый герой» (rarely picked, wins above average), «Цифра дня» (one surprising number), «Было / стало» (how an
+  ability changed over the years; the game files are tracked only since 07.10.2026, so the older history needs
+  another source, not checked yet) — the studio's own ideas, accepted by the owner 25.10.2026.
+  «Контрпик» (owner, 25.10.2026, after dota2protracker.com and dota2.ru/counterpick): «Как контрпикать <герой>» — the
+  three heroes that beat it most often with their win rate against it and how to play against it, ending with a call
+  in the players' voice («А вы как контрите эту паскуду?» or another joke nickname for the hero); from OpenDota's `/heroes/{id}/matchups` (with the
+  Premium key) — Dota2ProTracker forbids bots, and dota2.ru builds its counterpicks into its own pages.
+  «Угадай героя по сборке» (owner, 25.10.2026): six late-game items, a quiz «чья сборка?»; a couple of honest runs
+  (the hero's most popular late build, OpenDota `itemPopularity`), then a trick one — a top carry build whose answer
+  is a support like Shadow Shaman or Crystal Maiden, best taken from a real match where a support really built it.
+  «Кто кого перебьёт?» (owner, 25.10.2026): two heroes, each with six items, on one picture; an A-or-B poll and the
+  comments («я бы добавил…»). The builds come from OpenDota's popular items per hero; the picture is composed from
+  Valve's real hero and item icons, never AI-drawn (a drawn icon would be wrong); how to compose it for $0 (e.g.
+  Cloudflare Images overlays on the free tier) is checked first.
+- Later: STRATZ (the only free source for the Immortal bracket) needs the owner's sign-up. The owner's own formats
+  («Какой ролик снять?», «Мой пик недели») are set aside for now (owner, 25.10.2026).
 
 ## 3. News
 
@@ -204,4 +277,4 @@ The AI turns new source events into news posts in the owner's voice: what happen
 
 ## Next: video
 
-Once 1–3 are done (owner, 20.10.2026): video. Planned with the owner when it starts.
+Planned with the owner on 26.10.2026: `docs/VIDEO_PLAN.md`.

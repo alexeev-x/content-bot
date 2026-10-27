@@ -1,7 +1,6 @@
 import type { AiTextProvider } from '../../src/modules/ai';
 import type {
   TelegramBotAdminApi,
-  TelegramInviteLinkApi,
   TelegramChatReadApi,
   TelegramOwnerMessageApi
 } from '../../src/integrations/telegram/telegram-api';
@@ -9,6 +8,7 @@ import { handleAiQueue } from '../../src/app/ai-queue';
 import { createContainer, type ContainerOverrides } from '../../src/app/container';
 import { createApp } from '../../src/app/create-app';
 import type { AppEnv } from '../../src/app/env';
+import { createLabQueue, mountLab } from '../../src/app/lab';
 import { mountLocalSignIn } from '../../src/app/local-sign-in-route';
 import type { Clock } from '../../src/platform/clock';
 import { sha256Hex } from '../../src/platform/security/sha256';
@@ -68,8 +68,6 @@ export async function resetDb(): Promise<void> {
       'content_goals',
       'content_post_rubrics',
       'content_rubrics',
-      'channel_joins',
-      'invite_links',
       'ai_writer_requests',
       'ai_queue_jobs',
       'ai_hypotheses',
@@ -200,8 +198,6 @@ export function createApi(
     publishingEnabled?: string;
     chatApi?: TelegramChatReadApi;
     botAdminApi?: TelegramBotAdminApi;
-    /** Scripts the invite link calls (createChatInviteLink, revokeChatInviteLink). */
-    inviteLinkApi?: TelegramInviteLinkApi;
     webhookSecret?: string;
     botInfo?: string;
     /** Replaces the default recording fake. Without a bot token the real container path (no messenger) is used. */
@@ -216,6 +212,8 @@ export function createApi(
     aiProvider?: AiTextProvider | null;
     /** Mounts the `npm run dev` sign-in (app/local-sign-in-route.ts), as src/index.ts does on the dev server. */
     localSignIn?: boolean;
+    /** Mounts «Тестирование» (app/lab) and its queued jobs, as src/index.ts does in a `__LAB__` build. */
+    lab?: boolean;
   } = {}
 ): Api {
   const messenger = fakeOwnerMessenger();
@@ -224,14 +222,14 @@ export function createApi(
     clock,
     telegramChatApi: options.chatApi,
     telegramBotAdminApi: options.botAdminApi,
-    telegramInviteLinkApi: options.inviteLinkApi,
     ownerMessenger: options.ownerMessenger ?? (options.botToken === null ? undefined : messenger),
     ...(options.contentFetch === undefined ? {} : { contentFetch: options.contentFetch }),
     aiProvider: options.aiProvider ?? null
   };
   const app = createApp({
     ...overrides,
-    ...(options.localSignIn === true ? { mountBeforeGuard: mountLocalSignIn } : {})
+    ...(options.localSignIn === true ? { mountBeforeGuard: mountLocalSignIn } : {}),
+    ...(options.lab === true ? { mountLab } : {})
   });
   const background: Promise<unknown>[] = [];
   // Queue AI_JOBS: a sent job runs at once through the real consumer, as background work `settle()` waits for.
@@ -249,7 +247,8 @@ export function createApi(
       return handleAiQueue(
         batch as unknown as MessageBatch<unknown>,
         createContainer(env, overrides),
-        env.TELEGRAM_BOT_TOKEN ?? ''
+        env.TELEGRAM_BOT_TOKEN ?? '',
+        options.lab === true ? createLabQueue(env) : null
       );
     }
   };

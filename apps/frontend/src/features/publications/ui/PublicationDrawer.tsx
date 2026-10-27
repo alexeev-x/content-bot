@@ -6,6 +6,7 @@ import { useState, type ReactNode } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import { classifyApiError } from '../../../shared/api/error-kind';
 import {
+  AiMark,
   Banner,
   Button,
   Drawer,
@@ -111,6 +112,7 @@ export function PublicationDrawer({
           shown ? (
             <>
               <StatusBadge status={shown} />
+              {publication?.postOrigin ? <AiMark text={copy.list.aiPost(publication.postOrigin.source)} /> : null}
               {publication && seriesLabel(publication) ? <span>{seriesLabel(publication)}</span> : null}
             </>
           ) : undefined

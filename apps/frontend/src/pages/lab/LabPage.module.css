@@ -1,0 +1,21 @@
+.page {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+
+.panel {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.intro {
+  margin: 0;
+  color: var(--color-text-muted);
+}
+
+/* The tab group keeps its own width on its row instead of stretching across the grid. */
+.page > [role='tablist'] {
+  justify-self: start;
+}

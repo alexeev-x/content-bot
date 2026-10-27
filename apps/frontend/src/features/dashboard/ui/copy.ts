@@ -30,6 +30,8 @@ export const copy = {
     who: 'Кто',
     owner: 'Вы',
     ai: 'ИИ-редактор (одобрили вы)',
+    autopublish: 'ИИ сам, без вашего одобрения',
+    aiShort: 'ИИ',
     system: 'Студия (автоматически)',
     channel: 'Канал',
     planned: 'План',
@@ -56,7 +58,10 @@ export const copy = {
     summary: (count: number) =>
       `${count} ${pluralRu(count, 'публикация', 'публикации', 'публикаций')} за день, слева направо от 00:00 до 24:00`,
     marker: (title: string, channel: string, clock: string, status: string) =>
-      `${clock}, ${status}: «${title}», ${channel}`
+      `${clock}, ${status}: «${title}», ${channel}`,
+    /** The status of a post the AI wrote: published on its own (`auto`) or approved by the owner. */
+    byAi: (status: string, source: 'bot' | 'studio' | 'auto') =>
+      `${status} · ${source === 'auto' ? 'опубликовал ИИ' : 'написал ИИ'}`
   },
   week: {
     title: 'Итоги недели',
