@@ -366,7 +366,12 @@ export async function workshopSet(context: RubricContext): Promise<RubricSample>
   return {
     picture: null,
     album: {
-      photos: [...new Set([set.previewUrl, ...set.screenshots])].slice(0, WORKSHOP_ALBUM_MAX - set.clips.length),
+      // The author's own shots, uncropped; Steam's square cover only when there are none (owner, 27.10.2026: «главную
+      // не надо, лучше забирать те, которые внутри, в их карусели, там не обрезанная»).
+      photos: (set.screenshots.length > 0 ? set.screenshots : [set.previewUrl]).slice(
+        0,
+        WORKSHOP_ALBUM_MAX - set.clips.length
+      ),
       clips: set.clips
     },
     text: `Сет из мастерской Steam, который набирает популярность: «${set.title}».`,

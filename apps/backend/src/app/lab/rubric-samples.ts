@@ -74,7 +74,10 @@ function albumRichHtml(
 ): string {
   return [
     expandRichMedia(RICH_MEDIA_SLOT, media),
-    ...body.split(/\n{2,}/u).map((paragraph) => `<p>${escapeRich(paragraph.trim()).replaceAll('\n', '<br/>')}</p>`),
+    ...body
+      .split('\n')
+      .filter((line) => line.trim() !== '')
+      .map((line) => `<p>${escapeRich(line.trim())}</p>`),
     ...links.map((link) => `<p><a href="${escapeRich(link.url)}">${escapeRich(link.text)}</a></p>`)
   ].join('\n');
 }
