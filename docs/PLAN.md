@@ -196,7 +196,7 @@ always comes first. Every interactive post stands alone, at most one a day and 3
 rubric with few participants pauses itself.
 
 The AI writer learns the community's memes to joke with them in any post (owner, 25.10.2026: «чтобы ты шутки мог
-строить, типо про маму Габена»): мама Габена, Valve time and «Гейб считает до трёх», zxc and «1000-7», «12 танго»,
+строить, типо про маму Габена»): мама Габена, Valve time, zxc and «1000-7», «12 танго»,
 «шаманчик, связывай», «первый скилл и третий», toxic chat lines, rank and role jokes (рекруты, «керри на пятой»);
 crude humor and мат are allowed. They are vocabulary, not rubrics; the glossary is `.logs/handoff/research-humor.md`.
 
@@ -227,9 +227,11 @@ datafeed; pick, win, build, game-length and position rates come from STRATZ (`ST
 chosen 25.10.2026) through the owner's stats bridge, since STRATZ refuses Cloudflare (`bridge/stats-bridge`). 31 rubrics work; «Угадай матч» has no source of recent high-rank matches yet (STRATZ's live list
 was empty). The rubric list
 with each one's picture is `.logs/rubrics-best.html` (local, not in Git).
+What wiring rubrics to the scheduler and to real autopublishing must still cover: `docs/RUBRICS_SCHEDULER.md`.
 - Step 1, from data we already have:
   1. «Кого понерфили» (renamed from «Что сломали в патче» 26.10.2026): after a patch, the heroes weakened most, then the next day a poll «Кто теперь имба?».
-  2. «Оцениваем»: a reaction vote on a new set, arcana or hero change.
+  2. «Оцениваем»: a fresh Valve novelty (treasure, arcana, set) told in Russian with the set's own picture and a rating poll
+     (`design-refs/rubrics/09-rate_it/README.md`).
   3. «Чей сет?»: a treasure set's image without the hero, a quiz poll with four heroes and the answer inside the poll.
   4. «Чья способность?»: a quiz poll from the game files; the whole icon is too easy (owner, 25.10.2026: «важна
      сложность, чтобы люди сразу не угадывали»). The four answers are always heroes with similar abilities, picked by
@@ -238,9 +240,9 @@ with each one's picture is `.logs/rubrics-best.html` (local, not in Git).
   4a. «Ребус» (owner, 25.10.2026: «как ёж + ружьё»): pictures of objects that add up to a hero's name as players say it
      or an item's; from a bank the AI fills and the owner approves in the studio, so a weak rebus never goes out.
   5. «Утечка недели» (was «Файлы не врут»): of the week's finds in the game's files, the one most interesting detail told as a leak.
-  6. «Кого понерфят?»: a poll when a new build shows up before its patch; after the patch a result post that
-     restates the question.
-  7. «Valve, ты серьёзно?»: the oddest change of a patch or a file find, rated with reactions.
+  6. «Кого понерфят?»: a bet on the next patch — the strongest rising heroes over every rank; after the patch a
+     result post «Угадали?» (`design-refs/rubrics/06-who_gets_nerfed/README.md`).
+  7. «Valve, ты серьёзно?»: the patch's tiniest changes with a poll of jokes (`design-refs/rubrics/07-valve_seriously/README.md`).
 - Step 2, from OpenDota and Steam (free, no key; checked 25.10.2026): «Мета недели» (who rose and fell by winrate),
   «Баттл героев» (an A-or-B poll for 24 hours), Dota's online records and a new #1 on Valve's leaderboard, item
   timings and counters (what Dota2ProTracker and Dotabuff show; both forbid scraping and have no API).
@@ -262,8 +264,8 @@ with each one's picture is `.logs/rubrics-best.html` (local, not in Git).
   «Угадай героя по сборке» (owner, 25.10.2026): six late-game items, a quiz «чья сборка?»; a couple of honest runs
   (the hero's most popular late build, OpenDota `itemPopularity`), then a trick one — a top carry build whose answer
   is a support like Shadow Shaman or Crystal Maiden, best taken from a real match where a support really built it.
-  «Кто кого перебьёт?» (owner, 25.10.2026): two heroes, each with six items, on one picture; an A-or-B poll and the
-  comments («я бы добавил…»). The builds come from OpenDota's popular items per hero; the picture is composed from
+  «Кто кого перебьёт?» (owner, 25.10.2026; reworked 27.10.2026, `design-refs/rubrics/10-who_beats_whom/README.md`): two
+  heroes, each with six items (real or a joke build), one picture with a crude question, no text or poll — the comments argue. The builds come from OpenDota's popular items per hero; the picture is composed from
   Valve's real hero and item icons, never AI-drawn (a drawn icon would be wrong); how to compose it for $0 (e.g.
   Cloudflare Images overlays on the free tier) is checked first.
 - Later: STRATZ (the only free source for the Immortal bracket) needs the owner's sign-up. The owner's own formats

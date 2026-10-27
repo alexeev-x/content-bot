@@ -1,6 +1,6 @@
 import { fakeItem, filesDontLie, guessStreak, rateIt, rebus, tierListVote, workshopSet } from './content-rubrics';
 import { comboMath, didYouKnow, guessByNumbers, itemExam, whoseAbility } from './game-rubrics';
-import { nerfOrBuff, patchBroken, valveSeriously, valveTime, whoGetsNerfed, whoIsImba } from './patch-rubrics';
+import { nerfOrBuff, patchBroken, valveSeriously, valveTime, whoIsImba } from './patch-rubrics';
 import {
   antiBuild,
   banOrPick,
@@ -15,6 +15,7 @@ import {
   tierList,
   weeklyRecord,
   whoBeatsWhom,
+  whoGetsNerfed,
   whoseBuild
 } from './stats-rubrics';
 import type { RubricContext, RubricSample } from './types';

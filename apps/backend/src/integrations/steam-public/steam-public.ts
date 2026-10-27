@@ -7,6 +7,16 @@ import { readCappedText } from '../../platform/http/read-capped-text';
 
 export const STEAM_PUBLIC_TIMEOUT_MS = 15_000;
 const MAX_BODY_BYTES = 1_500_000;
+const NEWS_TEXT_MAX = 1500;
+/** An announcement's body as plain text: BBCode tags, image placeholders and links out, spaces folded. */
+const plainText = (contents: string) =>
+  contents
+    .replace(/\{STEAM_CLAN_(?:LOC_)?IMAGE\}\S*/giu, ' ')
+    .replace(/\[\/?[a-z0-9*]+(?:=[^\]]*)?\]/giu, ' ')
+    .replace(/https?:\/\/\S+/giu, ' ')
+    .replace(/\s+/gu, ' ')
+    .trim()
+    .slice(0, NEWS_TEXT_MAX);
 const CLAN_IMAGE = /\{STEAM_CLAN_(?:LOC_)?IMAGE\}\/(\d{1,12}\/[0-9a-f]{40}\.(?:png|jpe?g|gif|webp))/iu;
 
 export type SteamPublicErrorCode = 'STEAM_FETCH' | 'STEAM_HTTP' | 'STEAM_SHAPE';
@@ -39,7 +49,10 @@ const detailsSchema = z.object({
 });
 
 export interface SteamPublicApi {
-  dotaNews(signal?: AbortSignal): Promise<{ title: string; imageUrl: string | null; publishedAt: number }[]>;
+  /** Dota 2's announcements, newest first; `text` is the body without BBCode, links or images, at most 1500 chars. */
+  dotaNews(
+    signal?: AbortSignal
+  ): Promise<{ title: string; text: string; imageUrl: string | null; publishedAt: number }[]>;
   workshopTrending(signal?: AbortSignal): Promise<{ title: string; previewUrl: string; url: string } | null>;
 }
 
@@ -80,6 +93,7 @@ export function createSteamPublicApi(input: { fetchImpl?: typeof fetch } = {}): 
         const image = CLAN_IMAGE.exec(item.contents)?.[1];
         return {
           title: item.title,
+          text: plainText(item.contents),
           imageUrl: image === undefined ? null : `https://clan.akamai.steamstatic.com/images/${image}`,
           publishedAt: item.date * 1000
         };

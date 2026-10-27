@@ -9,7 +9,7 @@ type Need = 'ready' | 'stratz' | 'later';
 // Rubrics the owner approved leave the list (owner, 26.10.2026: «убирай те рубрики, которые мы утвердили»):
 // 1 «Кого понерфили», 2 «Кто теперь имба?», 3 «Нерф или баф?», 4 «Чья способность?», 5 «Утечка недели».
 const RUBRICS: { key: RubricSampleKey; label: string; note: string; need: Need }[] = [
-  { key: 'who_gets_nerfed', label: '6. Кого понерфят?', note: 'опрос', need: 'ready' },
+  { key: 'who_gets_nerfed', label: '6. Кого понерфят?', note: 'опрос', need: 'stratz' },
   { key: 'valve_seriously', label: '7. Valve, ты серьёзно?', note: 'текст', need: 'ready' },
   { key: 'valve_time', label: '8. Валв-тайм', note: 'текст', need: 'ready' },
   { key: 'rate_it', label: '9. Оцениваем', note: 'картинка новинки', need: 'ready' },

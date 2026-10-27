@@ -1,6 +1,6 @@
 import { escapeHtml, heroImage, itemImage, PICTURE_SIZE, picturePage } from './picture';
 import { LEAK_EGGS } from './leak-eggs';
-import { noData, pick, plural, poll, quiz, type RubricContext, type RubricSample, shuffled } from './types';
+import { noData, pick, plural, poll, quiz, type RubricContext, type RubricSample, shuffled, withJoke } from './types';
 
 // Rubrics over what Valve and the community put out (game files, announcements, the Workshop) and the fun ones whose
 // material will come from banks the owner approves; the samples carry a few examples of such a bank.
@@ -323,19 +323,40 @@ export async function filesDontLie(context: RubricContext): Promise<RubricSample
   };
 }
 
+// «Оцениваем» rates a novelty, so it goes out only when a fresh announcement brings one (owner, 27.10.2026): of Valve's
+// last twelve, two did (a treasure, an event with sets); patches, The International and tickets have nothing to rate.
+const NOVELTY =
+  /trove|treasure|сокровищ|arcana|аркан|persona|персон|collector|cache|set\b|сет|courier|курьер|new hero|новый герой|carnival|event/iu;
+const NOT_NOVELTY = /patch|патч|update|обновлени|international|ticket|билет|qualifier|квалификац/iu;
+const NOVELTY_FRESH_MS = 21 * 86_400_000;
+const RATE_JOKES = ['Опять за 3 тысячи?', 'Мама, купи', 'Valve, где патч?'] as const;
+
 export async function rateIt(context: RubricContext): Promise<RubricSample> {
-  const news = (await context.sources.steamNews()).filter((item) => item.imageUrl !== null);
-  const latest = news[0];
-  if (latest === undefined || latest.imageUrl === null) throw noData('announcement picture');
+  const latest = (await context.sources.steamNews()).find(
+    (item) =>
+      item.imageUrl !== null &&
+      context.now - item.publishedAt <= NOVELTY_FRESH_MS &&
+      NOVELTY.test(item.title) &&
+      !NOT_NOVELTY.test(item.title)
+  );
+  if (latest === undefined || latest.imageUrl === null) throw noData('fresh novelty announcement');
+  // The set's own picture and nothing else (owner, 27.10.2026: «просто картинку на сам сет и всё»): Valve's image
+  // whole, a blurred copy of it filling the frame where its shape differs.
+  const src = escapeHtml(latest.imageUrl);
   const html = picturePage(
-    `<div class="title"><b>Оцениваем</b></div><img class="shot" src="${escapeHtml(latest.imageUrl)}" alt="">`,
-    `.shot{margin-top:28px;max-width:1200px;max-height:520px;border-radius:14px;border:1px solid var(--line);box-shadow:0 14px 40px rgba(0,0,0,.6);object-fit:contain}`
+    `<img class="fill" src="${src}" alt=""><img class="shot" src="${src}" alt="">`,
+    `body{padding:0;background:#0c0d0f}body::before,body::after{content:none}.mark{display:none}
+.fill{position:absolute;inset:-40px;width:calc(100% + 80px);height:calc(100% + 80px);object-fit:cover;filter:blur(32px) brightness(.45)}
+.shot{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}`
   );
   return {
     picture: { html, ...PICTURE_SIZE },
-    // Valve's titles are English and posts speak Russian; the AI writer will name the novelty.
-    text: 'Новинка из свежего анонса Valve. Оцениваем: 🔥 или 💩?',
-    poll: null
+    // The announcement itself is the draft (27.10.2026: the writer said «Valve показали новинку» and never named it):
+    // the writer retells what the novelty is in Russian, names stay English.
+    text: `Новинка от Valve: «${latest.title}».`,
+    // The announcement is background, not a draft: its prices and dates need not all reach the post.
+    reference: latest.text,
+    poll: poll('Оцениваем', withJoke(['10/10, беру', 'Норм, но денег не дам', 'Говно'], context.random, RATE_JOKES))
   };
 }
 

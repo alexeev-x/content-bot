@@ -1,5 +1,8 @@
 import { AppError } from '../../shared/app-error';
 import { escapeHtml, heroImage, itemImage, PICTURE_SIZE, picturePage, rankMedalImage } from './picture';
+import { type PatchOutcome, patchOutcomes } from './patch-rubrics';
+import { NERF_LOOKS, nerfQuestionPicture, nerfResultPicture } from './nerf-pictures';
+import { VERSUS_LOOKS, VERSUS_TITLES, versusPicture } from './versus-pictures';
 import {
   type HeroInfo,
   type ItemInfo,
@@ -11,7 +14,8 @@ import {
   quiz,
   type RubricContext,
   type RubricSample,
-  shuffled
+  shuffled,
+  withJoke
 } from './types';
 
 // Rubrics over pick and win rates by rank (STRATZ, once its token is set). Without it each answers
@@ -224,38 +228,54 @@ async function lateBuild(context: RubricContext, heroId: number, items: Map<numb
     .slice(0, 6);
 }
 
+// «Кто кого перебьёт?» (owner, 27.10.2026): two carries face to face, the picture alone — no text, no poll, no answer:
+// «пусть люди сами в комментах спорят». Half the time their real late builds, half a joke build («12 танго, одни
+// рецепты, Пудж с 6 Тарасками, Антимаг с 6 БФ»).
+const SIX = (key: string) => Array.from({ length: 6 }, () => ({ key }));
+const JOKE_BUILDS: readonly { key: string }[][] = [
+  SIX('tango'),
+  SIX('branches'),
+  SIX('recipe'),
+  SIX('rapier'),
+  SIX('heart'),
+  SIX('bfury'),
+  SIX('magic_stick'),
+  ['tango', 'clarity', 'flask', 'enchanted_mango', 'faerie_fire', 'smoke_of_deceit'].map((key) => ({ key })),
+  ['ward_observer', 'dust', 'smoke_of_deceit', 'tpscroll', 'blood_grenade', 'tango'].map((key) => ({ key }))
+];
+/** Builds a hero is a meme for: Pudge's Tarrasques, Anti-Mage's Battle Furies. */
+const HERO_JOKES: Record<string, { key: string }[]> = {
+  npc_dota_hero_pudge: SIX('heart'),
+  npc_dota_hero_antimage: SIX('bfury')
+};
+
 export async function whoBeatsWhom(context: RubricContext): Promise<RubricSample> {
   const [heroes, itemList] = await Promise.all([context.sources.heroes(), context.sources.items()]);
   const items = new Map(itemList.map((item) => [item.id, item]));
   const carries = heroes.filter((hero) => hero.roles.includes('Carry'));
   const [first, second] = shuffled(carries, context.random);
   if (first === undefined || second === undefined) throw noData('carries');
-  const [buildA, buildB] = await Promise.all([
-    lateBuild(context, first.id, items),
-    lateBuild(context, second.id, items)
-  ]);
+  const joking = context.random() < 0.5;
+  const build = async (hero: HeroInfo) =>
+    joking
+      ? (HERO_JOKES[hero.name] ?? pick(JOKE_BUILDS, context.random))
+      : (await lateBuild(context, hero.id, items)).map((item) => ({ key: item.key }));
+  const [buildA, buildB] = await Promise.all([build(first), build(second)]);
   if (buildA.length < 6 || buildB.length < 6) throw noData('builds');
-  const side = (
-    hero: HeroInfo,
-    build: ItemInfo[]
-  ) => `<div class="side"><img class="portrait big" src="${heroImage(hero.name)}" alt="">
-<div class="name">${escapeHtml(hero.localizedName)}</div><div class="slots">${build
-    .map((item) => `<img class="item" src="${itemImage(item.key)}" alt="">`)
-    .join('')}</div></div>`;
-  const html = picturePage(
-    `<div class="title">Кто кого <b>перебьёт?</b></div><div class="arena">${side(first, buildA)}<div class="vs">VS</div>${side(second, buildB)}</div>`,
-    `.arena{display:flex;align-items:center;gap:56px;margin-top:40px}
-.side{display:flex;flex-direction:column;align-items:center;gap:14px}
-.portrait.big{width:384px;height:216px}
-.name{font-weight:800;font-size:32px}
-.slots{display:grid;grid-template-columns:repeat(3,132px);gap:12px}
-.slots .item{width:132px;height:96px}
-.vs{font-weight:900;font-size:110px;color:var(--red)}`
-  );
+  const look = pick(VERSUS_LOOKS, context.random);
   return {
-    picture: { html, ...PICTURE_SIZE },
-    text: `Лейт, шесть слотов, 1 на 1: ${first.localizedName} или ${second.localizedName}?\nЧто бы поменяли в сборке — пишите в комментарии.`,
-    poll: poll('Кто выиграет 1 на 1?', [first.localizedName, second.localizedName])
+    picture: {
+      html: versusPicture(
+        look,
+        { hero: first, items: buildA },
+        { hero: second, items: buildB },
+        pick(VERSUS_TITLES, context.random)
+      ),
+      ...PICTURE_SIZE
+    },
+    text: '',
+    ownText: true,
+    poll: null
   };
 }
 
@@ -485,4 +505,112 @@ export function notBuiltYet(what: string): Promise<RubricSample> {
   return Promise.reject(
     new AppError('UNAVAILABLE', `The rubric has no data source yet: ${what}`, { reason: 'NOT_BUILT_YET' })
   );
+}
+
+// «Кого понерфят?» (owner, 27.10.2026: «эти герои слишком сильные — понерфят ли, или Valve вообще похуй»): a bet on the
+// next patch. The heroes strongest this week over every rank together (owner, 27.10.2026: «просто без рангов») whose
+// win rate also went up against the week before; neither the patch's buffs («Кто теперь имба?») nor one rank's plain
+// meta («Мета по рангам», «Тир-лист») picks them.
+const NERF_BRACKETS = BRACKETS;
+const NERF_MIN_MATCHES = 2000;
+const NERF_HEROES_MAX = 5;
+const VALVE_DONT_CARE = ['Никого, Valve похуй', 'Никого, Valve опять спит', 'Valve похуй, они делают кейсы'] as const;
+
+export async function whoGetsNerfed(context: RubricContext): Promise<RubricSample> {
+  const stats = needStats(context);
+  const [rows, heroes] = await Promise.all([
+    Promise.all(NERF_BRACKETS.map((bracket) => stats.twoWeeks(bracket))).then((each) => each.flat()),
+    context.sources.heroes()
+  ]);
+  const weeks = [...new Set(rows.map((row) => row.week))].sort((a, b) => b - a);
+  const [current, previous] = weeks;
+  if (current === undefined || previous === undefined) throw noData('two weeks');
+  // Every rank summed: STRATZ counts each bracket apart.
+  const week = (heroId: number, which: number) =>
+    rows
+      .filter((row) => row.heroId === heroId && row.week === which)
+      .reduce((sum, row) => ({ matches: sum.matches + row.matches, wins: sum.wins + row.wins }), {
+        matches: 0,
+        wins: 0
+      });
+  const top = heroes
+    .map((hero) => {
+      const now = week(hero.id, current);
+      const before = week(hero.id, previous);
+      if (now.matches < NERF_MIN_MATCHES || before.matches < NERF_MIN_MATCHES) return null;
+      const winRate = now.wins / now.matches;
+      return { hero, winRate, growth: winRate - before.wins / before.matches };
+    })
+    .filter((each): each is { hero: HeroInfo; winRate: number; growth: number } => each !== null)
+    .filter((each) => each.winRate > 0.5 && each.growth > 0)
+    // Strong now counts more than the rise: a 54% hero that rose 0.5% is a likelier nerf than a 51% one that rose 2%.
+    .sort((a, b) => b.winRate + b.growth / 2 - (a.winRate + a.growth / 2))
+    .slice(0, NERF_HEROES_MAX);
+  if (top.length < 3) throw noData('strong rising heroes');
+  // No arrow: the AI writer retells each line in words, the rich message makes no table of it.
+  const lines = top.map(
+    (each) =>
+      `${each.hero.localizedName}: ${percent(each.winRate)} побед, за неделю винрейт вырос на ${percent(each.growth)}`
+  );
+  const result = await patchOutcomes(
+    context,
+    top.map((each) => each.hero.id)
+  );
+  const verdicts = top.map((each) => ({ ...each, outcome: result.outcomes.get(each.hero.id) ?? 'untouched' }));
+  // The question and its result keep one look; A and B take turns at random (owner, 27.10.2026).
+  const look = pick(NERF_LOOKS, context.random);
+  return {
+    picture: { html: nerfQuestionPicture(look, top), ...PICTURE_SIZE },
+    text: ['Эти герои сейчас слишком сильные:', ...lines].join('\n'),
+    followUp: {
+      afterMinutes: null,
+      picture: { html: nerfResultPicture(look, verdicts, result.version), ...PICTURE_SIZE },
+      text: nerfResultText(
+        result.version,
+        verdicts.map((each) => ({ name: each.hero.localizedName, outcome: each.outcome })),
+        context.random
+      )
+    },
+    poll: poll(
+      'Кого понерфят в следующем патче?',
+      withJoke(
+        top.map((each) => each.hero.localizedName),
+        context.random,
+        VALVE_DONT_CARE
+      )
+    )
+  };
+}
+
+const OUTCOME_WORDS: Record<PatchOutcome, string> = {
+  nerfed: 'понерфили',
+  buffed: 'апнули ещё сильнее',
+  changed: 'переделали',
+  untouched: 'не тронули'
+};
+const NOBODY_NERFED = [
+  'Никого не понерфили. Valve, как обычно, похуй.',
+  'Ноль нерфов. Valve смотрит на эти винрейты и кивает.',
+  'Никого не тронули: в Valve, видимо, все на них и играют.'
+] as const;
+
+/** «Угадали?»: the second post, after the next patch — what Valve did to each hero of the bet. */
+function nerfResultText(
+  version: string,
+  heroes: { name: string; outcome: PatchOutcome }[],
+  random: () => number
+): string {
+  const nerfed = heroes.filter((each) => each.outcome === 'nerfed').length;
+  const verdict =
+    nerfed === 0
+      ? pick(NOBODY_NERFED, random)
+      : nerfed === heroes.length
+        ? 'Порезали всех. Кто ставил на нерф — красавчик.'
+        : `Понерфили ${nerfed} из ${heroes.length}. Кто угадал — красавчик.`;
+  return [
+    // The post stands alone (owner: never point to another post): the heroes are named, the bet is not.
+    `Вышел патч ${version}. Что Valve сделала с самыми сильными героями:`,
+    ...heroes.map((each) => `${each.name} — ${OUTCOME_WORDS[each.outcome]}`),
+    verdict
+  ].join('\n');
 }

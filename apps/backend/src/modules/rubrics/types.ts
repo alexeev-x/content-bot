@@ -91,7 +91,7 @@ export interface RubricSources {
   patches(): Promise<{ version: string; timestamp: number }[]>;
   patchNotes(version: string): Promise<PatchNotes>;
   /** The newest Steam announcements of Dota 2 with their first picture. */
-  steamNews(): Promise<{ title: string; imageUrl: string | null; publishedAt: number }[]>;
+  steamNews(): Promise<{ title: string; text: string; imageUrl: string | null; publishedAt: number }[]>;
   /** The finds in the game's files committed since `since` (UTC ms), newest first, at most a few. */
   gameFinds(since: number): Promise<{ build: string; committedAt: number; note: string | null; text: string | null }[]>;
   /** A set rising in the Steam Workshop this week. */
@@ -106,10 +106,19 @@ export interface RubricSample {
   text: string;
   /** The rubric is one poll message with the picture inside it: no text post, no AI caption. */
   pictureInPoll?: boolean;
+  /** Background for the AI writer that the caption need not repeat number by number. */
+  reference?: string;
   /** The text is final as written (fixed captions): no AI caption. */
   ownText?: boolean;
-  /** A second post of the rubric that follows the first after a while (e.g. a riddle's answer). */
-  followUp?: { afterMinutes: number; picture: { html: string; width: number; height: number } | null; text: string };
+  /**
+   * A second post of the rubric that follows the first after a while (e.g. a riddle's answer); `afterMinutes: null`
+   * waits for the next patch, and the sample reads the latest one in its place.
+   */
+  followUp?: {
+    afterMinutes: number | null;
+    picture: { html: string; width: number; height: number } | null;
+    text: string;
+  };
   poll: {
     question: string;
     options: string[];

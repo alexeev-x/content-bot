@@ -170,6 +170,7 @@ export type RubricSampleDeps = {
       draft: string;
       poll: string | null;
       brief: string;
+      reference?: string;
       signal: AbortSignal;
     }) => Promise<string | null>;
     scene: (input: { heading: { text: string; red: string | null } | null }) => Promise<Scene>;
@@ -235,6 +236,7 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
           draft: sample.text,
           poll,
           brief: RUBRIC_BRIEFS[rubric],
+          ...(sample.reference === undefined ? {} : { reference: sample.reference }),
           signal: AbortSignal.timeout(CAPTION_TIMEOUT_MS)
         });
 
@@ -344,7 +346,9 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
       // The channel gets it `afterMinutes` later; the owner's sample shows it at once, marked.
       await deps.telegram.sendMessage(
         deps.ownerChatId,
-        `Второй пост — в канале через ${Math.round(followUp.afterMinutes / 60)} ч, здесь сразу:`,
+        followUp.afterMinutes === null
+          ? 'Второй пост — в канале после выхода следующего патча; здесь сразу, по последнему патчу:'
+          : `Второй пост — в канале через ${Math.round(followUp.afterMinutes / 60)} ч, здесь сразу:`,
         { ...FLAGS, entities: [] },
         signal()
       );
