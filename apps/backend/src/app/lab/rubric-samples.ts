@@ -23,6 +23,7 @@ import type { Logger } from '../../platform/logging/logger';
 import { getOwnerOperationsSettings } from '../../modules/settings';
 import { AppError } from '../../shared/app-error';
 import type { Container } from '../container';
+import { pictureImproverFor, type SourcePicture } from '../workflows/picture-quality';
 
 // DEV only (owner, 25.10.2026): one rubric's post from live data — the picture rendered by the browser from Valve's
 // icons, the caption, the poll — goes to the owner's chat with the bot, the way subscribers would see it.
@@ -33,6 +34,31 @@ const BARE_FINDS_MAX = 4;
 const BARE_TEXT_MAX = 1500;
 const GITHUB_TIMEOUT_MS = 8000;
 const STRATZ_GAP_MS = 1500;
+/** A rubric's source photo is shown across the post: narrower than this, it goes through the picture law. */
+const RUBRIC_PHOTO_MIN_WIDTH = 1200;
+const PHOTO_TIMEOUT_MS = 15_000;
+const PHOTO_MAX_BYTES = 8_000_000;
+/** Steam's announcement images only (the rubric builds the address from Valve's own placeholder). */
+const PHOTO_ORIGIN = 'https://clan.akamai.steamstatic.com/';
+
+async function fetchPhoto(url: string): Promise<Uint8Array> {
+  const failed = () => new AppError('UNAVAILABLE', 'The source picture was not fetched', { reason: 'PHOTO_FETCH' });
+  if (!url.startsWith(PHOTO_ORIGIN)) throw failed();
+  let response: Response;
+  try {
+    response = await fetch(url, { signal: AbortSignal.timeout(PHOTO_TIMEOUT_MS) });
+  } catch {
+    throw failed();
+  }
+  const length = Number(response.headers.get('content-length') ?? 0);
+  if (!response.ok || length > PHOTO_MAX_BYTES) {
+    await response.body?.cancel();
+    throw failed();
+  }
+  const bytes = new Uint8Array(await response.arrayBuffer());
+  if (bytes.length > PHOTO_MAX_BYTES) throw failed();
+  return bytes;
+}
 
 // Finds from before the check's note and the post link were kept (migration 0114) have no text: the writer gets the
 // build's own changed lines instead, read the way the game-files flow reads them. A failed read leaves the find as it was.
@@ -185,6 +211,8 @@ export type RubricSampleDeps = {
     }) => Promise<string | null>;
     scene: (input: { heading: { text: string; red: string | null } | null }) => Promise<Scene>;
   } | null;
+  /** The picture law (workflows/picture-quality.ts): a narrow source picture comes back sharper, else as it was. */
+  improvePhoto: (file: SourcePicture) => Promise<SourcePicture>;
   telegram: TelegramSendApi;
   ownerChatId: string;
   random: () => number;
@@ -254,7 +282,7 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
   let picture: Uint8Array | null = null;
   // Every rubric gets a picture for now (owner, 25.10.2026: «пусть ИИ рисует для всех, а там уже отбросим»): one with
   // no layout of its own is the drawn scene with its title alone, and none at all when the scene is not drawn.
-  const page = sample.picture ?? (deps.ai === null ? null : titlePicture(title));
+  const page = sample.photo !== undefined ? null : (sample.picture ?? (deps.ai === null ? null : titlePicture(title)));
   if (page !== null) {
     if (deps.renderer === null) {
       throw new AppError('UNAVAILABLE', 'Browser Rendering is not bound here', { reason: 'BROWSER_NOT_BOUND' });
@@ -278,6 +306,14 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
         log('failed', code);
         throw new AppError('UNAVAILABLE', 'The picture was not rendered', { reason: code });
       }
+  }
+  if (sample.photo !== undefined) {
+    const file = await deps.improvePhoto({
+      bytes: await fetchPhoto(sample.photo.url),
+      contentType: 'image/png',
+      fileName: `${rubric}.png`
+    });
+    picture = file.bytes;
   }
   const written = await caption.catch(() => null);
   if (deps.ai !== null && !noWriter && written === null) notes.push('Текст — шаблон: ИИ его не написал.');
@@ -421,6 +457,7 @@ export async function runRubricSampleJob(
           caption: (input) => writeRubricCaption(aiDeps, input),
           scene: (input) => drawRubricScene({ ...aiDeps, images: container.aiImageProvider, onError }, input)
         },
+        improvePhoto: pictureImproverFor(container, requestId, onError, RUBRIC_PHOTO_MIN_WIDTH),
         telegram,
         ownerChatId,
         random: container.random,

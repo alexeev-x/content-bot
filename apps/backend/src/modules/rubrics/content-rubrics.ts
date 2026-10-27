@@ -340,19 +340,13 @@ export async function rateIt(context: RubricContext): Promise<RubricSample> {
       !NOT_NOVELTY.test(item.title)
   );
   if (latest === undefined || latest.imageUrl === null) throw noData('fresh novelty announcement');
-  // The set's own picture and nothing else (owner, 27.10.2026: «просто картинку на сам сет и всё»): Valve's image
-  // whole, a blurred copy of it filling the frame where its shape differs.
-  const src = escapeHtml(latest.imageUrl);
-  const html = picturePage(
-    `<img class="fill" src="${src}" alt=""><img class="shot" src="${src}" alt="">`,
-    `body{padding:0;background:#0c0d0f}body::before,body::after{content:none}.mark{display:none}
-.fill{position:absolute;inset:-40px;width:calc(100% + 80px);height:calc(100% + 80px);object-fit:cover;filter:blur(32px) brightness(.45)}
-.shot{position:absolute;inset:0;width:100%;height:100%;object-fit:contain}`
-  );
   return {
-    picture: { html, ...PICTURE_SIZE },
-    // The announcement itself is the draft (27.10.2026: the writer said «Valve показали новинку» and never named it):
-    // the writer retells what the novelty is in Russian, names stay English.
+    // The set's own picture and nothing else (owner, 27.10.2026: «просто картинку на сам сет и всё»), sent as Valve's
+    // file: drawn into our 1536 px page it was stretched and soft; a narrow one is made sharper by the picture law.
+    picture: null,
+    photo: { url: latest.imageUrl },
+    // The writer retells what the novelty is in Russian, names stay English (27.10.2026: the first sample said «Valve
+    // показали новинку» and never named it).
     text: `Новинка от Valve: «${latest.title}».`,
     // The announcement is background, not a draft: its prices and dates need not all reach the post.
     reference: latest.text,

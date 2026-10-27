@@ -106,6 +106,8 @@ export interface RubricSample {
   text: string;
   /** The rubric is one poll message with the picture inside it: no text post, no AI caption. */
   pictureInPoll?: boolean;
+  /** A source's own picture sent as its file, not drawn into a page (`picture` is then null). */
+  photo?: { url: string };
   /** Background for the AI writer that the caption need not repeat number by number. */
   reference?: string;
   /** The text is final as written (fixed captions): no AI caption. */
