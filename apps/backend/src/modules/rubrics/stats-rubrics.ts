@@ -240,6 +240,8 @@ const SUPPORT_KITS: readonly Build[] = [
   items('ward_observer', 'ward_sentry', 'dust', 'smoke_of_deceit', 'tango', 'flask'),
   items('arcane_boots', 'glimmer_cape', 'force_staff', 'mekansm', 'guardian_greaves', 'ward_observer')
 ];
+/** A broke support's whole inventory late in the game (owner, 27.10.2026: «шаман с танго, арканами… нищий»). */
+const POOR_SUPPORT = items('tango', 'arcane_boots', 'branches', 'ward_observer', 'magic_stick', 'wind_lace');
 const CHEAP = items('branches', 'tango', 'boots', 'magic_stick', 'faerie_fire', 'enchanted_mango');
 const RICH = items('rapier', 'greater_crit', 'heart', 'butterfly', 'skadi', 'abyssal_blade');
 const ABSURD: readonly Build[] = [
@@ -262,8 +264,8 @@ const HERO_MEMES: Record<string, Build> = {
   npc_dota_hero_invoker: items('ward_observer', 'tango', 'branches', 'magic_stick', 'boots', 'tpscroll')
 };
 type Side = { hero: HeroInfo; items: Build };
-type JokeKind = 'role_swap' | 'hero_meme' | 'beggar_rich' | 'absurd';
-const JOKE_KINDS: readonly JokeKind[] = ['role_swap', 'hero_meme', 'beggar_rich', 'absurd'];
+type JokeKind = 'role_swap' | 'poor_support' | 'hero_meme' | 'beggar_rich' | 'absurd';
+const JOKE_KINDS: readonly JokeKind[] = ['role_swap', 'poor_support', 'hero_meme', 'beggar_rich', 'absurd'];
 
 async function versusSides(context: RubricContext, heroes: HeroInfo[], known: Map<number, ItemInfo>) {
   const realBuild = async (hero: HeroInfo) =>
@@ -291,6 +293,15 @@ async function versusSides(context: RubricContext, heroes: HeroInfo[], known: Ma
     return [
       { hero: support, items: await realBuild(carry) },
       { hero: carry, items: pick(SUPPORT_KITS, context.random) }
+    ] satisfies [Side, Side];
+  }
+  if (kind === 'poor_support') {
+    // A carry with full slots against a support who still lives on tango.
+    const support = supports[0];
+    if (support === undefined) throw noData('supports');
+    return [
+      { hero: carry, items: await realBuild(carry) },
+      { hero: support, items: POOR_SUPPORT }
     ] satisfies [Side, Side];
   }
   if (kind === 'hero_meme') {

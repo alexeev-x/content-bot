@@ -636,7 +636,9 @@ export async function valveTime(context: RubricContext): Promise<RubricSample> {
   const look = pick(VALVE_TIME_LOOKS, context.random);
   return {
     picture: { html: valveTimePicture(look, { days, version: latest.version, date }), ...PICTURE_SIZE },
-    text: `⏳ ${days} ${plural(days, 'день', 'дня', 'дней')} без патча. Последний — ${latest.version}, ${date}.`,
+    // The board carries the numbers; the caption is the joke alone (owner, 27.10.2026: the sample repeated the board).
+    text: 'Патча всё нет.',
+    reference: `${days} ${plural(days, 'день', 'дня', 'дней')} без патча; последний патч ${latest.version} вышел ${date}.`,
     poll: null
   };
 }
