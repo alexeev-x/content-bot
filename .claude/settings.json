@@ -53,45 +53,6 @@
           }
         ]
       }
-    ],
-    "Stop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.agents/hooks/verify-on-stop.mjs\"",
-            "timeout": 320
-          }
-        ]
-      }
-    ],
-    "SubagentStop": [
-      {
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.agents/hooks/verify-on-stop.mjs\"",
-            "timeout": 320
-          },
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.agents/hooks/track-builders.mjs\"",
-            "timeout": 10
-          }
-        ]
-      }
-    ],
-    "SubagentStart": [
-      {
-        "matcher": "^(backend|frontend|design-system)$",
-        "hooks": [
-          {
-            "type": "command",
-            "command": "node \"${CLAUDE_PROJECT_DIR}/.agents/hooks/track-builders.mjs\"",
-            "timeout": 10
-          }
-        ]
-      }
     ]
   }
 }
