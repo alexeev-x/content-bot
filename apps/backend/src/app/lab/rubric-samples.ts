@@ -1,4 +1,4 @@
-import { richMediaId } from '@alexeev/contracts';
+import { expandRichMedia, RICH_MEDIA_SLOT, richMediaId } from '@alexeev/contracts';
 import { InputFile } from 'grammy';
 import { BrowserRenderError, type PictureRenderer } from '../../integrations/browser-render/browser-render';
 import { createDotaConstantsApi, DotaConstantsError } from '../../integrations/dotaconstants/dotaconstants';
@@ -61,6 +61,22 @@ function withLinks(
     text += link.text;
   }
   return { text, entities };
+}
+
+const escapeRich = (text: string) =>
+  text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
+
+/** An album's rich HTML: the media as a carousel (one alone as a figure), each line of the text as a paragraph, the links. */
+function albumRichHtml(
+  body: string,
+  links: { text: string; url: string }[],
+  media: readonly { kind: 'photo' | 'video' | 'animation' }[]
+): string {
+  return [
+    expandRichMedia(RICH_MEDIA_SLOT, media),
+    ...body.split(/\n{2,}/u).map((paragraph) => `<p>${escapeRich(paragraph.trim()).replaceAll('\n', '<br/>')}</p>`),
+    ...links.map((link) => `<p><a href="${escapeRich(link.url)}">${escapeRich(link.text)}</a></p>`)
+  ].join('\n');
 }
 
 async function fetchPhoto(url: string): Promise<Uint8Array> {
@@ -340,14 +356,16 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
     picture = file.bytes;
   }
   // An album's photos one by one; one that fails is left out, the album needs one.
-  const album: { kind: 'photo' | 'video'; bytes: Uint8Array }[] = [];
+  const album: { kind: 'photo' | 'video' | 'animation'; bytes: Uint8Array }[] = [];
   for (const [kind, urls] of [
     ['photo', sample.album?.photos ?? []],
     ['video', sample.album?.clips ?? []]
   ] as const) {
     for (const url of urls) {
       const bytes = await fetchPhoto(url).catch(() => null);
-      if (bytes !== null) album.push({ kind, bytes });
+      // A Workshop screenshot is often an animated GIF: it goes as an animation, a photo would freeze it.
+      const gif = bytes !== null && bytes[0] === 0x47 && bytes[1] === 0x49 && bytes[2] === 0x46;
+      if (bytes !== null) album.push({ kind: gif ? 'animation' : kind, bytes });
     }
   }
   if (sample.album !== undefined && album.length === 0) {
@@ -384,13 +402,19 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
       );
     const rich = pollOnly || album.length > 0 ? null : rubricRichHtml(text, picture !== null);
     if (album.length > 0) {
-      await deps.telegram.sendMediaGroup(
+      // One rich message, the photos and GIFs as a carousel on top (owner, 27.10.2026: «формата rich, чтобы был как
+      // карусель»), then the text, the verdict and the links as words.
+      const extension = { photo: 'jpg', video: 'mp4', animation: 'gif' } as const;
+      await deps.telegram.sendRichMessage(
         deps.ownerChatId,
-        album.map(({ kind, bytes }, index) => ({
-          type: kind,
-          media: new InputFile(bytes, `${rubric}-${index + 1}.${kind === 'photo' ? 'jpg' : 'mp4'}`),
-          ...(index === 0 ? { caption: text, caption_entities: linked.entities } : {})
-        })),
+        {
+          html: albumRichHtml(body, sample.links ?? [], album),
+          media: album.map(({ kind, bytes }, index) => ({
+            id: richMediaId(index),
+            kind,
+            file: new InputFile(bytes, `${rubric}-${index + 1}.${extension[kind]}`)
+          }))
+        },
         FLAGS,
         signal()
       );
