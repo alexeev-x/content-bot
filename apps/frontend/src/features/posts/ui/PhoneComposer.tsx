@@ -19,11 +19,14 @@ type Props = {
   children: (tools: PhoneComposerTools) => ReactNode;
   /** The bubble's corner, as a sent message: the save time and its mark. */
   meta?: ReactNode;
+  /** Under the message: an approved post's publications. */
+  below?: ReactNode;
   /** A text post: 📎, Aa, 😀 and ✨; a poll: its settings. */
   kind: 'text' | 'poll';
   canImprove: boolean;
   isReadOnly: boolean;
-  send: { isLoading: boolean; isDisabled: boolean; onPress: () => void };
+  /** The bar's primary action; null for an archived post, which only its banner acts on. */
+  send: { isLoading: boolean; isDisabled: boolean; onPress: () => void } | null;
 };
 
 const copy = postsCopy.editor.phone;
@@ -41,7 +44,18 @@ const POLL_PANELS: PanelButton[] = [{ id: 'poll', icon: 'settings', label: copy.
  * The post editor on a phone, as a Telegram chat (owner, 20.10.2026: «как в телеграме»): the post is the channel
  * message, the tools sit in the bottom bar, and their panels open where the keyboard was.
  */
-export function PhoneComposer({ rootRef, header, notices, children, meta, kind, canImprove, isReadOnly, send }: Props) {
+export function PhoneComposer({
+  rootRef,
+  header,
+  notices,
+  children,
+  meta,
+  below,
+  kind,
+  canImprove,
+  isReadOnly,
+  send
+}: Props) {
   const keyboard = useKeyboardPanel(rootRef);
   const chatRef = useRef<HTMLDivElement>(null);
   const [panelTarget, setPanelTarget] = useState<HTMLElement | null>(null);
@@ -90,6 +104,7 @@ export function PhoneComposer({ rootRef, header, notices, children, meta, kind, 
             </span>
           ) : null}
         </article>
+        {below ? <div className={styles.below}>{below}</div> : null}
       </div>
       <div className={styles.bar} role="toolbar" aria-label={copy.bar}>
         {isReadOnly ? null : (
@@ -129,18 +144,20 @@ export function PhoneComposer({ rootRef, header, notices, children, meta, kind, 
           </>
         )}
         <span className={styles.spacer} />
-        <Button
-          className={styles.send}
-          icon="send"
-          isLoading={send.isLoading}
-          isDisabled={send.isDisabled}
-          onPress={() => {
-            keyboard.close();
-            send.onPress();
-          }}
-        >
-          {copy.send}
-        </Button>
+        {send ? (
+          <Button
+            className={styles.send}
+            icon="send"
+            isLoading={send.isLoading}
+            isDisabled={send.isDisabled}
+            onPress={() => {
+              keyboard.close();
+              send.onPress();
+            }}
+          >
+            {copy.send}
+          </Button>
+        ) : null}
       </div>
       <section
         ref={setPanelTarget}

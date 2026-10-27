@@ -54,6 +54,10 @@
   color: var(--color-bubble-text);
   overflow-wrap: anywhere;
 }
+.below {
+  flex: none;
+  margin-top: var(--space-4);
+}
 .message:has([aria-invalid='true']) {
   box-shadow: 0 0 0 1px var(--color-danger);
 }

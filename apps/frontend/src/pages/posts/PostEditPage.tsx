@@ -157,32 +157,39 @@ function LoadedPost({ post }: { post: PostDto }) {
             />
           )
         }
-        notices={notice ? <LifecycleBanner notice={notice} onDismiss={() => setNotice(null)} /> : null}
+        // The archive banner goes with the editor's own: on a phone the composer fills the screen.
+        notices={
+          notice || isArchived ? (
+            <>
+              {notice ? <LifecycleBanner notice={notice} onDismiss={() => setNotice(null)} /> : null}
+              {isArchived ? (
+                <Banner
+                  tone="info"
+                  title={copy.archived.body(date)}
+                  action={
+                    <div className={styles.archiveActions}>
+                      <Button
+                        size="sm"
+                        variant="secondary"
+                        icon="retry"
+                        isLoading={restore.isPending}
+                        onPress={() => void restoreHere()}
+                      >
+                        {copy.actions.restore}
+                      </Button>
+                      <Button size="sm" variant="danger" icon="trash" onPress={() => setDeleting(true)}>
+                        {copy.actions.deleteNow}
+                      </Button>
+                    </div>
+                  }
+                >
+                  {copy.archived.readOnly}
+                </Banner>
+              ) : null}
+            </>
+          ) : null
+        }
       />
-      {isArchived ? (
-        <Banner
-          tone="info"
-          title={copy.archived.body(date)}
-          action={
-            <div className={styles.archiveActions}>
-              <Button
-                size="sm"
-                variant="secondary"
-                icon="retry"
-                isLoading={restore.isPending}
-                onPress={() => void restoreHere()}
-              >
-                {copy.actions.restore}
-              </Button>
-              <Button size="sm" variant="danger" icon="trash" onPress={() => setDeleting(true)}>
-                {copy.actions.deleteNow}
-              </Button>
-            </div>
-          }
-        >
-          {copy.archived.readOnly}
-        </Banner>
-      ) : null}
       {deleting ? (
         <DeletePostsDialog
           targets={[deleteTargetOf(post)]}
