@@ -1,4 +1,19 @@
 import { AppError } from '../../shared/app-error';
+import {
+  altBuild,
+  altKeyItem,
+  lengthWinRates,
+  matchupRows,
+  neutralPicks,
+  rankPurchases,
+  roleOf,
+  skillOrder,
+  splitBuild,
+  startItems,
+  talentRows,
+  GUIDE_DAYS
+} from './guide-data';
+import { type GuideItem, guideAltPicture, guidePicture, type HeroGuideCard } from './guide-pictures';
 import { heroImage, PICTURE_SIZE, picturePage } from './picture';
 import { type PatchOutcome, patchOutcomes } from './patch-rubrics';
 import { NERF_LOOKS, nerfQuestionPicture, nerfResultPicture } from './nerf-pictures';
@@ -288,50 +303,110 @@ export async function recruitPicks(context: RubricContext): Promise<RubricSample
   };
 }
 
-// «Гайд на героя» (owner, 27.10.2026): a popular hero's build by stage from what players really buy — the start
-// (bought before the horn or in the first minute), the core (10–25 minutes, the bigger items) and the late game.
-const GUIDE_POPULAR = 30;
-const GUIDE_ITEMS_MAX = 5;
+const STRETCHES = ['до 35 минут', 'от 35 до 50 минут', 'после 50 минут'];
+const ROLE_NAMES = { carry: 'керри', mid: 'мид', offlane: 'оффлейн', support: 'саппорт' } as const;
 
-/** Items bought in the rows, most matches first, each once. */
-function topItems(rows: { itemId: number; matches: number }[], items: Map<number, ItemInfo>): ItemInfo[] {
-  const totals = new Map<number, number>();
-  for (const row of rows) totals.set(row.itemId, (totals.get(row.itemId) ?? 0) + row.matches);
-  return [...totals]
-    .sort((a, b) => b[1] - a[1])
-    .map(([itemId]) => items.get(itemId))
-    .filter((item): item is ItemInfo => item !== undefined);
-}
+// «Гайд на героя»: one card (and a second slide for an alternative build) from the hero's own numbers at its main
+// position. Every STRATZ read is one call after another and every block is optional: a read that fails or comes back
+// thin leaves its block out of the card and puts a line in the owner's notes; only the core build is required.
+const GUIDE_POPULAR = 30;
 
 export async function heroGuide(context: RubricContext): Promise<RubricSample> {
   const popular = (await shares(context, 7)).sort((a, b) => b.pickRate - a.pickRate).slice(0, GUIDE_POPULAR);
   const hero = pick(popular, context.random).hero;
-  const known = new Map((await context.sources.items()).map((item) => [item.id, item]));
-  // One stats call after another: the bridge serialises them anyway, and a burst got STRATZ_BLOCKED (27.10.2026).
-  const purchases = await needStats(context).heroPurchases(hero.id);
-  const late = await lateBuild(context, hero.id, known);
-  const start = topItems(
-    purchases.filter((row) => row.minute <= 1),
-    known
-  ).slice(0, GUIDE_ITEMS_MAX);
-  const core = topItems(
-    purchases.filter((row) => row.minute >= 10 && row.minute <= 25),
-    known
-  )
-    .filter((item) => item.cost >= 1000)
-    .slice(0, GUIDE_ITEMS_MAX);
-  const coreKeys = new Set(core.map((item) => item.key));
-  const lateOnly = late.filter((item) => !coreKeys.has(item.key)).slice(0, GUIDE_ITEMS_MAX);
-  if (start.length === 0 || core.length === 0 || lateOnly.length === 0) throw noData('hero purchases');
-  const names = (list: ItemInfo[]) => list.map((item) => item.name).join(', ');
+  const stats = needStats(context);
+  const position = mainPositions(await stats.positions()).get(hero.id)?.position;
+  if (position === undefined) throw noData('hero positions');
+  const [known, heroes] = await Promise.all([context.sources.items(), context.sources.heroes()]);
+  const items = new Map(known.map((item) => [item.id, item]));
+  const notes: string[] = [];
+  const attempt = async <T>(block: string, read: () => Promise<T>): Promise<T | null> => {
+    try {
+      return await read();
+    } catch {
+      notes.push(`Нет данных: ${block}`);
+      return null;
+    }
+  };
+  const detail = await attempt('способности и таланты', () => context.sources.heroDetail(hero.id));
+
+  const purchases = await attempt('предметы', () => stats.heroPositionPurchases(hero.id, position));
+  const ranked = purchases === null ? [] : rankPurchases(purchases, items);
+  const { core, situational } = splitBuild(ranked);
+  if (core.length === 0) throw noData('hero purchases');
+  const startRows = await attempt('стартовый закуп', () => stats.heroStartingItems(hero.id, position));
+  const start = startRows === null ? [] : startItems(startRows, items);
+  if (start.length === 0 && startRows !== null) notes.push('Нет данных: стартовый закуп');
+  const neutralRows = await attempt('нейтралки', () => stats.heroNeutralItems(hero.id, position));
+  const neutrals = neutralRows === null ? [] : neutralPicks(neutralRows, items);
+  if (neutrals.length === 0 && neutralRows !== null) notes.push('Нет данных: нейтралки');
+
+  const talentStats = await attempt('таланты', () => stats.heroTalents(hero.id, position));
+  const talents = detail === null || talentStats === null ? [] : talentRows(detail.talents, talentStats);
+  if (talents.length === 0 && detail !== null && talentStats !== null) notes.push('Нет данных: таланты');
+  const levels = await attempt('прокачка', () => stats.heroAbilityLevels(hero.id, position));
+  const order = detail === null || levels === null ? null : skillOrder(detail, levels.first, levels.max);
+  if (order === null && detail !== null && levels !== null) notes.push('Нет данных: прокачка');
+  const versus = await attempt('матчапы', () => stats.heroMatchups(hero.id));
+  const matchups = versus === null ? [] : matchupRows(versus, new Map(heroes.map((each) => [each.id, each])));
+  if (matchups.length === 0 && versus !== null) notes.push('Нет данных: матчапы');
+  const timeline = await attempt('винрейт по длине матча', () => stats.heroTimeline(hero.id));
+  const byLength = timeline === null ? null : lengthWinRates(timeline);
+  if (byLength === null && timeline !== null) notes.push('Нет данных: винрейт по длине матча');
+  const own = (await attempt('винрейт сборки', () => stats.positions()))?.find(
+    (row) => row.heroId === hero.id && row.position === position
+  );
+
+  const keyItem = altKeyItem(ranked, core);
+  const sample =
+    keyItem === null
+      ? null
+      : await attempt('альтернативная сборка', () => stats.heroItemSample(hero.id, position, keyItem.item.id));
+  const alt = keyItem === null ? null : altBuild({ ranked, core, sample, items, keyItem });
+  if (keyItem !== null && alt === null && sample !== null) notes.push('Нет данных: альтернативная сборка');
+
+  const card: HeroGuideCard = {
+    hero: { name: hero.name, localizedName: hero.localizedName },
+    role: roleOf(position),
+    ...(own === undefined || own.matches === 0
+      ? {}
+      : { buildWinRate: own.wins / own.matches, buildMatches: own.matches }),
+    buildDays: GUIDE_DAYS,
+    start,
+    core,
+    situational,
+    neutrals,
+    matchups,
+    ...(byLength === null ? {} : { byLength }),
+    abilities: order?.abilities ?? [],
+    skills: order?.skills ?? [],
+    ...(talents.length === 0 ? {} : { talents }),
+    ...(alt === null ? {} : { alt })
+  };
+  const itemName = (each: GuideItem) => known.find((item) => item.key === each.key)?.name ?? each.key;
+  const heroNames = (sign: 1 | -1) =>
+    matchups
+      .filter((each) => Math.sign(each.delta) === sign)
+      .map((each) => heroes.find((other) => other.name === each.hero.name)?.localizedName ?? '');
+  const fears = heroNames(-1);
+  const beats = heroNames(1);
+  const strongest = byLength === null ? null : STRETCHES[byLength.indexOf(Math.max(...byLength))];
+  const slide = guideAltPicture(card);
   return {
-    picture: null,
-    text: [
-      `Гайд на ${hero.localizedName}: что покупают те, кто на нём побеждает.`,
-      `Старт: ${names(start)}`,
-      `Кор: ${names(core)}`,
-      `Поздняя игра: ${names(lateOnly)}`
-    ].join('\n'),
+    picture: guidePicture(card),
+    ...(slide === null ? {} : { slides: [slide] }),
+    notes,
+    text: `Гайд на ${hero.localizedName}: что покупать, как качать и кого бояться — всё на картинке.`,
+    reference: [
+      `${hero.localizedName}, роль: ${ROLE_NAMES[roleOf(position)]}.`,
+      `Основа по порядку: ${core.map(itemName).join(', ')}.`,
+      fears.length === 0 ? '' : `Тяжело против: ${fears.join(', ')}.`,
+      beats.length === 0 ? '' : `Легко против: ${beats.join(', ')}.`,
+      strongest === null ? '' : `Сильнее всего в играх ${strongest}.`,
+      alt === null ? '' : `Есть вторая сборка: через ${alt.keyItem}.`
+    ]
+      .filter((line) => line !== '')
+      .join('\n'),
     poll: null
   };
 }

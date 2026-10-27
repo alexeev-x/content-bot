@@ -32,6 +32,8 @@ export interface ItemInfo {
   name: string;
   cost: number;
   components: string[];
+  /** 1–5 for a neutral item, else null. */
+  neutralTier: number | null;
 }
 
 export interface AbilityDetail {
@@ -44,11 +46,21 @@ export interface AbilityDetail {
   values: { heading: string; values: number[] }[];
 }
 
+/** A talent as Valve's text has it, `{s:bonus_radius}` placeholders unfilled; `bonuses` hold what it adds, by value name. */
+export interface TalentDetail {
+  id: number;
+  key: string;
+  name: string;
+  bonuses: { name: string; value: number }[];
+}
+
 export interface HeroDetail {
   id: number;
   name: string;
   localizedName: string;
   abilities: AbilityDetail[];
+  /** The eight talents: the level 10 pair first, then 15, 20 and 25. */
+  talents: TalentDetail[];
 }
 
 export interface PatchNotes {
@@ -74,6 +86,34 @@ export interface StatsSource {
   heroPurchases(heroId: number): Promise<{ itemId: number; minute: number; matches: number; wins: number }[]>;
   /** A hero's matches still going at each minute and the wins among them. */
   heroTimeline(heroId: number): Promise<{ minute: number; remaining: number; wins: number }[]>;
+  /** A hero's starting buys at a position (1–5). */
+  heroStartingItems(
+    heroId: number,
+    position: number
+  ): Promise<{ itemId: number; instance: number; matches: number; wins: number }[]>;
+  /** A hero's item purchases by minute at a position. */
+  heroPositionPurchases(
+    heroId: number,
+    position: number
+  ): Promise<{ itemId: number; minute: number; matches: number; wins: number }[]>;
+  heroNeutralItems(heroId: number, position: number): Promise<{ itemId: number; matches: number; wins: number }[]>;
+  heroTalents(heroId: number, position: number): Promise<{ abilityId: number; matches: number; wins: number }[]>;
+  /** The hero level an ability is first learnt at and the one it reaches its maximum at, at a position. */
+  heroAbilityLevels(
+    heroId: number,
+    position: number
+  ): Promise<{
+    first: { abilityId: number; level: number; matches: number }[];
+    max: { abilityId: number; level: number; matches: number }[];
+  }>;
+  /** A hero's matches and wins against each other hero. */
+  heroMatchups(heroId: number): Promise<{ heroId: number; matches: number; wins: number }[]>;
+  /** The final inventories of a sample of the hero's matches that held an item, and the count of such matches. */
+  heroItemSample(
+    heroId: number,
+    position: number,
+    itemId: number
+  ): Promise<{ matches: number; inventories: number[][] }>;
   /** Every hero's matches and wins by position 1–5. */
   positions(): Promise<{ heroId: number; position: number; matches: number; wins: number }[]>;
   /** Every hero's last two weeks in a bracket (null: every bracket together), newest first. */
@@ -124,6 +164,10 @@ export interface RubricSample {
     /** A still to open the album with when every photo turns out animated. */
     cover?: string;
   };
+  /** Lines for the owner's sample only: what the rubric had to leave out. */
+  notes?: string[];
+  /** More pages of the same post: the picture and these are one carousel in one rich message. */
+  slides?: { html: string; width: number; height: number }[];
   /** Links shown as words in the caption, never a bare address (owner, 27.10.2026: «ссылки прятать в текст»). */
   links?: { text: string; url: string }[];
   /** A fixed last line under the AI's caption, kept word for word (a reactions verdict). */

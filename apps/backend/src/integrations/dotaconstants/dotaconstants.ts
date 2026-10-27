@@ -46,6 +46,8 @@ export interface ConstantsItem {
   name: string;
   cost: number;
   components: string[];
+  /** 1–5 for a neutral item, else null. */
+  neutralTier: number | null;
 }
 
 const heroSchema = z.object({
@@ -133,7 +135,7 @@ export function createDotaConstantsApi(input: { fetchImpl?: typeof fetch } = {})
         if (key.startsWith('recipe_')) continue;
         // Checked by hand, not with Zod: some 500 entries, and the request has 10 ms of CPU.
         if (typeof entry !== 'object' || entry === null) continue;
-        const { id, dname, cost, components } = entry as Record<string, unknown>;
+        const { id, dname, cost, components, tier } = entry as Record<string, unknown>;
         if (typeof id !== 'number' || typeof dname !== 'string' || typeof cost !== 'number') continue;
         items.push({
           id,
@@ -142,7 +144,8 @@ export function createDotaConstantsApi(input: { fetchImpl?: typeof fetch } = {})
           cost,
           components: Array.isArray(components)
             ? components.filter((part): part is string => typeof part === 'string').slice(0, 10)
-            : []
+            : [],
+          neutralTier: typeof tier === 'number' && tier >= 1 && tier <= 5 ? tier : null
         });
       }
       if (items.length < 100) throw new DotaConstantsError('DOTACONSTANTS_SHAPE');

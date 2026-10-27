@@ -41,7 +41,8 @@ export interface DatafeedAbility {
   cooldowns: number[];
   manaCosts: number[];
   castRanges: number[];
-  values: { name: string; heading: string; values: number[] }[];
+  /** `bonuses`: what each talent (by its key) adds to this value. */
+  values: { name: string; heading: string; values: number[]; bonuses: { talent: string; value: number }[] }[];
 }
 
 export interface DatafeedHero extends DatafeedHeroSummary {
@@ -58,6 +59,8 @@ export interface DatafeedHero extends DatafeedHeroSummary {
   sightDay: number;
   sightNight: number;
   abilities: DatafeedAbility[];
+  /** The eight talents, level 10 pair first, then 15, 20, 25. */
+  talents: DatafeedAbility[];
 }
 
 export interface DatafeedItemSummary {
@@ -110,7 +113,11 @@ const abilitySchema = z.object({
       z.object({
         name: z.string().max(100).catch(''),
         heading_loc: z.string().max(200).catch(''),
-        values_float: numbers
+        values_float: numbers,
+        bonuses: z
+          .array(z.object({ name: z.string().max(100), value: z.number().catch(0) }))
+          .max(20)
+          .catch([])
       })
     )
     .max(60)
@@ -137,13 +144,32 @@ const heroDataSchema = z.object({
             damage_max: z.number(),
             sight_range_day: z.number(),
             sight_range_night: z.number(),
-            abilities: z.array(abilitySchema).max(30)
+            abilities: z.array(abilitySchema).max(30),
+            talents: z.array(abilitySchema).max(12).catch([])
           })
         )
         .min(1)
         .max(1)
     })
   })
+});
+const toAbility = (ability: z.infer<typeof abilitySchema>): DatafeedAbility => ({
+  id: ability.id,
+  name: ability.name,
+  nameLoc: ability.name_loc,
+  descLoc: ability.desc_loc,
+  scepterLoc: ability.scepter_loc,
+  shardLoc: ability.shard_loc,
+  type: ability.type,
+  cooldowns: ability.cooldowns,
+  manaCosts: ability.mana_costs,
+  castRanges: ability.cast_ranges,
+  values: ability.special_values.map((each) => ({
+    name: each.name,
+    heading: each.heading_loc,
+    values: each.values_float,
+    bonuses: each.bonuses.map((bonus) => ({ talent: bonus.name, value: bonus.value }))
+  }))
 });
 const itemListSchema = z.object({
   result: z.object({
@@ -266,23 +292,8 @@ export function createValveDatafeedApi(input: { fetchImpl?: typeof fetch } = {})
         damageMax: hero.damage_max,
         sightDay: hero.sight_range_day,
         sightNight: hero.sight_range_night,
-        abilities: hero.abilities.map((ability) => ({
-          id: ability.id,
-          name: ability.name,
-          nameLoc: ability.name_loc,
-          descLoc: ability.desc_loc,
-          scepterLoc: ability.scepter_loc,
-          shardLoc: ability.shard_loc,
-          type: ability.type,
-          cooldowns: ability.cooldowns,
-          manaCosts: ability.mana_costs,
-          castRanges: ability.cast_ranges,
-          values: ability.special_values.map((each) => ({
-            name: each.name,
-            heading: each.heading_loc,
-            values: each.values_float
-          }))
-        }))
+        abilities: hero.abilities.map(toAbility),
+        talents: hero.talents.map(toAbility)
       };
     },
     async itemList(signal) {

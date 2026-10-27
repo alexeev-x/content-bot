@@ -77,3 +77,5 @@ ready; the release plan picks picture or text per post.
   plan picks.
 - **«Сеты из мастерской»** — a set never repeats (owner, 27.10.2026: «чтобы сет не повторялся»): the scheduler skips
   every Workshop id already posted (the history in item 3) and takes the highest-trending one left of the week's top ten.
+- **«Гайд на героя»** — a hero does not repeat (owner, 27.10.2026: «чтобы не повторялись герои», details when wired to
+  publishing): the scheduler skips heroes already guided (the history in item 3).

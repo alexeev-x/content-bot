@@ -44,6 +44,38 @@ const purchaseSchema = z.object({
   matchCount: count,
   winCount: count
 });
+const startSchema = z.object({
+  itemId: z.number().int(),
+  instance: z.coerce.number().int().positive().catch(1),
+  matchCount: count,
+  winCount: count
+});
+const talentSchema = z.object({ abilityId: z.number().int(), matchCount: count, winCount: count });
+const abilityLevelSchema = z.object({
+  abilityId: z.number().int(),
+  level: z.number().int(),
+  matchCount: count,
+  winCount: count
+});
+const neutralSchema = z.object({ itemId: z.number().int(), matchCount: count, winCount: count });
+const matchupSchema = z.object({
+  vs: z.array(z.object({ heroId2: z.number().int(), matchCount: count, winCount: count })).max(300)
+});
+const slot = z.number().int().nullable().catch(null);
+const guideSchema = z.object({
+  matchCount: count,
+  guides: z
+    .array(
+      z.object({
+        matchPlayer: z
+          .object({ item0Id: slot, item1Id: slot, item2Id: slot, item3Id: slot, item4Id: slot, item5Id: slot })
+          .nullable()
+          .catch(null)
+      })
+    )
+    .max(100)
+    .catch([])
+});
 const timeSchema = z.object({ time: z.number().int(), remainingMatchCount: count, winCount: count });
 const positionSchema = z.object({
   heroId: z.number().int(),
@@ -85,7 +117,51 @@ export interface StratzApi {
   ): Promise<
     { heroId: number; matches: number; networth: number; heroDamage: number; kills: number; deaths: number }[]
   >;
+  /** A hero's starting buys at one position (1–5), each item with its copy number. */
+  startingItems(
+    heroId: number,
+    position: number,
+    signal?: AbortSignal
+  ): Promise<{ itemId: number; instance: number; matches: number; wins: number }[]>;
+  /** A hero's item purchases by minute at one position. */
+  positionPurchases(
+    heroId: number,
+    position: number,
+    signal?: AbortSignal
+  ): Promise<{ itemId: number; minute: number; matches: number; wins: number }[]>;
+  /** The neutral items a hero's players held at one position. */
+  neutralItems(
+    heroId: number,
+    position: number,
+    signal?: AbortSignal
+  ): Promise<{ itemId: number; matches: number; wins: number }[]>;
+  /** How often each talent (by ability id) was learnt at one position. */
+  talents(
+    heroId: number,
+    position: number,
+    signal?: AbortSignal
+  ): Promise<{ abilityId: number; matches: number; wins: number }[]>;
+  /** The hero level at which each ability was first learnt (`first`) or reached its maximum, at one position. */
+  abilityLevels(
+    heroId: number,
+    position: number,
+    kind: 'first' | 'max',
+    signal?: AbortSignal
+  ): Promise<{ abilityId: number; level: number; matches: number; wins: number }[]>;
+  /** A hero's matches and wins against every other hero. */
+  matchups(heroId: number, signal?: AbortSignal): Promise<{ heroId: number; matches: number; wins: number }[]>;
+  /** Final inventories (item ids) of a sample of the hero's matches that held one item, and how many there are in all. */
+  itemSample(
+    heroId: number,
+    position: number,
+    itemId: number,
+    signal?: AbortSignal
+  ): Promise<{ matches: number; inventories: number[][] }>;
 }
+
+/** Players per sampled build and opponents per matchup read: both bound the reply. */
+const SAMPLE_TAKE = 40;
+const MATCHUP_TAKE = 130;
 
 /** `bridgeUrl`: the stats bridge's origin; without it STRATZ is called directly (it works from any non-Cloudflare host). */
 export function createStratzApi(input: { token: string; bridgeUrl?: string; fetchImpl?: typeof fetch }): StratzApi {
@@ -136,6 +212,14 @@ export function createStratzApi(input: { token: string; bridgeUrl?: string; fetc
   const heroStats = (data: unknown, field: string) =>
     (data as { heroStats?: Record<string, unknown> } | undefined)?.heroStats?.[field];
   const heroId = (value: number) => Math.trunc(value);
+  const place = (position: number) => {
+    const each = Math.trunc(position);
+    if (each < 1 || each > 5) throw new StratzError('STRATZ_SHAPE');
+    return each;
+  };
+  /** The arguments every per-hero aggregate takes: the hero, Divine and Immortal, one position. */
+  const scope = (id: number, position: number) =>
+    `heroId: ${heroId(id)}, bracketBasicIds: [DIVINE_IMMORTAL], positionIds: [POSITION_${place(position)}]`;
   return {
     async heroWeeks(bracket, weeks, signal) {
       const name = bracket === null ? Object.values(BRACKETS).join(', ') : BRACKETS[bracket];
@@ -199,6 +283,99 @@ export function createStratzApi(input: { token: string; bridgeUrl?: string; fetc
         kills: row.kills,
         deaths: row.deaths
       }));
+    },
+    async startingItems(id, position, signal) {
+      const rows = await query(
+        `{ heroStats { itemStartingPurchase(${scope(id, position)}) { itemId instance matchCount winCount } } }`,
+        (data) => heroStats(data, 'itemStartingPurchase'),
+        startSchema,
+        signal
+      );
+      return rows.map((row) => ({
+        itemId: row.itemId,
+        instance: row.instance,
+        matches: row.matchCount,
+        wins: row.winCount
+      }));
+    },
+    async positionPurchases(id, position, signal) {
+      const rows = await query(
+        `{ heroStats { itemFullPurchase(${scope(id, position)}) { itemId time matchCount winCount } } }`,
+        (data) => heroStats(data, 'itemFullPurchase'),
+        purchaseSchema,
+        signal
+      );
+      return rows.map((row) => ({ itemId: row.itemId, minute: row.time, matches: row.matchCount, wins: row.winCount }));
+    },
+    async neutralItems(id, position, signal) {
+      const rows = await query(
+        `{ heroStats { itemNeutral(${scope(id, position)}) { itemId matchCount winCount } } }`,
+        (data) => heroStats(data, 'itemNeutral'),
+        neutralSchema,
+        signal
+      );
+      return rows.map((row) => ({ itemId: row.itemId, matches: row.matchCount, wins: row.winCount }));
+    },
+    async talents(id, position, signal) {
+      const rows = await query(
+        `{ heroStats { talent(${scope(id, position)}) { abilityId matchCount winCount } } }`,
+        (data) => heroStats(data, 'talent'),
+        talentSchema,
+        signal
+      );
+      return rows.map((row) => ({ abilityId: row.abilityId, matches: row.matchCount, wins: row.winCount }));
+    },
+    async abilityLevels(id, position, kind, signal) {
+      const field = kind === 'first' ? 'abilityMinLevel' : 'abilityMaxLevel';
+      const rows = await query(
+        `{ heroStats { ${field}(${scope(id, position)}) { abilityId level matchCount winCount } } }`,
+        (data) => heroStats(data, field),
+        abilityLevelSchema,
+        signal
+      );
+      return rows.map((row) => ({
+        abilityId: row.abilityId,
+        level: row.level,
+        matches: row.matchCount,
+        wins: row.winCount
+      }));
+    },
+    async matchups(id, signal) {
+      const rows = await query(
+        `{ heroStats { heroVsHeroMatchup(heroId: ${heroId(id)}, take: ${MATCHUP_TAKE}) { advantage { vs { heroId2 matchCount winCount } } } } }`,
+        (data) => (heroStats(data, 'heroVsHeroMatchup') as { advantage?: unknown } | undefined)?.advantage,
+        matchupSchema,
+        signal
+      );
+      return rows
+        .flatMap((row) => row.vs)
+        .map((row) => ({ heroId: row.heroId2, matches: row.matchCount, wins: row.winCount }));
+    },
+    async itemSample(id, position, itemId, signal) {
+      const rows = await query(
+        `{ heroStats { guide(heroId: ${heroId(id)}, positionId: POSITION_${place(position)}, itemId: ${Math.trunc(itemId)}, take: ${SAMPLE_TAKE}) { matchCount guides { matchPlayer { item0Id item1Id item2Id item3Id item4Id item5Id } } } } }`,
+        (data) => heroStats(data, 'guide'),
+        guideSchema,
+        signal
+      );
+      return {
+        matches: rows.reduce((sum, row) => sum + row.matchCount, 0),
+        inventories: rows.flatMap((row) =>
+          row.guides.flatMap((guide) => {
+            const player = guide.matchPlayer;
+            if (player === null) return [];
+            const held = [
+              player.item0Id,
+              player.item1Id,
+              player.item2Id,
+              player.item3Id,
+              player.item4Id,
+              player.item5Id
+            ];
+            return [held.filter((each): each is number => each !== null)];
+          })
+        )
+      };
     }
   };
 }

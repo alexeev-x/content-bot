@@ -183,6 +183,19 @@ function rubricSources(
           cooldowns: ability.cooldowns,
           manaCosts: ability.manaCosts,
           values: ability.values.map((value) => ({ heading: value.heading, values: value.values }))
+        })),
+        talents: hero.talents.map((talent) => ({
+          id: talent.id,
+          key: talent.name,
+          name: talent.nameLoc,
+          // What the hero's abilities say this talent adds, by the value's name.
+          bonuses: hero.abilities.flatMap((ability) =>
+            ability.values.flatMap((value) =>
+              value.bonuses
+                .filter((bonus) => bonus.talent === talent.name)
+                .map((bonus) => ({ name: value.name, value: bonus.value }))
+            )
+          )
         }))
       };
     },
@@ -213,6 +226,17 @@ function rubricSources(
             },
             heroPurchases: (heroId) => inTurn(() => stratz.heroPurchases(heroId)),
             heroTimeline: (heroId) => inTurn(() => stratz.heroTimeline(heroId)),
+            heroStartingItems: (heroId, position) => inTurn(() => stratz.startingItems(heroId, position)),
+            heroPositionPurchases: (heroId, position) => inTurn(() => stratz.positionPurchases(heroId, position)),
+            heroNeutralItems: (heroId, position) => inTurn(() => stratz.neutralItems(heroId, position)),
+            heroTalents: (heroId, position) => inTurn(() => stratz.talents(heroId, position)),
+            async heroAbilityLevels(heroId, position) {
+              const first = await inTurn(() => stratz.abilityLevels(heroId, position, 'first'));
+              const max = await inTurn(() => stratz.abilityLevels(heroId, position, 'max'));
+              return { first, max };
+            },
+            heroMatchups: (heroId) => inTurn(() => stratz.matchups(heroId)),
+            heroItemSample: (heroId, position, itemId) => inTurn(() => stratz.itemSample(heroId, position, itemId)),
             positions: () => inTurn(() => stratz.positions()),
             twoWeeks: (bracket) => inTurn(() => stratz.heroWeeks(bracket, 2)),
             averages: () => inTurn(() => stratz.averages())
@@ -323,7 +347,7 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
           signal: AbortSignal.timeout(CAPTION_TIMEOUT_MS)
         });
 
-  const notes: string[] = [];
+  const notes: string[] = [...(sample.notes ?? [])];
   let picture: Uint8Array | null = null;
   // Every rubric gets a picture for now (owner, 25.10.2026: «пусть ИИ рисует для всех, а там уже отбросим»): one with
   // no layout of its own is the drawn scene with its title alone, and none at all when the scene is not drawn.
@@ -386,6 +410,24 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
     first.bytes = (
       await deps.improvePhoto({ bytes: first.bytes, contentType: 'image/png', fileName: `${rubric}.png` })
     ).bytes;
+  }
+  // More pages of the post (the guide's «Чем отличается») follow the picture as one carousel; the free plan takes one
+  // screenshot per 10 seconds.
+  if (picture !== null && deps.renderer !== null && (sample.slides?.length ?? 0) > 0) {
+    const pages: Uint8Array[] = [picture];
+    for (const slide of sample.slides ?? []) {
+      await new Promise((resolve) => setTimeout(resolve, BROWSER_GAP_MS));
+      try {
+        pages.push(await deps.renderer.render(slide.html, slide, 'png'));
+      } catch (error) {
+        const code = error instanceof BrowserRenderError ? error.code : 'BROWSER_FAILED';
+        notes.push(`Слайд не нарисован (${code}).`);
+      }
+    }
+    if (pages.length > 1) {
+      album.push(...pages.map((bytes) => ({ kind: 'photo' as const, bytes })));
+      picture = null;
+    }
   }
   if (sample.album !== undefined && album.length === 0) {
     throw new AppError('UNAVAILABLE', 'No photo of the album was fetched', { reason: 'PHOTO_FETCH' });
