@@ -511,7 +511,6 @@ export function notBuiltYet(what: string): Promise<RubricSample> {
 // next patch. The heroes strongest this week over every rank together (owner, 27.10.2026: «просто без рангов») whose
 // win rate also went up against the week before; neither the patch's buffs («Кто теперь имба?») nor one rank's plain
 // meta («Мета по рангам», «Тир-лист») picks them.
-const NERF_BRACKETS = BRACKETS;
 const NERF_MIN_MATCHES = 2000;
 const NERF_HEROES_MAX = 5;
 const VALVE_DONT_CARE = ['Никого, Valve похуй', 'Никого, Valve опять спит', 'Valve похуй, они делают кейсы'] as const;
@@ -519,13 +518,14 @@ const VALVE_DONT_CARE = ['Никого, Valve похуй', 'Никого, Valve 
 export async function whoGetsNerfed(context: RubricContext): Promise<RubricSample> {
   const stats = needStats(context);
   const [rows, heroes] = await Promise.all([
-    Promise.all(NERF_BRACKETS.map((bracket) => stats.twoWeeks(bracket))).then((each) => each.flat()),
+    // Every rank in one request: eight at once got STRATZ_BLOCKED (27.10.2026).
+    stats.twoWeeks(null),
     context.sources.heroes()
   ]);
   const weeks = [...new Set(rows.map((row) => row.week))].sort((a, b) => b - a);
   const [current, previous] = weeks;
   if (current === undefined || previous === undefined) throw noData('two weeks');
-  // Every rank summed: STRATZ counts each bracket apart.
+  // Summed per hero and week, whether STRATZ returns one row per bracket or one for all.
   const week = (heroId: number, which: number) =>
     rows
       .filter((row) => row.heroId === heroId && row.week === which)

@@ -61,9 +61,12 @@ const averageSchema = z.object({
 });
 
 export interface StratzApi {
-  /** Every hero's matches and wins in a bracket for the last `weeks` weeks (newest first per hero). */
+  /**
+   * Every hero's matches and wins for the last `weeks` weeks (newest first per hero), in one bracket or, with null, in
+   * every bracket in one request: eight at once got STRATZ_BLOCKED on DEV (27.10.2026).
+   */
   heroWeeks(
-    bracket: number,
+    bracket: number | null,
     weeks: number,
     signal?: AbortSignal
   ): Promise<{ heroId: number; week: number; matches: number; wins: number }[]>;
@@ -135,7 +138,7 @@ export function createStratzApi(input: { token: string; bridgeUrl?: string; fetc
   const heroId = (value: number) => Math.trunc(value);
   return {
     async heroWeeks(bracket, weeks, signal) {
-      const name = BRACKETS[bracket];
+      const name = bracket === null ? Object.values(BRACKETS).join(', ') : BRACKETS[bracket];
       if (name === undefined) throw new StratzError('STRATZ_SHAPE');
       const rows = await query(
         `{ heroStats { winWeek(take: ${Math.min(Math.max(Math.trunc(weeks), 1), 4)}, bracketIds: [${name}]) { heroId week matchCount winCount } } }`,

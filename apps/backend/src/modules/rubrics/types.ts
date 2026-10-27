@@ -76,8 +76,8 @@ export interface StatsSource {
   heroTimeline(heroId: number): Promise<{ minute: number; remaining: number; wins: number }[]>;
   /** Every hero's matches and wins by position 1–5. */
   positions(): Promise<{ heroId: number; position: number; matches: number; wins: number }[]>;
-  /** Every hero's last two weeks in a bracket, newest first. */
-  twoWeeks(bracket: number): Promise<{ heroId: number; week: number; matches: number; wins: number }[]>;
+  /** Every hero's last two weeks in a bracket (null: every bracket together), newest first. */
+  twoWeeks(bracket: number | null): Promise<{ heroId: number; week: number; matches: number; wins: number }[]>;
   /** Every hero's per-match averages this week. */
   averages(): Promise<
     { heroId: number; matches: number; networth: number; heroDamage: number; kills: number; deaths: number }[]
