@@ -170,7 +170,8 @@ function rubricSources(
       return { version: notes.version, timestamp: notes.timestamp, heroes: notes.heroes };
     },
     steamNews: () => steam.dotaNews(),
-    workshopTrending: () => steam.workshopTrending(),
+    workshopTrendingIds: () => steam.workshopTrendingIds(),
+    workshopItem: (id) => steam.workshopItem(id),
     gameFinds,
     stats:
       stratz === null

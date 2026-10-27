@@ -75,3 +75,5 @@ ready; the release plan picks picture or text per post.
   text result; the release plan may override.
 - **07 picture** — optional (owner, 27.10.2026: «тот случай, что можно и без картинки, и с картинкой»): the release
   plan picks.
+- **«Сеты из мастерской»** — a set never repeats (owner, 27.10.2026: «чтобы сет не повторялся»): the scheduler skips
+  every Workshop id already posted (the history in item 3) and takes the highest-trending one left of the week's top ten.

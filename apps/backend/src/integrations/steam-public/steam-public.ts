@@ -9,6 +9,7 @@ export const STEAM_PUBLIC_TIMEOUT_MS = 15_000;
 const MAX_BODY_BYTES = 1_500_000;
 const NEWS_TEXT_MAX = 1500;
 const SCREENSHOTS_MAX = 9;
+const TRENDING_MAX = 10;
 const SCREENSHOT = /'url':\s*'(https:\/\/images\.steamusercontent\.com\/ugc\/\d{1,25}\/[0-9A-F]{40}\/)/gu;
 const CLIPS_MAX = 3;
 const IMGUR_GIF = /https:\/\/i\.imgur\.com\/([A-Za-z0-9]{5,12})\.gif/gu;
@@ -74,8 +75,11 @@ export interface SteamPublicApi {
   dotaNews(
     signal?: AbortSignal
   ): Promise<{ title: string; text: string; imageUrl: string | null; publishedAt: number }[]>;
-  /** This week's trending Workshop set: its title, cover, page and the full-size screenshots its author added. */
-  workshopTrending(
+  /** This week's trending Workshop sets, the first page's ids in trend order. */
+  workshopTrendingIds(signal?: AbortSignal): Promise<string[]>;
+  /** One Workshop set: its title, cover, page, the author's full-size screenshots and the description's GIFs as MP4. */
+  workshopItem(
+    id: string,
     signal?: AbortSignal
   ): Promise<{ title: string; previewUrl: string; url: string; screenshots: string[]; clips: string[] } | null>;
 }
@@ -123,14 +127,17 @@ export function createSteamPublicApi(input: { fetchImpl?: typeof fetch } = {}): 
         };
       });
     },
-    async workshopTrending(signal) {
+    async workshopTrendingIds(signal) {
       const page = await text(
         'https://steamcommunity.com/workshop/browse/?appid=570&browsesort=trend&section=mtxitems&days=7',
         {},
         signal
       );
-      const id = /sharedfiles\/filedetails\/\?id=(\d{1,20})/u.exec(page)?.[1];
-      if (id === undefined) return null;
+      const ids = [...page.matchAll(/sharedfiles\/filedetails\/\?id=(\d{1,20})/gu)].map((match) => match[1] ?? '');
+      return [...new Set(ids)].filter((id) => id !== '').slice(0, TRENDING_MAX);
+    },
+    async workshopItem(id, signal) {
+      if (!/^\d{1,20}$/u.test(id)) return null;
       const form = new URLSearchParams({ itemcount: '1', 'publishedfileids[0]': id });
       const parsed = detailsSchema.safeParse(
         json(

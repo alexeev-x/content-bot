@@ -355,7 +355,11 @@ export async function rateIt(context: RubricContext): Promise<RubricSample> {
 }
 
 export async function workshopSet(context: RubricContext): Promise<RubricSample> {
-  const set = await context.sources.workshopTrending();
+  // A set never repeats in the channel (owner, 27.10.2026: «чтобы сет не повторялся»): the scheduler will skip the ids
+  // already posted (docs/RUBRICS_SCHEDULER.md); the DEV sample takes one of the week's top ten at random.
+  const ids = await context.sources.workshopTrendingIds();
+  const id = pick(ids, context.random);
+  const set = id === undefined ? null : await context.sources.workshopItem(id);
   if (set === null) throw noData('workshop');
   // The set's own photos from the Workshop, no picture of ours (owner, 27.10.2026: «фотографии из мастерской забирай и
   // их скидывай»); the page hides behind words, the verdict is the channel's reactions.

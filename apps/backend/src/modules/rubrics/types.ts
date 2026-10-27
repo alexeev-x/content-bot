@@ -95,7 +95,9 @@ export interface RubricSources {
   /** The finds in the game's files committed since `since` (UTC ms), newest first, at most a few. */
   gameFinds(since: number): Promise<{ build: string; committedAt: number; note: string | null; text: string | null }[]>;
   /** A set rising in the Steam Workshop this week. */
-  workshopTrending(): Promise<{
+  /** This week's trending Workshop sets, ids in trend order. */
+  workshopTrendingIds(): Promise<string[]>;
+  workshopItem(id: string): Promise<{
     title: string;
     previewUrl: string;
     url: string;
