@@ -36,6 +36,8 @@ const STAMP: Record<PatchOutcome, string> = {
 };
 const stamp = (outcome: PatchOutcome) => `<span class="stamp ${outcome}">${STAMP[outcome]}</span>`;
 const growth = (value: number) => `+${percent(value)}`;
+/** A rise shows from half a percent, as in the post's text (stats-rubrics.ts `shownGrowth`). */
+const GROWTH_SHOWN = 0.005;
 
 /** Valve's 1440² cut-out render: sharp even when the scope shows it large. */
 const heroRender = (key: string) =>
@@ -115,7 +117,7 @@ const NERF_PAIRS: Record<NerfLook, NerfPair> = {
           const size = markSize(targets, each, 84, 132);
           return `<div class="who"><div class="cell"><img src="${heroPortraitImage(each.hero.name)}" alt="">
 <div class="aim" style="--m:${size}px">${RETICLE}</div></div>
-<div class="card"><div class="num">${percent(each.winRate)}</div><div class="gr">${growth(each.growth)} за неделю</div></div></div>`;
+<div class="card"><div class="num">${percent(each.winRate)}</div>${each.growth >= GROWTH_SHOWN ? `<div class="gr">${growth(each.growth)} за неделю</div>` : ''}</div></div>`;
         })
         .join('');
       return `${questionTitle(1000)}${brackets}<div class="line">${row}</div>`;
@@ -153,7 +155,7 @@ repeating-linear-gradient(to top,rgba(255,255,255,.05) 0 1px,transparent 1px 24p
       if (first === undefined) return questionTitle(760);
       return `${questionTitle(760)}${scope(first, '')}
 <div class="lead"><div class="num">${percent(first.winRate)}</div><div class="gr">побед за неделю</div>
-<div class="gr up">${growth(first.growth)} к прошлой неделе</div></div>
+${first.growth >= GROWTH_SHOWN ? `<div class="gr up">${growth(first.growth)} к прошлой неделе</div>` : ''}</div>
 <div class="queue">${rest
         .map(
           (each) =>

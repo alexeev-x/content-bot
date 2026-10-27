@@ -513,6 +513,11 @@ export function notBuiltYet(what: string): Promise<RubricSample> {
 // meta («Мета по рангам», «Тир-лист») picks them.
 const NERF_MIN_MATCHES = 2000;
 const NERF_HEROES_MAX = 5;
+/**
+ * A rise is told only from half a percent (owner, 27.10.2026): over all ranks most heroes move by 0,1–0,2% a week, and
+ * «прибавил 0,1%» read as a stretch.
+ */
+const shownGrowth = (growth: number) => growth >= 0.005;
 const VALVE_DONT_CARE = ['Никого, Valve похуй', 'Никого, Valve опять спит', 'Valve похуй, они делают кейсы'] as const;
 
 export async function whoGetsNerfed(context: RubricContext): Promise<RubricSample> {
@@ -543,14 +548,14 @@ export async function whoGetsNerfed(context: RubricContext): Promise<RubricSampl
     })
     .filter((each): each is { hero: HeroInfo; winRate: number; growth: number } => each !== null)
     .filter((each) => each.winRate > 0.5 && each.growth > 0)
-    // Strong now counts more than the rise: a 54% hero that rose 0.5% is a likelier nerf than a 51% one that rose 2%.
-    .sort((a, b) => b.winRate + b.growth / 2 - (a.winRate + a.growth / 2))
+    // By win rate alone, the same order as on the picture (owner's sample, 27.10.2026).
+    .sort((a, b) => b.winRate - a.winRate)
     .slice(0, NERF_HEROES_MAX);
   if (top.length < 3) throw noData('strong rising heroes');
   // No arrow: the AI writer retells each line in words, the rich message makes no table of it.
   const lines = top.map(
     (each) =>
-      `${each.hero.localizedName}: ${percent(each.winRate)} побед, за неделю винрейт вырос на ${percent(each.growth)}`
+      `${each.hero.localizedName}: ${percent(each.winRate)} побед${shownGrowth(each.growth) ? `, за неделю винрейт вырос на ${percent(each.growth)}` : ''}`
   );
   const result = await patchOutcomes(
     context,

@@ -568,9 +568,10 @@ export async function nerfOrBuff(context: RubricContext): Promise<RubricSample> 
 
 // «Valve, ты серьёзно?» (owner, 27.10.2026): the three funniest micro-changes of the patch, ones absurd on their own.
 // The smallest in % alone picked Centaur's speed 300 → 295, a plain nerf that matters in the game: speed and damage
-// are left out, and a change counts when it moves its stat by at most 3%.
+// are left out, and a change counts when it moves its stat by at most 6%: 7.41f had nothing under 3%, its funny ones were
+// «сила 23 → 22», «интеллект 20 → 21», «прирост силы 3,3 → 3,4» (27.10.2026).
 const SERIOUS_STAT = /скорост[ьи] передвижения|урон|damage/iu;
-const MICRO_MAX = 0.03;
+const MICRO_MAX = 0.06;
 const SERIOUSLY_MAX = 3;
 const SERIOUSLY_JOKES = ['Это меняет всё', 'Ждал этого три года', 'Иди нахуй, Valve'] as const;
 
