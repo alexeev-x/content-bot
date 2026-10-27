@@ -371,7 +371,7 @@ export async function workshopSet(context: RubricContext): Promise<RubricSample>
     },
     text: `Сет из мастерской Steam, который набирает популярность: «${set.title}».`,
     links: [{ text: 'Посмотреть в мастерской', url: set.url }],
-    footer: pick(WORKSHOP_VERDICTS, context.random),
+    footer: workshopVerdict(set.title, context.random),
     poll: null
   };
 }
@@ -384,11 +384,22 @@ const WORKSHOP_ALBUM_MAX = 10;
  */
 const WORKSHOP_VERDICTS = [
   '🔥 — имба, 💩 — пиздец, 🤤 — обкончай меня, Педро',
-  '🔥 — беру, 💩 — верните деньги, 🤡 — это для Пуджа-мейнера',
+  '🔥 — беру, 💩 — верните деньги, 🤡 — мой мейн заслужил лучшего',
   '🔥 — шедевр, 💩 — рисовали ногой, 😭 — мама, купи',
   '🔥 — в игру, 💩 — в помойку, 🗿 — закину 3к и пожалею',
   '🔥 — кончил, 💩 — блеванул, 🤯 — я это развидеть не могу'
 ] as const;
+/**
+ * A hero's own verdict, only for that hero's set (owner, 27.10.2026: «это для Пуджа-мейнера — только когда Пудж»): the
+ * Workshop title starts with the hero, «Pudge | …».
+ */
+const HERO_VERDICTS: { hero: RegExp; verdict: string }[] = [
+  { hero: /^pudge/iu, verdict: '🔥 — беру, 💩 — верните деньги, 🤡 — это для Пуджа-мейнера' }
+];
+const workshopVerdict = (title: string, random: () => number) => {
+  const own = HERO_VERDICTS.find((each) => each.hero.test(title.trim()));
+  return own !== undefined && random() < 0.5 ? own.verdict : pick(WORKSHOP_VERDICTS, random);
+};
 
 // Twemoji, an open emoji set; a rebus is pictures only, the answer is in the quiz.
 const TWEMOJI = 'https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/svg';
