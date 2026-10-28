@@ -65,12 +65,15 @@ export interface AiImageProvider {
   }): Promise<AiImage>;
 }
 
-/** A provider failure with a stable code (the provider's own message is never shown or logged). */
+/** A provider failure with a stable code, the HTTP status and the provider's own message (bounded, redacted). */
 export class AiProviderError extends Error {
   constructor(
     readonly code: string,
     /** True when the request may have been billed (the provider answered with a body we could not use). */
-    readonly billed = false
+    readonly billed = false,
+    readonly httpStatus: number | null = null,
+    /** The provider's error text; never a prompt or a request body. */
+    readonly detail?: string
   ) {
     super(code);
     this.name = 'AiProviderError';

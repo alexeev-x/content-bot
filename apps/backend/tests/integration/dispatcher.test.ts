@@ -714,15 +714,21 @@ describe('what Telegram answers', () => {
   });
 
   it.each([
-    ['a 5xx answer', () => Promise.reject(grammyError(502, 'Bad Gateway')), 'telegram_http_502'],
+    [
+      'a 5xx answer',
+      () => Promise.reject(grammyError(502, 'Bad Gateway')),
+      'telegram_http_502',
+      expect.stringContaining('Bad Gateway')
+    ],
     [
       'a network error',
       () => Promise.reject(new HttpError('Network request failed', new Error('reset'))),
-      'network_error'
+      'network_error',
+      expect.stringContaining('Network request failed')
     ],
-    ['ok without a message_id', () => Promise.resolve({ chat: { id: 1 } }), 'ok_without_message_id'],
-    ['an unexpected failure', () => Promise.reject(new Error('boom')), 'unexpected_error']
-  ])('%s: unknown with an incident, and never sent again', async (_name, step, reason) => {
+    ['ok without a message_id', () => Promise.resolve({ chat: { id: 1 } }), 'ok_without_message_id', undefined],
+    ['an unexpected failure', () => Promise.reject(new Error('boom')), 'unexpected_error', 'Error']
+  ])('%s: unknown with an incident, and never sent again', async (_name, step, reason, detail) => {
     const { job, jobId, publicationId } = await run(step);
 
     expect(job).toMatchObject({ status: 'unknown', attempts: 1 });
@@ -730,7 +736,11 @@ describe('what Telegram answers', () => {
     expect(await attemptsOf(jobId)).toMatchObject([{ outcome: 'unknown', error_code: 'SEND_UNCONFIRMED' }]);
     const [incident] = await incidentsOf(jobId);
     expect(incident).toMatchObject({ kind: 'publish_unknown', code: 'SEND_UNCONFIRMED' });
-    expect(JSON.parse(incident?.details ?? '{}')).toEqual({ attempt: 1, reason });
+    expect(JSON.parse(incident?.details ?? '{}')).toEqual({
+      attempt: 1,
+      reason,
+      ...(detail === undefined ? {} : { detail })
+    });
     expect((await publicationOf(publicationId)).external_message_id).toBeNull();
 
     const transport = fakeTransport(SENT);

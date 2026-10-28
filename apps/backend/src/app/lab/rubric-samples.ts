@@ -1,6 +1,6 @@
 import { expandRichMedia, RICH_MEDIA_SLOT, richMediaId } from '@alexeev/contracts';
 import { InputFile } from 'grammy';
-import { BrowserRenderError, type PictureRenderer } from '../../integrations/browser-render/browser-render';
+import { type PictureRenderer } from '../../integrations/browser-render/browser-render';
 import { createDotaConstantsApi, DotaConstantsError } from '../../integrations/dotaconstants/dotaconstants';
 import { createSteamPublicApi, SteamPublicError } from '../../integrations/steam-public/steam-public';
 import { createOpenDotaApi, OpenDotaError } from '../../integrations/opendota/opendota-api';
@@ -21,6 +21,7 @@ import {
   type RubricSources,
   withBackground
 } from '../../modules/rubrics';
+import { describeError, errorParts } from '../../platform/error-detail';
 import type { Logger } from '../../platform/logging/logger';
 import { getOwnerOperationsSettings } from '../../modules/settings';
 import { AppError } from '../../shared/app-error';
@@ -329,7 +330,10 @@ const CAPTION_TIMEOUT_MS = 120_000;
 /** The free plan takes one screenshot per 10 seconds. */
 const BROWSER_GAP_MS = 11_000;
 
-type Scene = { kind: 'drawn'; base64: string } | { kind: 'failed'; reason: string };
+type Scene = { kind: 'drawn'; base64: string } | { kind: 'failed'; reason: string; detail?: string };
+
+const sceneWhy = (scene: Scene & { kind: 'failed' }) =>
+  scene.detail === undefined ? scene.reason : `${scene.reason} — ${scene.detail}`;
 
 export type RubricSampleDeps = {
   /** The finds in the game's files since a time (the game-files module's read). */
@@ -398,9 +402,9 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
     const source = sourceError(error);
     if (source !== null) {
       log('failed', source.code);
-      // The source's HTTP status tells a wrong key (401) from a refused address (403).
+      // The source's HTTP status tells a wrong key (401) from a refused address (403); its own words say why.
       throw new AppError('UNAVAILABLE', 'A data source did not answer', {
-        reason: source.code,
+        reason: describeError(error),
         ...(source.status === null ? {} : { status: String(source.status) })
       });
     }
@@ -464,7 +468,7 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
       } else {
         html = null;
         notes.push(
-          `Гадалка не нарисована (${tellerBytes === null || ballBytes === null ? 'нет рендера' : scene?.kind === 'failed' ? scene.reason : 'нет ИИ'}): пост без картинки.`
+          `Гадалка не нарисована (${tellerBytes === null || ballBytes === null ? 'нет рендера' : scene?.kind === 'failed' ? sceneWhy(scene) : 'нет ИИ'}): пост без картинки.`
         );
       }
     } else if (sample.heroScene !== undefined) {
@@ -481,7 +485,7 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
       } else {
         html = null;
         notes.push(
-          `Герой не вставлен в сцену (${render === null ? 'нет рендера' : scene?.kind === 'failed' ? scene.reason : 'нет ИИ'}): пост без картинки.`
+          `Герой не вставлен в сцену (${render === null ? 'нет рендера' : scene?.kind === 'failed' ? sceneWhy(scene) : 'нет ИИ'}): пост без картинки.`
         );
       }
     } else if (sample.picture === null && deps.ai !== null) {
@@ -489,16 +493,17 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
       if (scene.kind === 'drawn') html = withBackground(page.html, scene.base64);
       else {
         html = null;
-        notes.push(`Сцена не нарисована (${scene.reason}): пост без картинки.`);
+        notes.push(`Сцена не нарисована (${sceneWhy(scene)}): пост без картинки.`);
       }
     }
     if (html !== null)
       try {
         picture = await deps.renderer.render(html, page, 'png');
       } catch (error) {
-        const code = error instanceof BrowserRenderError ? error.code : 'BROWSER_FAILED';
-        log('failed', code);
-        throw new AppError('UNAVAILABLE', 'The picture was not rendered', { reason: code });
+        log('failed', errorParts(error).code);
+        throw new AppError('UNAVAILABLE', 'The picture was not rendered', {
+          reason: describeError(error, 'screenshot')
+        });
       }
   }
   if (sample.photo !== undefined) {
@@ -544,8 +549,7 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
       try {
         pages.push(await deps.renderer.render(slide.html, slide, 'png'));
       } catch (error) {
-        const code = error instanceof BrowserRenderError ? error.code : 'BROWSER_FAILED';
-        notes.push(`Слайд не нарисован (${code}).`);
+        notes.push(`Слайд не нарисован (${describeError(error, 'screenshot')}).`);
       }
     }
     if (pages.length > 1) {
@@ -574,8 +578,7 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
     try {
       followUpPicture = await deps.renderer.render(followUp.picture.html, followUp.picture, 'png');
     } catch (error) {
-      const code = error instanceof BrowserRenderError ? error.code : 'BROWSER_FAILED';
-      notes.push(`Картинка второго поста не нарисована (${code}).`);
+      notes.push(`Картинка второго поста не нарисована (${describeError(error, 'screenshot')}).`);
     }
   }
 
@@ -680,15 +683,9 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
     }
   } catch (error) {
     log('failed', 'TELEGRAM_SEND');
-    // Telegram's own refusal text (e.g. «can't parse rich message») tells the owner which part it rejected; it holds
-    // no secret. Bounded, so a long answer can't flood the note.
-    const said =
-      error instanceof Error && 'description' in error && typeof error.description === 'string'
-        ? error.description.slice(0, 200)
-        : null;
-    throw new AppError('UNAVAILABLE', 'Telegram did not take the sample', {
-      reason: said === null ? 'TELEGRAM_SEND' : `TELEGRAM_SEND: ${said}`
-    });
+    // Telegram's own refusal (method, HTTP status, e.g. «can't parse rich message») tells the owner which part it
+    // rejected; `describeError` bounds it and strips secrets.
+    throw new AppError('UNAVAILABLE', 'Telegram did not take the sample', { reason: describeError(error) });
   }
   log('sent');
 }
@@ -757,13 +754,11 @@ export async function runRubricSampleJob(
         ? `: ${error.message.replace(/^No data for the rubric: /, '').slice(0, 160)}`
         : '';
     const reason =
-      error instanceof AppError
-        ? `${error.details?.['reason'] ?? error.code}${missing}${error.details?.['status'] ? `, HTTP ${error.details['status']}` : ''}`
-        : 'ошибка сервера';
+      error instanceof AppError ? `${error.details?.['reason'] ?? error.code}${missing}` : describeError(error);
     await telegram
       .sendMessage(
         ownerChatId,
-        `«${RUBRIC_TITLES[rubric]}»: образец не собран (${reason}).`,
+        `«${RUBRIC_TITLES[rubric]}»: образец не собран. ${reason}`,
         { ...FLAGS, entities: [] },
         AbortSignal.timeout(TELEGRAM_TIMEOUT_MS)
       )

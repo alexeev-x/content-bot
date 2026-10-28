@@ -201,6 +201,18 @@ export const DUE_JOBS_SQL = `SELECT id FROM (
 export const EXPIRED_CLAIMS_SQL = `SELECT id, publication_id, attempts, send_started_at, updated_at FROM jobs
   WHERE status = 'claimed' AND lease_until < ?1 ORDER BY lease_until LIMIT ?2`;
 
+/** The `detail` an incident was stored with (Telegram's refusal text), or null when it has none or is unreadable. */
+function incidentDetail(details: string | null): string | null {
+  if (details === null) return null;
+  try {
+    const value: unknown = JSON.parse(details);
+    const detail = typeof value === 'object' && value !== null ? (value as { detail?: unknown }).detail : undefined;
+    return typeof detail === 'string' && detail !== '' ? detail.slice(0, 300) : null;
+  } catch {
+    return null;
+  }
+}
+
 export const OWNER_INCIDENT_ALERT_GROUPS_SQL = `
   SELECT g.group_key, g.kind, g.first_seen_at, g.last_seen_at, g.occurrence_count,
          g.recovery_claimed_at,
@@ -209,7 +221,7 @@ export const OWNER_INCIDENT_ALERT_GROUPS_SQL = `
          CASE WHEN NOT EXISTS (SELECT 1 FROM incidents open
                                WHERE open.alert_group_key = g.group_key AND open.resolved_at IS NULL)
               THEN 1 ELSE 0 END AS is_recovery,
-         sample.code, sample.publication_id,
+         sample.code, sample.publication_id, substr(sample.details, 1, 1200) AS details,
          substr(r.title, 1, 120) AS post_title, d.title AS channel_title
   FROM incident_alert_groups g INDEXED BY incident_alert_groups_due_idx
   JOIN incidents sample ON sample.id = (
@@ -368,6 +380,7 @@ export function createD1DispatchRepository(db: D1Database): DispatchRepository {
         is_recovery: number;
         code: string;
         publication_id: string | null;
+        details: string | null;
         post_title: string | null;
         channel_title: string | null;
       }>();
@@ -378,6 +391,7 @@ export function createD1DispatchRepository(db: D1Database): DispatchRepository {
         publicationId: row.publication_id,
         postTitle: row.post_title,
         channelTitle: row.channel_title,
+        detail: incidentDetail(row.details),
         firstSeenAt: row.first_seen_at,
         lastSeenAt: row.last_seen_at,
         occurrenceCount: row.occurrence_count,

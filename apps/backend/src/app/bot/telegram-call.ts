@@ -1,6 +1,7 @@
 import { GrammyError, HttpError } from 'grammy';
 import type { z } from 'zod';
 import type { Logger } from '../../platform/logging/logger';
+import { describeError } from '../../platform/error-detail';
 import { AppError } from '../../shared/app-error';
 
 const BOT_CALL_TIMEOUT_MS = 8_000;
@@ -50,7 +51,9 @@ export function createTelegramCaller(deps: { logger: Logger; requestId?: string;
         operation,
         ...(requestId === undefined ? {} : { requestId }),
         status: mapped.status,
-        errorCode: failure
+        errorCode: failure,
+        // Telegram's own description, redacted: the token path it can echo is stripped.
+        detail: describeError(error, operation)
       });
       throw mapped;
     }

@@ -298,8 +298,15 @@ describe('bot', () => {
     expect(calls[0]?.method).toBe('sendMessage');
     expect(adminCalls).toEqual(['setChatCommands 4242 start,redactor,post,analytics,stop']);
     expect(events).toEqual([
-      { component: 'telegram', operation: 'owner_chat.set_commands', status: 503, errorCode: 'telegram_http_400' }
+      {
+        component: 'telegram',
+        operation: 'owner_chat.set_commands',
+        status: 503,
+        errorCode: 'telegram_http_400',
+        detail: expect.stringContaining('Bad Request')
+      }
     ]);
+    expect(JSON.stringify(events)).not.toContain('123456:TEST');
   });
 
   it('answers /start without waiting for the owner chat setup, which never finishes here', async () => {

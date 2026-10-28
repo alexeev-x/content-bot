@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { readCappedText } from '../../platform/http/read-capped-text';
+import { causeDetail, readErrorDetail, schemaDetail } from '../../platform/error-detail';
 
 // STRATZ GraphQL with the owner's free token (`STRATZ_TOKEN`, owner 25.10.2026): pick and win rates by rank, item
 // purchases by minute, win rate by game length and by position. STRATZ refuses Cloudflare's addresses (403 without
@@ -17,7 +18,9 @@ export type StratzErrorCode =
 export class StratzError extends Error {
   constructor(
     readonly code: StratzErrorCode,
-    readonly httpStatus: number | null = null
+    readonly httpStatus: number | null = null,
+    /** The provider's own error text, bounded and redacted (`platform/error-detail.ts`). */
+    readonly detail?: string
   ) {
     super(code);
     this.name = 'StratzError';
@@ -407,28 +410,31 @@ export function createStratzApi(input: { token: string; bridgeUrl?: string; fetc
         body: JSON.stringify({ query: text }),
         signal: signal ?? AbortSignal.timeout(STRATZ_TIMEOUT_MS)
       });
-    } catch {
-      throw new StratzError('STRATZ_FETCH');
+    } catch (error) {
+      throw new StratzError('STRATZ_FETCH', null, causeDetail(error));
     }
     if (response.status === 401 || response.status === 403) {
       // STRATZ's gateway (Kong) names itself when it refuses a key; a refusal without that header is not about the key.
       const byGateway = (response.headers.get('www-authenticate') ?? '').toLowerCase().includes('kong');
-      await response.body?.cancel();
-      throw new StratzError(byGateway ? 'STRATZ_TOKEN' : 'STRATZ_BLOCKED', response.status);
+      throw new StratzError(
+        byGateway ? 'STRATZ_TOKEN' : 'STRATZ_BLOCKED',
+        response.status,
+        await readErrorDetail(response)
+      );
     }
-    if (response.status === 429) throw new StratzError('STRATZ_RATE', 429);
-    if (!response.ok) throw new StratzError('STRATZ_HTTP', response.status);
+    if (response.status === 429) throw new StratzError('STRATZ_RATE', 429, await readErrorDetail(response));
+    if (!response.ok) throw new StratzError('STRATZ_HTTP', response.status, await readErrorDetail(response));
     const body = await readCappedText(response, MAX_BODY_BYTES);
-    if (body === null) throw new StratzError('STRATZ_SHAPE');
+    if (body === null) throw new StratzError('STRATZ_SHAPE', null, `ответ больше ${MAX_BODY_BYTES} байт`);
     let json: unknown;
     try {
       json = JSON.parse(body);
     } catch {
-      throw new StratzError('STRATZ_SHAPE');
+      throw new StratzError('STRATZ_SHAPE', null, 'ответ не JSON');
     }
     const rows = pick((json as { data?: unknown }).data);
     const parsed = z.array(schema).max(5000).safeParse(rows);
-    if (!parsed.success) throw new StratzError('STRATZ_SHAPE');
+    if (!parsed.success) throw new StratzError('STRATZ_SHAPE', null, schemaDetail(parsed.error));
     return parsed.data;
   }
   const heroStats = (data: unknown, field: string) =>

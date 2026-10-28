@@ -1,4 +1,5 @@
 import { DRAW_TIMEOUT_MS, decodeReference, IMAGE_MODEL, type PictureDeps, prepare } from './patch-picture';
+import { describeError } from '../../platform/error-detail';
 import { AiProviderError } from './ports';
 import type { RubricScene } from './rubric-picture';
 
@@ -41,6 +42,6 @@ export async function drawHoroscopeScene(
   } catch (error) {
     if (!(error instanceof AiProviderError)) throw error;
     deps.onError?.(error);
-    return { kind: 'failed', reason: 'provider' };
+    return { kind: 'failed', reason: 'provider', detail: describeError(error, 'images/edits') };
   }
 }

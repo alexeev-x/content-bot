@@ -18,6 +18,7 @@ import {
   retryRunAt,
   sendTimeoutMs
 } from '../domain/dispatch-policy';
+import { errorLogFields } from '../../../platform/error-detail';
 import { formatPublicationText } from '../domain/format-message';
 import type {
   ClaimedJob,
@@ -49,6 +50,8 @@ export interface DispatchSummary {
   unknown: number;
   notSent: number;
   errors: number;
+  /** The first infrastructure failure of the tick, described for the owner (`describeError`); null without one. */
+  firstError: unknown;
   /** The incidents this tick wrote, for the owner alert; the caller sends it after the tick's state is stored. */
   raised: RaisedIncident[];
   /** Sends whose `succeeded` write was applied, for the owner's «Опубликовано» notice (sent after the tick). */
@@ -95,6 +98,7 @@ export async function dispatchDueJobs(deps: DispatchDeps): Promise<DispatchSumma
     unknown: 0,
     notSent: 0,
     errors: 0,
+    firstError: null,
     raised: [],
     delivered: []
   };
@@ -120,12 +124,13 @@ export async function dispatchDueJobs(deps: DispatchDeps): Promise<DispatchSumma
       if (result === 'failed_halt') break;
     } catch (error) {
       summary.errors += 1;
+      summary.firstError ??= error;
       deps.logger.error({
         component: 'dispatcher',
         operation: 'dispatch_job',
         jobId,
         status: 'error',
-        errorCode: error instanceof Error ? error.name : 'unknown',
+        ...errorLogFields(error),
         durationMs: deps.clock.now() - startedAt
       });
       break;
@@ -339,7 +344,10 @@ async function resolveSent(
         status: 'failed',
         attemptOutcome: 'rejected',
         errorCode: outcome.code,
-        incident: failedIncident(deps, outcome.code, { attempt: claimed.attempt }),
+        incident: failedIncident(deps, outcome.code, {
+          attempt: claimed.attempt,
+          ...(outcome.detail === undefined ? {} : { detail: outcome.detail })
+        }),
         auditAction: 'job.failed'
       });
       return outcome.code === 'BOT_UNAUTHORIZED' ? 'failed_halt' : 'failed';
@@ -355,7 +363,11 @@ async function resolveSent(
           id: deps.newId(),
           kind: 'publish_unknown',
           code: 'SEND_UNCONFIRMED',
-          details: { attempt: claimed.attempt, reason: outcome.reason }
+          details: {
+            attempt: claimed.attempt,
+            reason: outcome.reason,
+            ...(outcome.detail === undefined ? {} : { detail: outcome.detail })
+          }
         },
         auditAction: 'job.unknown'
       });

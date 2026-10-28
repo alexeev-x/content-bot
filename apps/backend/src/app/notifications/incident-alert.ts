@@ -4,7 +4,8 @@ import { channelFact, formatOwnerTime, noticeHtml, timesRu, type NoticeFact, typ
 const OPEN_BUTTON_TEXT = 'Открыть';
 
 // What the owner reads for each stable incident code. A code this table does not know still gets an
-// honest line (the code itself, which is ASCII and ours), never Telegram's own description.
+// honest line (the code itself, which is ASCII and ours); Telegram's own description follows as a separate «Ответ
+// Telegram» line (owner, 28.10.2026), already bounded and redacted when the incident was stored.
 const FAILURE_REASONS: Record<string, string> = {
   DESTINATION_UNAVAILABLE: 'бот потерял права на публикацию в канале или канал недоступен',
   CHAT_MIGRATED: 'канал переехал, нужно обновить его ID в настройках',
@@ -31,7 +32,7 @@ function openUrl(alert: RaisedIncident, appOrigin: string): string {
 function formatIncidentAlert(
   alert: RaisedIncident,
   appOrigin: string,
-  extra: { status?: string; tone?: NoticeTone; facts?: NoticeFact[] } = {}
+  extra: { status?: string; tone?: NoticeTone; facts?: NoticeFact[]; detail?: string | null } = {}
 ): IncidentAlertMessage {
   const unknown = alert.kind === 'publish_unknown';
   const html = noticeHtml({
@@ -41,6 +42,7 @@ function formatIncidentAlert(
     facts: [
       channelFact(alert.channelTitle),
       unknown ? null : { icon: '💬', text: `Причина: ${FAILURE_REASONS[alert.code] ?? `код ${alert.code}`}` },
+      extra.detail ? { icon: '🔎', text: `Ответ Telegram: ${extra.detail}` } : null,
       ...(extra.facts ?? [])
     ],
     ...(extra.tone === 'recovered'
@@ -72,6 +74,7 @@ export function formatOwnerIncidentOccurrence(
 ): IncidentAlertMessage {
   const repeated = group.occurrenceCount > 1;
   return formatIncidentAlert(incidentOf(group), appOrigin, {
+    detail: group.detail,
     ...(repeated ? { tone: 'repeat' as const } : {}),
     facts: repeated
       ? [

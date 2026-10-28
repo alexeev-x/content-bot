@@ -1,13 +1,15 @@
 const MAX_TITLE_CHARS = 100;
+// A fact may carry a provider's own error text (owner, 28.10.2026), which needs more room than a title.
+const MAX_FACT_CHARS = 400;
 
 // Telegram HTML only needs these four escaped. Kept in `app/`: it may reach a module only through its index.
 export function escapeHtml(text: string): string {
   return text.replaceAll('&', '&amp;').replaceAll('<', '&lt;').replaceAll('>', '&gt;').replaceAll('"', '&quot;');
 }
 
-export function clip(text: string): string {
+export function clip(text: string, max = MAX_TITLE_CHARS): string {
   const chars = Array.from(text);
-  return chars.length > MAX_TITLE_CHARS ? `${chars.slice(0, MAX_TITLE_CHARS).join('').trimEnd()}…` : text;
+  return chars.length > max ? `${chars.slice(0, max).join('').trimEnd()}…` : text;
 }
 
 // One look for every message the bot sends the owner: a status line with an icon, the post title, then
@@ -46,7 +48,7 @@ export function noticeHtml(input: {
   const facts = (input.facts ?? []).filter((fact): fact is NoticeFact => fact !== null && fact.text.trim() !== '');
   if (facts.length > 0) {
     lines.push('');
-    for (const fact of facts) lines.push(`${fact.icon} ${escapeHtml(clip(fact.text.trim()))}`);
+    for (const fact of facts) lines.push(`${fact.icon} ${escapeHtml(clip(fact.text.trim(), MAX_FACT_CHARS))}`);
   }
   if (input.note) lines.push('', `<i>${escapeHtml(input.note)}</i>`);
   return lines.join('\n');

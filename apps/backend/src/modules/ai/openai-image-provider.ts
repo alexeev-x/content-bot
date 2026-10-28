@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { z } from 'zod';
 import { readBounded } from './openai-provider';
+import { causeDetail, readErrorDetail } from '../../platform/error-detail';
 import { type AiImage, type AiImageProvider, AiProviderError } from './ports';
 
 // OpenAI's image edits (`POST /v1/images/edits`, read 22.10.2026): multipart with the references as repeated `image[]`,
@@ -50,15 +51,27 @@ export function createOpenAiImageProvider(apiKey: string, fetchImpl: typeof fetc
           body: form,
           signal
         });
-      } catch {
-        throw new AiProviderError(signal.aborted ? 'AI_TIMEOUT' : 'AI_PROVIDER_UNREACHABLE');
+      } catch (error) {
+        throw new AiProviderError(
+          signal.aborted ? 'AI_TIMEOUT' : 'AI_PROVIDER_UNREACHABLE',
+          false,
+          null,
+          causeDetail(error)
+        );
       }
       if (!response.ok) {
-        await response.body?.cancel();
-        if (response.status === 401) throw new AiProviderError('AI_KEY_REJECTED');
-        if (response.status === 429) throw new AiProviderError('AI_RATE_OR_QUOTA');
-        if (response.status === 404) throw new AiProviderError('AI_MODEL_NOT_FOUND');
-        throw new AiProviderError(response.status === 400 ? 'AI_BAD_REQUEST' : `AI_HTTP_${response.status}`);
+        const detail = await readErrorDetail(response);
+        const code =
+          response.status === 401
+            ? 'AI_KEY_REJECTED'
+            : response.status === 429
+              ? 'AI_RATE_OR_QUOTA'
+              : response.status === 404
+                ? 'AI_MODEL_NOT_FOUND'
+                : response.status === 400
+                  ? 'AI_BAD_REQUEST'
+                  : `AI_HTTP_${response.status}`;
+        throw new AiProviderError(code, false, response.status, detail);
       }
       let raw: string;
       try {
@@ -66,7 +79,12 @@ export function createOpenAiImageProvider(apiKey: string, fetchImpl: typeof fetc
       } catch (error) {
         if (error instanceof AiProviderError) throw error;
         // The body broke off (our timeout or the network): a failed try, not a bug.
-        throw new AiProviderError(signal.aborted ? 'AI_TIMEOUT' : 'AI_PROVIDER_UNREACHABLE', true);
+        throw new AiProviderError(
+          signal.aborted ? 'AI_TIMEOUT' : 'AI_PROVIDER_UNREACHABLE',
+          true,
+          response.status,
+          causeDetail(error)
+        );
       }
       let parsed: z.infer<typeof responseSchema>;
       let base64: string;
@@ -76,8 +94,8 @@ export function createOpenAiImageProvider(apiKey: string, fetchImpl: typeof fetc
         base64 = parsed.data[0]?.b64_json ?? '';
         bytes = new Uint8Array(Buffer.from(base64, 'base64'));
         if (bytes.byteLength === 0) throw new Error('empty');
-      } catch {
-        throw new AiProviderError('AI_RESPONSE_SHAPE', true);
+      } catch (error) {
+        throw new AiProviderError('AI_RESPONSE_SHAPE', true, response.status, causeDetail(error));
       }
       return {
         bytes,

@@ -37,6 +37,8 @@ import { raiseScriptPrompts } from './workflows/script-prompts';
 import { runAiReviews } from './workflows/run-ai-reviews';
 import { DOTA_APP_ID } from './workflows/steam-watch';
 import type { LabCron } from './lab';
+import { notifyOwnerOfFailure } from './notifications/failure-notice';
+import { errorLogFields } from '../platform/error-detail';
 
 // Per table and per hourly tick; leftovers wait for the next hour.
 export const CLEANUP_LIMIT = 100;
@@ -181,6 +183,19 @@ export async function handleScheduled(
   const raised: RaisedIncident[] = [];
   const delivered: DeliveredPublication[] = [];
 
+  // The owner hears of a failed step in his chat, once per window (owner, 28.10.2026).
+  const tell = (where: string, error: unknown) =>
+    notifyOwnerOfFailure(
+      {
+        messenger: container.ownerMessenger,
+        ownerChatId: container.ownerChatId,
+        state: container.systemState,
+        clock,
+        logger
+      },
+      { where: `Cron: ${where}`, error }
+    );
+
   const step = async (operation: string, run: () => Promise<Record<string, number>>): Promise<void> => {
     const stepStartedAt = clock.now();
     try {
@@ -191,14 +206,11 @@ export async function handleScheduled(
         component: 'scheduled',
         operation,
         status: 'error',
-        errorCode:
-          error instanceof DotaWatchError
-            ? `${error.code}_${error.sourceKey}`
-            : error instanceof Error
-              ? error.name
-              : 'unknown',
+        ...errorLogFields(error),
+        ...(error instanceof DotaWatchError ? { errorCode: `${error.code}_${error.sourceKey}` } : {}),
         durationMs: clock.now() - stepStartedAt
       });
+      await tell(operation, error);
     }
   };
 
@@ -230,7 +242,10 @@ export async function handleScheduled(
         newId: container.newId,
         random: container.random
       });
-      if (summary.errors > 0) failures += 1;
+      if (summary.errors > 0) {
+        failures += 1;
+        await tell('dispatch', summary.firstError);
+      }
       raised.push(...summary.raised);
       delivered.push(...summary.delivered);
       return {
@@ -611,8 +626,9 @@ export async function handleScheduled(
           logger.error({
             component: 'scheduled',
             operation: 'report_review.enqueue',
-            errorCode: error instanceof Error ? error.name : 'unknown'
+            ...errorLogFields(error)
           });
+          await tell('report_review.enqueue', error);
         }
       }
       return {

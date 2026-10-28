@@ -12,7 +12,17 @@ function setup(timeoutMs = 1_000) {
 
 const refuse = () =>
   Promise.reject(
-    new GrammyError('x', { ok: false, error_code: 400, description: 'bot123:SECRET', parameters: {} }, 'm', {})
+    new GrammyError(
+      'x',
+      {
+        ok: false,
+        error_code: 400,
+        description: 'Not Found: /bot123456789:AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw9/x',
+        parameters: {}
+      },
+      'm',
+      {}
+    )
   );
 
 const hang = (signal: AbortSignal) =>
@@ -24,15 +34,17 @@ describe('createTelegramCaller', () => {
   it('turns a deadline into a 503 with the stable code "timeout"', async () => {
     const { caller, events } = setup(10);
     await expect(caller.act('op', hang)).rejects.toMatchObject({ code: 'UNAVAILABLE', status: 503 });
-    expect(events).toEqual([
+    expect(events).toMatchObject([
       { component: 'telegram', operation: 'op', requestId: 'req-1', status: 503, errorCode: 'timeout' }
     ]);
+    expect(JSON.stringify(events)).not.toContain('secret-ish');
   });
 
-  it('logs only the HTTP code of a Telegram refusal, never its description', async () => {
+  it('logs a Telegram refusal description with the token redacted', async () => {
     const { caller, events } = setup();
     await expect(caller.act('op', refuse)).rejects.toMatchObject({ code: 'UNAVAILABLE' });
-    expect(JSON.stringify(events)).not.toContain('SECRET');
+    expect(JSON.stringify(events)).not.toContain('AAHdqTcv');
+    expect(events[0]?.detail).toContain('HTTP 400');
     expect(events[0]?.errorCode).toBe('telegram_http_400');
   });
 

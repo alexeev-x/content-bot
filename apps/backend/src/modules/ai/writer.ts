@@ -82,6 +82,8 @@ export interface WriterDeps {
   ownerPosts?: OwnerPostSource;
   /** The managed memory (AI plan P7): the rules in use for the format reach the prompt. */
   rules?: Pick<RulesRepository, 'forPrompt'>;
+  /** The provider's failure behind a stored error code (its status and own message), for the log and the owner. */
+  onProviderError?: (error: unknown) => void;
 }
 
 /** At most this many rules in one prompt: the owner's first, then approved analysis rules (plan §6.2 budget). */
@@ -319,6 +321,7 @@ async function call(
         .catch(() => undefined);
       throw error;
     }
+    deps.onProviderError?.(error);
     await deps.writer.finishGeneration({
       id: generation.id,
       now: deps.clock.now(),

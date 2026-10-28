@@ -10,21 +10,21 @@ function apiError(error_code: number, description: string, parameters: Record<st
 
 describe('classifyTelegramError', () => {
   it('429 with retry_after is rate_limited', () => {
-    expect(classifyTelegramError(apiError(429, 'Too Many Requests: retry after 7', { retry_after: 7 }))).toEqual({
+    expect(classifyTelegramError(apiError(429, 'Too Many Requests: retry after 7', { retry_after: 7 }))).toMatchObject({
       kind: 'rate_limited',
       retryAfterSec: 7
     });
   });
 
   it('429 without retry_after is still a refusal: rate_limited with a conservative wait (review 24.10.2026)', () => {
-    expect(classifyTelegramError(apiError(429, 'Too Many Requests'))).toEqual({
+    expect(classifyTelegramError(apiError(429, 'Too Many Requests'))).toMatchObject({
       kind: 'rate_limited',
       retryAfterSec: 30
     });
   });
 
   it('413 is a definite refusal of a too large upload', () => {
-    expect(classifyTelegramError(apiError(413, 'Request Entity Too Large'))).toEqual({
+    expect(classifyTelegramError(apiError(413, 'Request Entity Too Large'))).toMatchObject({
       kind: 'rejected',
       code: 'CONTENT_INVALID'
     });
@@ -34,7 +34,7 @@ describe('classifyTelegramError', () => {
     const error = apiError(400, 'Bad Request: group chat was upgraded to a supergroup chat', {
       migrate_to_chat_id: -1001234567890
     });
-    expect(classifyTelegramError(error)).toEqual({ kind: 'rejected', code: 'CHAT_MIGRATED' });
+    expect(classifyTelegramError(error)).toMatchObject({ kind: 'rejected', code: 'CHAT_MIGRATED' });
   });
 
   it.each([
@@ -43,11 +43,14 @@ describe('classifyTelegramError', () => {
     'Bad Request: message caption is too long',
     'Bad Request: message is too long'
   ])('400 "%s" is CONTENT_INVALID', (description) => {
-    expect(classifyTelegramError(apiError(400, description))).toEqual({ kind: 'rejected', code: 'CONTENT_INVALID' });
+    expect(classifyTelegramError(apiError(400, description))).toMatchObject({
+      kind: 'rejected',
+      code: 'CONTENT_INVALID'
+    });
   });
 
   it('400 chat not found is DESTINATION_UNAVAILABLE', () => {
-    expect(classifyTelegramError(apiError(400, 'Bad Request: chat not found'))).toEqual({
+    expect(classifyTelegramError(apiError(400, 'Bad Request: chat not found'))).toMatchObject({
       kind: 'rejected',
       code: 'DESTINATION_UNAVAILABLE'
     });
@@ -57,14 +60,14 @@ describe('classifyTelegramError', () => {
     'Bad Request: not enough rights to send text messages to the chat',
     'Bad Request: need administrator rights in the channel chat'
   ])('400 permission problem "%s" is DESTINATION_UNAVAILABLE, not CONTENT_INVALID', (description) => {
-    expect(classifyTelegramError(apiError(400, description))).toEqual({
+    expect(classifyTelegramError(apiError(400, description))).toMatchObject({
       kind: 'rejected',
       code: 'DESTINATION_UNAVAILABLE'
     });
   });
 
   it('403 is DESTINATION_UNAVAILABLE', () => {
-    expect(classifyTelegramError(apiError(403, 'Forbidden: bot was kicked from the channel chat'))).toEqual({
+    expect(classifyTelegramError(apiError(403, 'Forbidden: bot was kicked from the channel chat'))).toMatchObject({
       kind: 'rejected',
       code: 'DESTINATION_UNAVAILABLE'
     });
@@ -74,25 +77,28 @@ describe('classifyTelegramError', () => {
     [401, 'Unauthorized'],
     [404, 'Not Found']
   ])('%i from the Bot API means the token is wrong: BOT_UNAUTHORIZED, a definite refusal', (code, description) => {
-    expect(classifyTelegramError(apiError(code, description))).toEqual({ kind: 'rejected', code: 'BOT_UNAUTHORIZED' });
+    expect(classifyTelegramError(apiError(code, description))).toMatchObject({
+      kind: 'rejected',
+      code: 'BOT_UNAUTHORIZED'
+    });
   });
 
   it('an unrecognised 400 is a definite content rejection', () => {
-    expect(classifyTelegramError(apiError(400, 'Bad Request: something new'))).toEqual({
+    expect(classifyTelegramError(apiError(400, 'Bad Request: something new'))).toMatchObject({
       kind: 'rejected',
       code: 'CONTENT_INVALID'
     });
   });
 
   it.each([500, 502, 503])('%i is unknown', (code) => {
-    expect(classifyTelegramError(apiError(code, 'Internal Server Error'))).toEqual({
+    expect(classifyTelegramError(apiError(code, 'Internal Server Error'))).toMatchObject({
       kind: 'unknown',
       reason: `telegram_http_${code}`
     });
   });
 
   it('HttpError (network failure) is unknown', () => {
-    expect(classifyTelegramError(new HttpError('Network request failed', new Error('boom')))).toEqual({
+    expect(classifyTelegramError(new HttpError('Network request failed', new Error('boom')))).toMatchObject({
       kind: 'unknown',
       reason: 'network_error'
     });
@@ -101,11 +107,11 @@ describe('classifyTelegramError', () => {
   it.each(['TimeoutError', 'AbortError'])('%s is unknown with reason timeout', (name) => {
     const error = new Error('aborted');
     error.name = name;
-    expect(classifyTelegramError(error)).toEqual({ kind: 'unknown', reason: 'timeout' });
+    expect(classifyTelegramError(error)).toMatchObject({ kind: 'unknown', reason: 'timeout' });
   });
 
   it('anything else is unknown', () => {
-    expect(classifyTelegramError('weird')).toEqual({ kind: 'unknown', reason: 'unexpected_error' });
+    expect(classifyTelegramError('weird')).toMatchObject({ kind: 'unknown', reason: 'unexpected_error' });
   });
 
   it('classifies a definite Telegram 400 for an unrecognized media error as a rejected content send', () => {
@@ -123,7 +129,7 @@ describe('classifyTelegramError', () => {
           { chat_id: '1' }
         )
       )
-    ).toEqual({ kind: 'rejected', code: 'CONTENT_INVALID' });
+    ).toMatchObject({ kind: 'rejected', code: 'CONTENT_INVALID' });
   });
 });
 

@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { readCappedText } from '../../platform/http/read-capped-text';
+import { causeDetail, readErrorDetail, schemaDetail } from '../../platform/error-detail';
 
 // OpenDota's public hero reads (no key; 50 a minute and 2800 a day through the owner's stats bridge). OpenDota answers
 // 429 to Cloudflare's shared addresses, so the Worker only calls it through `bridge/stats-bridge`, which forwards
@@ -16,7 +17,9 @@ export type OpenDotaErrorCode = 'OPENDOTA_FETCH' | 'OPENDOTA_HTTP' | 'OPENDOTA_R
 export class OpenDotaError extends Error {
   constructor(
     readonly code: OpenDotaErrorCode,
-    readonly httpStatus: number | null = null
+    readonly httpStatus: number | null = null,
+    /** The provider's own error text, bounded and redacted (`platform/error-detail.ts`). */
+    readonly detail?: string
   ) {
     super(code);
     this.name = 'OpenDotaError';
@@ -90,27 +93,25 @@ export function createOpenDotaApi(input: { bridgeUrl: string; fetchImpl?: typeof
         headers: { accept: 'application/json' },
         signal: signal ?? AbortSignal.timeout(OPENDOTA_TIMEOUT_MS)
       });
-    } catch {
-      throw new OpenDotaError('OPENDOTA_FETCH');
+    } catch (error) {
+      throw new OpenDotaError('OPENDOTA_FETCH', null, causeDetail(error));
     }
     if (response.status === 429) {
-      await response.body?.cancel();
-      throw new OpenDotaError('OPENDOTA_RATE', 429);
+      throw new OpenDotaError('OPENDOTA_RATE', 429, await readErrorDetail(response));
     }
     if (!response.ok) {
-      await response.body?.cancel();
-      throw new OpenDotaError('OPENDOTA_HTTP', response.status);
+      throw new OpenDotaError('OPENDOTA_HTTP', response.status, await readErrorDetail(response));
     }
     const body = await readCappedText(response, MAX_BODY_BYTES);
-    if (body === null) throw new OpenDotaError('OPENDOTA_SHAPE');
+    if (body === null) throw new OpenDotaError('OPENDOTA_SHAPE', null, `ответ больше ${MAX_BODY_BYTES} байт`);
     let json: unknown;
     try {
       json = JSON.parse(body);
     } catch {
-      throw new OpenDotaError('OPENDOTA_SHAPE');
+      throw new OpenDotaError('OPENDOTA_SHAPE', null, 'ответ не JSON');
     }
     const parsed = schema.safeParse(json);
-    if (!parsed.success) throw new OpenDotaError('OPENDOTA_SHAPE');
+    if (!parsed.success) throw new OpenDotaError('OPENDOTA_SHAPE', null, schemaDetail(parsed.error));
     return parsed.data;
   }
   const hero = (id: number) => {

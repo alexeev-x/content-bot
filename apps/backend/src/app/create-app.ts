@@ -22,6 +22,8 @@ import { sourcesRoutes } from './sources-routes';
 import { publicationsRoutes } from './publications-routes';
 import { requireOwner } from './require-owner';
 import { settingsRoutes } from './settings-routes';
+import { notifyOwnerOfFailure } from './notifications/failure-notice';
+import { describeError } from '../platform/error-detail';
 
 // Reachable without a session. Sign-in, refresh and logout authenticate themselves with the
 // initData or widget signature, the Bearer token or the refresh cookie, so a stricter guard in front of them
@@ -142,12 +144,32 @@ export function createApp(
       const code = apiErrorCodeForStatus(error.status);
       return c.json(errorBody(code, 'Request rejected', requestId), error.status);
     }
-    c.get('container').logger.error({
+    const container = c.get('container');
+    const operation = `${c.req.method} ${c.req.routePath}`;
+    container.logger.error({
       component: 'http',
-      operation: `${c.req.method} ${c.req.routePath}`,
+      operation,
       requestId,
-      errorCode: unexpectedErrorCode(error)
+      errorCode: unexpectedErrorCode(error),
+      detail: describeError(error)
     });
+    // The owner hears of an unexpected failure in his chat once per window (owner, 28.10.2026).
+    const notice = notifyOwnerOfFailure(
+      {
+        messenger: container.ownerMessenger,
+        ownerChatId: container.ownerChatId,
+        state: container.systemState,
+        clock: container.clock,
+        logger: container.logger
+      },
+      { where: `API ${operation}`, error, requestId }
+    );
+    try {
+      c.executionCtx.waitUntil(notice);
+    } catch {
+      // No execution context (a local test run): the notice is best effort.
+      void notice;
+    }
     return c.json(errorBody('UNAVAILABLE', 'Internal error', requestId), 500);
   });
 

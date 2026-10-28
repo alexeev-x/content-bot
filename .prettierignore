@@ -10,3 +10,5 @@ package-lock.json
 *.md
 .playwright-mcp/
 **/*.generated.ts
+
+design-refs/**/*.html

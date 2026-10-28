@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { causeDetail, detailFromBody } from '../../platform/error-detail';
 import { readCappedText } from '../../platform/http/read-capped-text';
 
 // YouTube Data API v3 with an API key: public counters only (subscribers, views, likes, comments).
@@ -22,7 +23,9 @@ export type YouTubeErrorCode =
 export class YouTubeApiError extends Error {
   constructor(
     readonly code: YouTubeErrorCode,
-    readonly httpStatus: number | null = null
+    readonly httpStatus: number | null = null,
+    /** The provider's own error text, bounded and redacted (`platform/error-detail.ts`). */
+    readonly detail?: string
   ) {
     super(code);
     this.name = 'YouTubeApiError';
@@ -124,8 +127,8 @@ export async function fetchYouTubeChannelStats(
         signal: AbortSignal.timeout(YOUTUBE_TIMEOUT_MS),
         redirect: 'manual'
       });
-    } catch {
-      throw new YouTubeApiError('YOUTUBE_FETCH');
+    } catch (error) {
+      throw new YouTubeApiError('YOUTUBE_FETCH', null, causeDetail(error));
     }
     let body: unknown;
     try {
@@ -139,10 +142,11 @@ export async function fetchYouTubeChannelStats(
     if (!response.ok) {
       const reasons = errorSchema.safeParse(body).data?.error.errors?.map((e) => e.reason) ?? [];
       if (reasons.some((r) => r === 'quotaExceeded' || r === 'dailyLimitExceeded' || r === 'rateLimitExceeded')) {
-        throw new YouTubeApiError('YOUTUBE_QUOTA', response.status);
+        throw new YouTubeApiError('YOUTUBE_QUOTA', response.status, detailFromBody(JSON.stringify(body)));
       }
-      if (response.status === 400 || response.status === 403) throw new YouTubeApiError('YOUTUBE_KEY', response.status);
-      throw new YouTubeApiError('YOUTUBE_HTTP', response.status);
+      if (response.status === 400 || response.status === 403)
+        throw new YouTubeApiError('YOUTUBE_KEY', response.status, detailFromBody(JSON.stringify(body)));
+      throw new YouTubeApiError('YOUTUBE_HTTP', response.status, detailFromBody(JSON.stringify(body)));
     }
     const parsed = schema.safeParse(body);
     if (!parsed.success) throw new YouTubeApiError('YOUTUBE_SHAPE', response.status);
