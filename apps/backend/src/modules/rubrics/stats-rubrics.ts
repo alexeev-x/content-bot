@@ -510,43 +510,6 @@ function mainPositions(rows: PositionRow[]): Map<number, { position: number; sha
   return main;
 }
 
-const SIGNS: Record<number, string> = { 1: 'Керри', 2: 'Мидеры', 3: 'Хардлайнеры', 4: 'Четвёрки', 5: 'Пятёрки' };
-
-export async function horoscope(context: RubricContext): Promise<RubricSample> {
-  const stats = needStats(context);
-  const [rows, positions, heroes] = await Promise.all([stats.twoWeeks(7), stats.positions(), context.sources.heroes()]);
-  const main = mainPositions(positions);
-  const weeks = [...new Set(rows.map((row) => row.week))].sort((a, b) => b - a);
-  const [current, previous] = weeks;
-  if (current === undefined || previous === undefined) throw noData('two weeks');
-  const rate = (heroId: number, week: number) => {
-    const row = rows.find((each) => each.heroId === heroId && each.week === week);
-    return row === undefined || row.matches < 200 ? null : row.wins / row.matches;
-  };
-  const lines = [1, 2, 3, 4, 5]
-    .map((position) => {
-      const up = heroes
-        .filter((hero) => main.get(hero.id)?.position === position)
-        .map((hero) => {
-          const now = rate(hero.id, current);
-          const before = rate(hero.id, previous);
-          return now === null || before === null ? null : { hero, delta: now - before };
-        })
-        .filter((each): each is { hero: HeroInfo; delta: number } => each !== null)
-        .sort((a, b) => b.delta - a.delta)[0];
-      if (up === undefined || up.delta <= 0) return null;
-      const points = (up.delta * 100).toFixed(1).replace('.', ',');
-      return `${SIGNS[position] ?? 'Все'}: звёзды за ${up.hero.localizedName} — +${points}% побед за неделю.`;
-    })
-    .filter((line): line is string => line !== null);
-  if (lines.length === 0) throw noData('moves');
-  return {
-    picture: null,
-    text: `🔮 Дота-гороскоп на неделю (Божества):\n${lines.join('\n')}`,
-    poll: null
-  };
-}
-
 /** Rubrics that still lack a data source. */
 export function notBuiltYet(what: string): Promise<RubricSample> {
   return Promise.reject(

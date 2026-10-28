@@ -1,4 +1,5 @@
 import { heroProfile } from './anketa';
+import { horoscope } from './horoscope';
 import { fakeItem, filesDontLie, rateIt, rebus, workshopSet } from './content-rubrics';
 import {
   abilityInLife,
@@ -15,15 +16,7 @@ import {
 import { whoseAbility } from './game-rubrics';
 import { recruitPicks } from './recruit-picks';
 import { grandpa, nerfOrBuff, patchBroken, valveFixed, valveSeriously, valveTime, whoIsImba } from './patch-rubrics';
-import {
-  forgottenHero,
-  heroGuide,
-  heroTrial,
-  horoscope,
-  notBuiltYet,
-  whoBeatsWhom,
-  whoGetsNerfed
-} from './stats-rubrics';
+import { forgottenHero, heroGuide, heroTrial, notBuiltYet, whoBeatsWhom, whoGetsNerfed } from './stats-rubrics';
 import { tierList } from './tier-list';
 import type { RubricContext, RubricSample } from './types';
 
