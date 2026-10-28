@@ -13,7 +13,7 @@ function horoscopePrompt(teller: string, ball: string): string {
   return [
     'Image 1 is the scene. Keep it exactly as it is: the same table, candles, «?» cards, the crystal ball on its stand with the word «ALEXEEV», the «Гороскоп недели» sign with its lettering, the moon, towers and banners.',
     `Image 2 is ${teller} from Dota 2. Seat this exact character behind the table as the fortune-teller: upper body behind the crystal ball, both hands spread around the ball as if reading it, facing the viewer, big in the frame on the left half.`,
-    "Always in the gachimuchi look, whoever the character is: pumped-up muscles, a black leather harness and straps across the chest, leather wristbands — keep the character's own face, colours and recognisable features from image 2. Not nude, nothing explicit: a costume parody, not erotica.",
+    "Always in the full gachimuchi look, whoever the character is (man, woman or monster): huge pumped-up oiled muscles; a black leather chest harness crossing the bare chest with metal rings; a spiked leather collar; a black leather biker cap; fingerless leather gloves and studded wristbands; leather straps on the arms — clearly visible and dominant in the outfit. Keep the character's own face, skin colour and recognisable features from image 2. Not nude, nothing explicit: a costume parody, not erotica.",
     `Image 3 is ${ball} from Dota 2. Inside the crystal ball show this character's head, recognisable from image 3, glowing in the ball's red-pink light like a vision.`,
     'Light everything like the scene: candlelight, red glow from the ball. Add no other text anywhere.'
   ].join('\n');
