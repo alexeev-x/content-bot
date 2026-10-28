@@ -22,6 +22,11 @@ const DIVINE_MEDAL = 7;
 
 /** Matches a hero needs at a position in the stretch counted before its rate says anything (the card: 300 a week). */
 const MIN_WEEK_MATCHES = 300;
+/**
+ * The swing look reads every rank at once, where 300 games a week is a hero's rare off-role picks and their win rate
+ * jumps by chance (DEV, 28.10.2026: one hero «fell» on mid, four and five); a role needs this many games both weeks.
+ */
+const MIN_SWING_MATCHES = 2000;
 /** The easy heroes sit on the low ranks with few games each: a lower floor. */
 const MIN_EASY_MATCHES = 100;
 const MIN_LANE_MATCHES = 300;
@@ -149,16 +154,32 @@ async function easyLook(ctx: Ctx): Promise<Look> {
 }
 
 async function swingLook(ctx: Ctx): Promise<Look> {
-  const columns: Column[] = [];
+  // All roles first, so a hero who moved on several stays only where he moved most.
+  const byRole: Scored[][] = [];
   for (const position of POSITIONS) {
     const weeks = settledWeeks(await ctx.stats.positionWeeks(null, position, 4));
     const [now, before] = weeks;
     if (now === undefined || before === undefined) throw noData('two weeks');
     const moves: Scored[] = [...now.entries()].flatMap(([heroId, each]) => {
       const earlier = before.get(heroId);
-      if (earlier === undefined || each.matches < MIN_WEEK_MATCHES || earlier.matches < MIN_WEEK_MATCHES) return [];
+      if (earlier === undefined || each.matches < MIN_SWING_MATCHES || earlier.matches < MIN_SWING_MATCHES) return [];
       return [{ heroId, value: rate(each.matches, each.wins) - rate(earlier.matches, earlier.wins) }];
     });
+    byRole.push(moves);
+  }
+  const strongest = new Map<number, number>();
+  byRole.forEach((moves, index) => {
+    for (const each of moves) {
+      const held = strongest.get(each.heroId);
+      const heldMove =
+        held === undefined ? 0 : Math.abs(byRole[held]?.find((m) => m.heroId === each.heroId)?.value ?? 0);
+      if (held === undefined || Math.abs(each.value) > heldMove) strongest.set(each.heroId, index);
+    }
+  });
+  const columns: Column[] = [];
+  for (const [index, all] of byRole.entries()) {
+    const position = POSITIONS[index] ?? index + 1;
+    const moves = all.filter((each) => strongest.get(each.heroId) === index);
     // Two who rose, then two who fell: a hero that did not move the other way is never forced into the other half.
     const risen = best(
       moves.filter((each) => each.value > 0),
