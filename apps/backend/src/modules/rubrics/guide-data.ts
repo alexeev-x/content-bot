@@ -286,10 +286,12 @@ const EARLY_SHARE = 0.5;
  * там шард если надо, а то 4 предмета основы это смешно»); an item bought in fewer matches than this is no core item.
  */
 /**
- * A real item is a core item when at least half the sample buys it, like the anchors of Dota2ProTracker's builds (70% of
- * one build's matches, 28.10.2026); a rarer one is situational.
+ * A real item joins the core from a fifth of the sample up: the core is the whole build a guide shows (owner, 28.10.2026:
+ * «как основа может быть 3 элемента» — half the matches left Snapfire with three items while games end with six).
  */
-const CORE_MIN_SHARE = 0.5;
+const CORE_MIN_SHARE = 0.2;
+/** A part of a bigger item from this price on is a whole item too (Force Staff, Kaya, Blink Dagger). */
+const FULL_ITEM_MIN_COST = 2000;
 const SITUATIONAL_SHARE = 0.1;
 const MINUTE_MIN_BUYERS = 3;
 /** The newest patch alone is the sample when it holds at least this many matches. */
@@ -343,6 +345,8 @@ export interface BuildItem {
   share: number;
   /** A cheap early item (Magic Wand, Bracer): a core item only as an anchor, never situational. */
   early: boolean;
+  /** A part of a bigger item that is no full item itself (Point Booster, Ogre Axe): never situational. */
+  part: boolean;
   /** The average minute it was first bought at; null without enough buyers' purchase times. */
   minute: number | null;
 }
@@ -385,6 +389,7 @@ export function inventoryShares(
       : item;
   };
   const byKey = new Map([...items.values()].map((item) => [item.key, item]));
+  const partOfAny = new Set([...items.values()].flatMap((item) => item.components ?? []));
   const held = new Map<number, number>();
   const bought = new Map<number, number[]>();
   // Per item: buyers, and buyers who later completed an item it is a part of.
@@ -422,6 +427,7 @@ export function inventoryShares(
     rows.push({
       item,
       early: isEarly(item),
+      part: item.cost < FULL_ITEM_MIN_COST && partOfAny.has(item.key),
       share: count / matches.length,
       minute:
         minutes.length >= MINUTE_MIN_BUYERS ? Math.max(0, Math.round(average)) : (fallbackMinutes?.get(id) ?? null)
@@ -476,8 +482,9 @@ export function lateInventories(matches: GuideMatch[], items: Map<number, ItemIn
 }
 
 /**
- * The core: the cheap early items most matches buy, then at most six real items (boots, Blink, Aghanim's Shard alike)
- * half the matches buy, in the order they were bought; then the situational items: the next ones, 10% and more.
+ * The core: the cheap early items most matches buy, then the six most bought real items (boots, Blink, Aghanim's Shard
+ * alike) a fifth of the matches buy, in the order they were bought; then the situational items: the next ones, 10% and
+ * more.
  */
 export function splitAnchors(rows: BuildItem[]): { core: BuildItem[]; situational: BuildItem[] } {
   const big = rows.filter((row) => !row.early);
@@ -486,8 +493,9 @@ export function splitAnchors(rows: BuildItem[]): { core: BuildItem[]; situationa
   const late = Number.POSITIVE_INFINITY;
   const core = [...early, ...anchors].sort((a, b) => (a.minute ?? late) - (b.minute ?? late) || b.share - a.share);
   const chosen = new Set(core.map((row) => row.item.key));
+  // Whole items only (owner, 28.10.2026: «по ситуации там именно полноценные предметы»).
   const situational = big
-    .filter((row) => !chosen.has(row.item.key) && row.share >= SITUATIONAL_SHARE)
+    .filter((row) => !chosen.has(row.item.key) && !row.part && row.share >= SITUATIONAL_SHARE)
     .slice(0, ITEMS_MAX);
   return { core, situational };
 }
