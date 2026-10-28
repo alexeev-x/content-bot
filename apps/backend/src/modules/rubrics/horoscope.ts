@@ -545,25 +545,8 @@ const PAGE = `<!doctype html><html><head><meta charset="utf-8"><style>*{margin:0
 body{background:#140c14 var(--scene,none) center/cover no-repeat}</style></head><body><script>document.documentElement.setAttribute('data-fonts-ready','')</script></body></html>`;
 
 type Hero = HeroInfo;
-const DAY_MS = 86_400_000;
 /** A matchup counts as the teller's worst enemy only with this many games between them. */
 const ENEMY_MIN_MATCHES = 100;
-
-/**
- * Any hero can read the ball (owner, 28.10.2026: «любой герой может быть гадалкой, не повторяется, пока не пройдут все
- * герои»): every hero in one fixed shuffled order, one step a day, so no one comes back before the whole list has
- * passed — and no store is needed. The order is the same on every run (a seeded shuffle of the ids).
- */
-function tellerOfTheDay(heroes: readonly Hero[], now: number): Hero | undefined {
-  const order = [...heroes].sort((x, y) => x.id - y.id);
-  let seed = 2_028_10_28;
-  for (let index = order.length - 1; index > 0; index -= 1) {
-    seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648;
-    const other = seed % (index + 1);
-    [order[index], order[other]] = [order[other] as Hero, order[index] as Hero];
-  }
-  return order[Math.floor(now / DAY_MS) % Math.max(order.length, 1)];
-}
 
 /** The hero who rose most this week over all ranks (one STRATZ read); null when that read fails or is thin. */
 async function riser(context: RubricContext, heroes: readonly Hero[]): Promise<Hero | null> {
@@ -619,8 +602,10 @@ export async function horoscope(context: RubricContext): Promise<RubricSample> {
   );
   const [heading = '', ...rest] = chosen.lines;
   const heroes = await context.sources.heroes();
-  const teller = tellerOfTheDay(heroes, context.now);
-  if (teller === undefined) throw noData('heroes');
+  // A new fortune-teller every post (owner, 28.10.2026: «гадалка и герой в шаре меняются всегда»); the ball never
+  // shows the teller himself.
+  if (heroes.length < 2) throw noData('heroes');
+  const teller = pick(heroes, context.random);
   const ball = await ballHero(context, heroes, teller);
   const short = (name: string) => name.replace(/^npc_dota_hero_/, '');
   return {
