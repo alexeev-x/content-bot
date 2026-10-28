@@ -144,10 +144,6 @@ export interface StatsSource {
   positions(): Promise<{ heroId: number; position: number; matches: number; wins: number }[]>;
   /** Every hero's last two weeks in a bracket (null: every bracket together), newest first. */
   twoWeeks(bracket: number | null): Promise<{ heroId: number; week: number; matches: number; wins: number }[]>;
-  /** Every hero's per-match averages this week. */
-  averages(): Promise<
-    { heroId: number; matches: number; networth: number; heroDamage: number; kills: number; deaths: number }[]
-  >;
 }
 
 /** OpenDota's hero reads: the guide's fallback when STRATZ fails or comes back empty. Counts only, no minutes. */
@@ -204,7 +200,6 @@ export interface HeroMatchSource {
   /** The newest `limit` games of the hero at the position as guide matches (purchases, skills, items). */
   sample(heroId: number, position: number, limit: number): Promise<GuideMatch[]>;
 }
-
 export interface RubricSample {
   picture: { html: string; width: number; height: number } | null;
   /** Plain text: the caption under the picture, or the message itself. */
@@ -232,6 +227,8 @@ export interface RubricSample {
   reference?: string;
   /** The text is final as written (fixed captions): no AI caption. */
   ownText?: boolean;
+  /** The text's first line is bold: a setup or a heading that must stand out in the feed. */
+  boldLead?: boolean;
   /**
    * A second post of the rubric that follows the first after a while (e.g. a riddle's answer); `afterMinutes: null`
    * waits for the next patch, and the sample reads the latest one in its place.

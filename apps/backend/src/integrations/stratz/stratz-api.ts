@@ -233,14 +233,6 @@ const positionSchema = z.object({
   matchCount: count,
   winCount: count
 });
-const averageSchema = z.object({
-  heroId: z.number().int(),
-  matchCount: count,
-  networth: z.coerce.number().catch(0),
-  heroDamage: z.coerce.number().catch(0),
-  kills: z.coerce.number().catch(0),
-  deaths: z.coerce.number().catch(0)
-});
 
 /** One player's match as a guide sample row; `purchases` is null when the reply carried none. */
 export interface StratzGuideMatch {
@@ -309,12 +301,6 @@ export interface StratzApi {
   ): Promise<{ day: number; matches: number; wins: number }[]>;
   /** Every hero's matches and wins by position 1–5 (Divine and Immortal). */
   positions(signal?: AbortSignal): Promise<{ heroId: number; position: number; matches: number; wins: number }[]>;
-  /** Every hero's per-match averages this week (Divine and Immortal); STRATZ leaves goldPerMinute empty. */
-  averages(
-    signal?: AbortSignal
-  ): Promise<
-    { heroId: number; matches: number; networth: number; heroDamage: number; kills: number; deaths: number }[]
-  >;
   /** A hero's starting buys at one position (1–5), each item with its copy number. */
   startingItems(
     heroId: number,
@@ -468,22 +454,6 @@ export function createStratzApi(input: { token: string; bridgeUrl?: string; fetc
           wins: row.winCount
         }))
         .filter((row) => row.position >= 1 && row.position <= 5);
-    },
-    async averages(signal) {
-      const rows = await query(
-        '{ heroStats { stats(bracketBasicIds: [DIVINE_IMMORTAL]) { heroId matchCount networth heroDamage kills deaths } } }',
-        (data) => heroStats(data, 'stats'),
-        averageSchema,
-        signal
-      );
-      return rows.map((row) => ({
-        heroId: row.heroId,
-        matches: row.matchCount,
-        networth: row.networth,
-        heroDamage: row.heroDamage,
-        kills: row.kills,
-        deaths: row.deaths
-      }));
     },
     async startingItems(id, position, signal) {
       const rows = await query(

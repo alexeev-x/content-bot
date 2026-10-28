@@ -251,43 +251,6 @@ export async function whoBeatsWhom(context: RubricContext): Promise<RubricSample
   };
 }
 
-// «Криминальная хроника» (owner, 27.10.2026): the week's record of per-match averages told as a tabloid crime note;
-// each record has its «статья».
-const RECORDS = [
-  {
-    crime: 'отмывание золота в особо крупных размерах',
-    value: (row: Average) => row.networth,
-    unit: 'золота к концу игры',
-    digits: 0
-  },
-  {
-    crime: 'причинение тяжких телесных',
-    value: (row: Average) => row.heroDamage,
-    unit: 'урона по героям за игру',
-    digits: 0
-  },
-  { crime: 'серийные убийства', value: (row: Average) => row.kills, unit: 'убийств за игру', digits: 1 },
-  { crime: 'систематическая сдача себя врагу', value: (row: Average) => row.deaths, unit: 'смертей за игру', digits: 1 }
-];
-type Average = { heroId: number; matches: number; networth: number; heroDamage: number; kills: number; deaths: number };
-
-export async function crimeNews(context: RubricContext): Promise<RubricSample> {
-  const [rows, heroes] = await Promise.all([needStats(context).averages(), context.sources.heroes()]);
-  const record = pick(RECORDS, context.random);
-  const best = rows.filter((row) => row.matches >= 500).sort((a, b) => record.value(b) - record.value(a))[0];
-  const hero = heroes.find((each) => each.id === best?.heroId);
-  if (best === undefined || hero === undefined) throw noData('averages');
-  const value =
-    record.digits === 0
-      ? Math.round(record.value(best)).toLocaleString('ru-RU')
-      : record.value(best).toFixed(record.digits).replace('.', ',');
-  return {
-    picture: null,
-    text: `Задержан ${hero.localizedName}. Статья: ${record.crime}.\nВ среднем ${value} ${record.unit} на Божествах и Титанах за неделю — больше всех героев.`,
-    poll: null
-  };
-}
-
 // «Что брать рекруту» (owner, 27.10.2026): the newbie author's side, «бери и побеждай» — the heroes that win most on
 // Рекрут with enough matches to trust.
 const RECRUIT_MIN_MATCHES = 500;

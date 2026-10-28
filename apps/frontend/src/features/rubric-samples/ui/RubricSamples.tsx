@@ -11,12 +11,10 @@ type Need = 'ready' | 'stratz' | 'later';
 // «Кого понерфят?», «Valve, ты серьёзно?», «Валв-тайм», «Оцениваем», «Кто кого перебьёт?» (27.10.2026); 11 «Сеты из
 // мастерской», 12 «Гайд на героя» (28.10.2026).
 const RUBRICS: { key: RubricSampleKey; label: string; note: string; need: Need }[] = [
-  { key: 'what_if', label: '13. Что если…', note: 'сценка, картинка ИИ', need: 'ready' },
   { key: 'confess', label: '14. Признавайтесь', note: 'текст, реакции', need: 'ready' },
   { key: 'explain_dumb', label: '15. Объясни как дебилу', note: 'способность через быт', need: 'ready' },
   { key: 'toxic_translator', label: '16. Переводчик с токсичного', note: 'словарная статья', need: 'ready' },
-  { key: 'crime_news', label: '17. Криминальная хроника', note: 'рекорд недели заметкой', need: 'stratz' },
-  { key: 'ability_in_life', label: '18. Способность в жизнь', note: 'опрос', need: 'ready' },
+  { key: 'ability_in_life', label: '18. Способность в жизнь', note: 'опрос по сцене', need: 'ready' },
   { key: 'hero_profile', label: '19. Анкета', note: 'медкарта, резюме, анкета', need: 'ready' },
   { key: 'item_leaflet', label: '20. Инструкция по применению', note: 'предмет как лекарство', need: 'ready' },
   { key: 'tier_list', label: '21. Тир-лист', note: 'картинка', need: 'stratz' },
@@ -32,7 +30,8 @@ const RUBRICS: { key: RubricSampleKey; label: string; note: string; need: Need }
   { key: 'toxic_bingo', label: '31. Токсик-бинго', note: 'бинго 3×3 текстом', need: 'ready' },
   { key: 'trash_tier', label: '32. Тир-лист хуйни', note: 'тир-лист по теме', need: 'ready' },
   { key: 'fake_item', label: '33. Предмет, которого нет', note: 'картинка', need: 'ready' },
-  { key: 'confessional', label: '34. Исповедальня', note: 'признания подписчиков в личке канала', need: 'later' }
+  { key: 'confessional', label: '34. Исповедальня', note: 'признания подписчиков в личке канала', need: 'later' },
+  { key: 'what_if', label: '35. Что если…', note: 'сценка, картинка ИИ', need: 'ready' }
 ];
 const NEED_NOTE: Record<Need, string> = { ready: '', stratz: ' · STRATZ', later: ' · пока не готово' };
 

@@ -285,8 +285,7 @@ function rubricSources(
             heroGuideSample: (heroId, position, withPurchases) =>
               inTurn(() => stratz.guideSample(heroId, position, withPurchases)),
             positions: () => inTurn(() => stratz.positions()),
-            twoWeeks: (bracket) => inTurn(() => stratz.heroWeeks(bracket, 2)),
-            averages: () => inTurn(() => stratz.averages())
+            twoWeeks: (bracket) => inTurn(() => stratz.heroWeeks(bracket, 2))
           }
   };
 }
@@ -488,6 +487,9 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
   const body = [written ?? sample.text, ...(sample.footer === undefined ? [] : [sample.footer])].join('\n\n');
   const linked = withLinks(body, sample.links ?? []);
   const text = linked.text;
+  // A bold first line (a setup or a heading) as an entity: the text is sent plain.
+  const lead = sample.boldLead === true ? (text.split('\n')[0] ?? '').length : 0;
+  const entities = [...(lead > 0 ? [{ type: 'bold' as const, offset: 0, length: lead }] : []), ...linked.entities];
 
   // The second post (a riddle's answer) is drawn now too; the free plan takes one screenshot per 10 seconds.
   let followUpPicture: Uint8Array | null = null;
@@ -549,11 +551,11 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
       await deps.telegram.sendPhoto(
         deps.ownerChatId,
         new InputFile(picture, `${rubric}.png`),
-        { ...FLAGS, caption: text, caption_entities: linked.entities },
+        { ...FLAGS, caption: text, caption_entities: entities },
         signal()
       );
     } else {
-      await deps.telegram.sendMessage(deps.ownerChatId, text, { ...FLAGS, entities: linked.entities }, signal());
+      await deps.telegram.sendMessage(deps.ownerChatId, text, { ...FLAGS, entities }, signal());
     }
     if (sample.poll !== null) {
       await deps.telegram.sendPoll(

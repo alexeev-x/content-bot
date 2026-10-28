@@ -15,7 +15,6 @@ import {
 import { whoseAbility } from './game-rubrics';
 import { grandpa, nerfOrBuff, patchBroken, valveFixed, valveSeriously, valveTime, whoIsImba } from './patch-rubrics';
 import {
-  crimeNews,
   forgottenHero,
   heroGuide,
   heroTrial,
@@ -49,7 +48,6 @@ export const RUBRIC_KEYS = [
   'confess',
   'explain_dumb',
   'toxic_translator',
-  'crime_news',
   'ability_in_life',
   'hero_profile',
   'item_leaflet',
@@ -88,7 +86,6 @@ export const RUBRIC_TITLES: Record<RubricKey, string> = {
   confess: 'Признавайтесь',
   explain_dumb: 'Объясни как дебилу',
   toxic_translator: 'Переводчик с токсичного',
-  crime_news: 'Криминальная хроника',
   ability_in_life: 'Способность в жизнь',
   hero_profile: 'Анкета',
   item_leaflet: 'Инструкция по применению',
@@ -125,7 +122,6 @@ const BUILDERS: Record<RubricKey, (context: RubricContext) => Promise<RubricSamp
   confess,
   explain_dumb: explainDumb,
   toxic_translator: toxicTranslator,
-  crime_news: crimeNews,
   ability_in_life: abilityInLife,
   hero_profile: heroProfile,
   item_leaflet: itemLeaflet,
