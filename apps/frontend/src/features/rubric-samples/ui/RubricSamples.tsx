@@ -11,12 +11,11 @@ type Need = 'ready' | 'stratz' | 'later';
 // «Кого понерфят?», «Valve, ты серьёзно?», «Валв-тайм», «Оцениваем», «Кто кого перебьёт?» (27.10.2026); 11 «Сеты из
 // мастерской», 12 «Гайд на героя», 14 «Признавайтесь», 15 «Объясни как дебилу», 16 «Переводчик с токсичного», 18
 // «Способность в жизнь», 19 «Анкета», 20 «Инструкция по
-// применению» (28.10.2026).
+// применению», 24 «Гороскоп» (28.10.2026).
 const RUBRICS: { key: RubricSampleKey; label: string; note: string; need: Need }[] = [
   { key: 'tier_list', label: '21. Тир-лист', note: 'картинка', need: 'stratz' },
   { key: 'recruit_picks', label: '22. Что брать рекруту', note: 'текст: топ-5 на Рекрутах', need: 'stratz' },
   { key: 'forgotten_hero', label: '23. Забытый герой', note: 'текст', need: 'stratz' },
-  { key: 'horoscope', label: '24. Гороскоп', note: 'текст', need: 'stratz' },
   { key: 'hero_trial', label: '25. Суд', note: 'опрос «Приговор»', need: 'stratz' },
   { key: 'would_you_rather', label: '26. Что выберешь?', note: 'текст, реакции', need: 'ready' },
   { key: 'on_lane', label: '27. Ты на линии', note: 'ситуация с решением', need: 'ready' },
