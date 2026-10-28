@@ -678,9 +678,17 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
         );
       else await deps.telegram.sendMessage(deps.ownerChatId, followUp.text, { ...FLAGS, entities: [] }, signal());
     }
-  } catch {
+  } catch (error) {
     log('failed', 'TELEGRAM_SEND');
-    throw new AppError('UNAVAILABLE', 'Telegram did not take the sample', { reason: 'TELEGRAM_SEND' });
+    // Telegram's own refusal text (e.g. «can't parse rich message») tells the owner which part it rejected; it holds
+    // no secret. Bounded, so a long answer can't flood the note.
+    const said =
+      error instanceof Error && 'description' in error && typeof error.description === 'string'
+        ? error.description.slice(0, 200)
+        : null;
+    throw new AppError('UNAVAILABLE', 'Telegram did not take the sample', {
+      reason: said === null ? 'TELEGRAM_SEND' : `TELEGRAM_SEND: ${said}`
+    });
   }
   log('sent');
 }
