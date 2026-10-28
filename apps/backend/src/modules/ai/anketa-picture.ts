@@ -13,7 +13,9 @@ function anketaPrompt(heroName: string): string {
     'Image 1 is the scene. Keep it exactly as it is: the same arena, the neon heart, the «Давай поженимся» sign with its lettering, the torches, banners, roses and the stone-framed board on the right.',
     `Image 2 is ${heroName} from Dota 2. Put this exact character into the scene: standing full-body on the stage on the left half, in front of the neon heart, facing the viewer, about two thirds of the picture's height, feet on the stage floor.`,
     "Keep the character's design, colours, armour and weapons exactly as in image 2; only light him like the scene: pink and red rim light from the heart behind, warm torch light, a contact shadow on the floor, a few rose petals in front of his legs.",
-    'The board on the right stays EMPTY and dark: no text, letters, numbers, icons or pictures on it. Add no text anywhere else.'
+    // The channel's mark lives on the hero himself (owner, 28.10.2026), so cropping it out spoils the picture.
+    'Write the word «ALEXEEV» exactly once, as a watermark that belongs to the character: worked into his clothing, armour or weapon the way that material would carry it (stitched or painted on cloth, engraved or etched on metal, burned into leather), following its folds, curve and perspective, lit and shaded with it, slightly worn — harmonious, as if it had always been there, never a flat sticker or overlay. Medium size, legible, these seven letters A-L-E-X-E-E-V and nothing else.',
+    'The board on the right stays EMPTY and dark: no text, letters, numbers, icons or pictures on it. Add no other text anywhere.'
   ].join('\n');
 }
 
