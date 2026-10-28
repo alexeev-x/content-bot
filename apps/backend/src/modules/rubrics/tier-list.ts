@@ -1,5 +1,5 @@
 import { escapeHtml, heroPortraitImage, PICTURE_SIZE, picturePage, rankMedalImage } from './picture';
-import { needStats, noData, pick, type RubricContext, type RubricSample, type StatsSource, shuffled } from './types';
+import { needStats, noData, pick, type RubricContext, type RubricSample, type StatsSource } from './types';
 
 // «Тир-лист» (owner, 28.10.2026): one 2:1 picture and no caption («тут текст не нужен вообще»). The title on the left
 // says what the picture shows; five role columns with four heroes each stand on the right. Eight looks, picked at random;
@@ -369,36 +369,25 @@ const buildLook = (name: LookName, ctx: Ctx, random: () => number): Promise<Look
   }
 };
 
-// A fetch that failed or timed out is one look's heavy read (DEV, 28.10.2026: STRATZ_FETCH stopped the whole sample), so it
-// only skips that look; a refused key, address or rate limit hits every look and stops.
-const STOP_CODES = new Set(['STRATZ_TOKEN', 'STRATZ_BLOCKED', 'STRATZ_RATE']);
 const codeOf = (error: unknown) =>
   error instanceof Error && 'code' in error ? String((error as { code: unknown }).code) : 'ошибка';
 const reasonOf = (error: unknown) =>
   error instanceof Error ? error.message.replace(/^No data for the rubric: /, '') : 'ошибка';
 
+// One look per post, picked at random, and no trying the next when it fails: falling through the looks fired dozens
+// of STRATZ reads in one sample and STRATZ refused the bot's address (DEV, 28.10.2026). A look that can't be filled
+// is reported by name and code, so the owner sees which one; key, address and rate refusals go up as they are.
 export async function tierList(context: RubricContext): Promise<RubricSample> {
   const stats = needStats(context);
   const heroes = await context.sources.heroes();
   const ctx: Ctx = { stats, names: new Map(heroes.map((hero) => [hero.id, hero.name.replace(/^npc_dota_hero_/, '')])) };
-  const notes: string[] = [];
-  // The looks come in random order; the first that STRATZ can fill is the post, and each that cannot is told to the owner.
-  for (const name of shuffled(LOOKS, context.random)) {
-    try {
-      const look = await buildLook(name, ctx, context.random);
-      return {
-        picture: { html: lookPage(look), ...PICTURE_SIZE },
-        text: '',
-        ownText: true,
-        notes,
-        poll: null
-      };
-    } catch (error) {
-      const code = codeOf(error);
-      // A refused key, address or rate limit hits every look alike: stop, and let the sample report the source.
-      if (STOP_CODES.has(code)) throw error;
-      notes.push(`Нет данных: вид «${name}» (${code === 'UNAVAILABLE' ? reasonOf(error) : code})`);
-    }
+  const name = pick(LOOKS, context.random);
+  try {
+    const look = await buildLook(name, ctx, context.random);
+    return { picture: { html: lookPage(look), ...PICTURE_SIZE }, text: '', ownText: true, poll: null };
+  } catch (error) {
+    const code = codeOf(error);
+    if (code === 'STRATZ_TOKEN' || code === 'STRATZ_BLOCKED' || code === 'STRATZ_RATE') throw error;
+    throw noData(`вид «${name}» (${code === 'UNAVAILABLE' ? reasonOf(error) : code})`);
   }
-  throw noData(`tier list: ${notes.join('; ')}`);
 }
