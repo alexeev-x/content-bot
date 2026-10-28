@@ -1,11 +1,11 @@
 import { RICH_MEDIA_SLOT } from '@alexeev/contracts';
 import { escapeHtml } from './picture';
-import { pick, type RubricContext, type RubricSample } from './types';
+import { type HeroInfo, noData, pick, type RubricContext, type RubricSample } from './types';
 
 // «Гороскоп» (owner, 28.10.2026): a Monday horoscope by role (А), by role pairs (Б), by rank (В) or in the gachimuchi
 // meme (Г) — final as written from the owner's bank, no data (live numbers made it a fifth STRATZ rubric and the
 // «talisman» was noise). A rich message: signs in bold. The picture (the owner's fortune-teller template with five
-// tarot cards): the image model seats a fortune-teller (always gachi) and puts the week's riser in the ball.
+// tarot cards): the image model seats a fortune-teller (always gachi) and puts another hero's head in the ball.
 
 type Horoscope = { id: string; form: 'А' | 'Б' | 'В' | 'Г'; lines: readonly string[] };
 
@@ -499,49 +499,76 @@ const strip = (line: string) => line.replace(/\*\*/gu, '');
 const lineHtml = (line: string) => `<p>${escapeHtml(line).replace(/\*\*(.+?)\*\*/gu, '<b>$1</b>')}</p>`;
 
 const RENDERS = 'https://cdn.cloudflare.steamstatic.com/apps/dota2/videos/dota_react/heroes/renders';
-/** Heroes who make a good fortune-teller behind the ball; each is drawn in the gachimuchi look. */
-const TELLERS = [
-  'juggernaut',
-  'invoker',
-  'oracle',
-  'kunkka',
-  'warlock',
-  'rubick',
-  'axe',
-  'pudge',
-  'legion_commander',
-  'lina',
-  'crystal_maiden',
-  'sven',
-  'tusk',
-  'witch_doctor'
-] as const;
 /** A riser needs this many games in both weeks across all ranks, so a few lucky games don't make the hero of the week. */
 const RISER_MIN_MATCHES = 20_000;
 const PAGE = `<!doctype html><html><head><meta charset="utf-8"><style>*{margin:0}html,body{width:1536px;height:768px;overflow:hidden}
 body{background:#140c14 var(--scene,none) center/cover no-repeat}</style></head><body><script>document.documentElement.setAttribute('data-fonts-ready','')</script></body></html>`;
 
-/** The hero who rose most this week over all ranks (one STRATZ read); any hero when that read fails. */
-async function heroOfTheWeek(context: RubricContext): Promise<{ name: string; localizedName: string }> {
-  const heroes = await context.sources.heroes();
+type Hero = HeroInfo;
+const DAY_MS = 86_400_000;
+/** A matchup counts as the teller's worst enemy only with this many games between them. */
+const ENEMY_MIN_MATCHES = 100;
+
+/**
+ * Any hero can read the ball (owner, 28.10.2026: «любой герой может быть гадалкой, не повторяется, пока не пройдут все
+ * герои»): every hero in one fixed shuffled order, one step a day, so no one comes back before the whole list has
+ * passed — and no store is needed. The order is the same on every run (a seeded shuffle of the ids).
+ */
+function tellerOfTheDay(heroes: readonly Hero[], now: number): Hero | undefined {
+  const order = [...heroes].sort((x, y) => x.id - y.id);
+  let seed = 2_028_10_28;
+  for (let index = order.length - 1; index > 0; index -= 1) {
+    seed = (seed * 1_103_515_245 + 12_345) % 2_147_483_648;
+    const other = seed % (index + 1);
+    [order[index], order[other]] = [order[other] as Hero, order[index] as Hero];
+  }
+  return order[Math.floor(now / DAY_MS) % Math.max(order.length, 1)];
+}
+
+/** The hero who rose most this week over all ranks (one STRATZ read); null when that read fails or is thin. */
+async function riser(context: RubricContext, heroes: readonly Hero[]): Promise<Hero | null> {
+  const rows = (await context.sources.stats?.twoWeeks(null)) ?? [];
+  const byHero = new Map<number, { week: number; matches: number; wins: number }[]>();
+  for (const row of rows) byHero.set(row.heroId, [...(byHero.get(row.heroId) ?? []), row]);
+  let best: { heroId: number; rise: number } | null = null;
+  for (const [heroId, weeks] of byHero) {
+    const [now, before] = [...weeks].sort((x, y) => y.week - x.week);
+    if (now === undefined || before === undefined) continue;
+    if (now.matches < RISER_MIN_MATCHES || before.matches < RISER_MIN_MATCHES) continue;
+    const rise = now.wins / now.matches - before.wins / before.matches;
+    if (best === null || rise > best.rise) best = { heroId, rise };
+  }
+  return heroes.find((each) => each.id === best?.heroId) ?? null;
+}
+
+/** The hero the teller loses to most (one STRATZ read); null when that read fails or is thin. */
+async function worstEnemy(context: RubricContext, heroes: readonly Hero[], teller: Hero): Promise<Hero | null> {
+  const rows = (await context.sources.stats?.heroMatchups(teller.id)) ?? [];
+  const worst = rows
+    .filter((row) => row.matches >= ENEMY_MIN_MATCHES)
+    .sort((x, y) => x.wins / x.matches - y.wins / y.matches)[0];
+  return heroes.find((each) => each.id === worst?.heroId) ?? null;
+}
+
+/**
+ * Who appears in the ball (owner, 28.10.2026): the teller's worst enemy, the week's riser or anyone — one of them at
+ * random, never the teller himself; a failed read falls back to a random hero.
+ */
+async function ballHero(context: RubricContext, heroes: readonly Hero[], teller: Hero): Promise<Hero> {
+  const others = heroes.filter((each) => each.id !== teller.id);
+  const way = pick(['enemy', 'riser', 'random'] as const, context.random);
   try {
-    const rows = (await context.sources.stats?.twoWeeks(null)) ?? [];
-    const byHero = new Map<number, { week: number; matches: number; wins: number }[]>();
-    for (const row of rows) byHero.set(row.heroId, [...(byHero.get(row.heroId) ?? []), row]);
-    let best: { heroId: number; rise: number } | null = null;
-    for (const [heroId, weeks] of byHero) {
-      const [now, before] = [...weeks].sort((a, b) => b.week - a.week);
-      if (now === undefined || before === undefined) continue;
-      if (now.matches < RISER_MIN_MATCHES || before.matches < RISER_MIN_MATCHES) continue;
-      const rise = now.wins / now.matches - before.wins / before.matches;
-      if (best === null || rise > best.rise) best = { heroId, rise };
-    }
-    const hero = heroes.find((each) => each.id === best?.heroId);
-    if (hero !== undefined) return hero;
+    const found =
+      way === 'enemy'
+        ? await worstEnemy(context, heroes, teller)
+        : way === 'riser'
+          ? await riser(context, heroes)
+          : null;
+    if (found !== null && found.id !== teller.id) return found;
   } catch {
     // The picture only needs a face: a failed read leaves the ball to a random hero.
   }
-  return pick(heroes, context.random);
+  return pick(others, context.random);
 }
 
 export async function horoscope(context: RubricContext): Promise<RubricSample> {
@@ -551,14 +578,15 @@ export async function horoscope(context: RubricContext): Promise<RubricSample> {
     context.random
   );
   const [heading = '', ...rest] = chosen.lines;
-  const tellerKey = pick(TELLERS, context.random);
-  const teller = (await context.sources.heroes()).find((each) => each.name === `npc_dota_hero_${tellerKey}`);
-  const ball = await heroOfTheWeek(context);
+  const heroes = await context.sources.heroes();
+  const teller = tellerOfTheDay(heroes, context.now);
+  if (teller === undefined) throw noData('heroes');
+  const ball = await ballHero(context, heroes, teller);
   const short = (name: string) => name.replace(/^npc_dota_hero_/, '');
   return {
     picture: { html: PAGE, width: 1536, height: 768 },
     fortuneScene: {
-      teller: { renderUrl: `${RENDERS}/${tellerKey}.png`, heroName: teller?.localizedName ?? tellerKey },
+      teller: { renderUrl: `${RENDERS}/${short(teller.name)}.png`, heroName: teller.localizedName },
       ball: { renderUrl: `${RENDERS}/${short(ball.name)}.png`, heroName: ball.localizedName }
     },
     text: chosen.lines.map(strip).join('\n'),
