@@ -185,6 +185,7 @@ export function confess(context: RubricContext): Promise<RubricSample> {
     picture: null,
     text: [chosen.setup, '', chosen.first, chosen.second].join('\n'),
     boldLead: true,
+    noPicture: true,
     ownText: true,
     poll: null
   });
@@ -811,6 +812,7 @@ export function explainDumb(context: RubricContext): Promise<RubricSample> {
     ),
     footer: '🤯 — не знал · 🗿 — я олд',
     boldLead: true,
+    noPicture: true,
     ownText: true,
     poll: null
   });
@@ -1158,6 +1160,7 @@ export function toxicTranslator(context: RubricContext): Promise<RubricSample> {
     text: chosen.text,
     footer: '🤝 — слышу каждую катку · 🤡 — сам так пишу',
     boldLead: true,
+    noPicture: true,
     ownText: true,
     poll: null
   });
@@ -2079,6 +2082,7 @@ export function abilityInLife(context: RubricContext): Promise<RubricSample> {
     picture: null,
     text: '',
     pictureInPoll: true,
+    noPicture: true,
     ownText: true,
     poll: poll(chosen.question, [...chosen.options, chosen.joke])
   });

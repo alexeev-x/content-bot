@@ -400,8 +400,10 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
   let picture: Uint8Array | null = null;
   // Every rubric gets a picture for now (owner, 25.10.2026: «пусть ИИ рисует для всех, а там уже отбросим»): one with
   // no layout of its own is the drawn scene with its title alone, and none at all when the scene is not drawn.
+  // A rubric that decided against a picture (owner, 28.10.2026: text jokes and bare polls) gets no scene either.
   const ownPhotos = sample.photo !== undefined || sample.album !== undefined;
-  const page = ownPhotos ? null : (sample.picture ?? (deps.ai === null ? null : titlePicture(title)));
+  const page =
+    ownPhotos || sample.noPicture === true ? null : (sample.picture ?? (deps.ai === null ? null : titlePicture(title)));
   if (page !== null) {
     if (deps.renderer === null) {
       throw new AppError('UNAVAILABLE', 'Browser Rendering is not bound here', { reason: 'BROWSER_NOT_BOUND' });
