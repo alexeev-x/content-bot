@@ -227,6 +227,23 @@ const matchPlayersSchema = z.record(
  * plan's 10 ms); four keep the reply near 120 KB.
  */
 export const MATCH_PLAYERS_MAX = 4;
+// Rubric 21 «Тир-лист» reads. `winWeek` takes `positionIds` (the guide's `winDay` does too). The lane, length and ban
+// reads are not yet checked against a live STRATZ reply (no token in the build); a reply that does not parse is a
+// STRATZ_SHAPE and the rubric's look then says «Нет данных» instead of drawing guesses.
+const laneSchema = z.object({
+  heroId: z.number().int(),
+  position: z.string().max(20),
+  matchCount: count,
+  winCount: count
+});
+const lengthSchema = z.object({
+  heroId: z.number().int(),
+  position: z.string().max(20),
+  duration: z.coerce.number().nonnegative().catch(0),
+  matchCount: count,
+  winCount: count
+});
+const banSchema = z.object({ heroId: z.number().int(), matchCount: count, banCount: count });
 const positionSchema = z.object({
   heroId: z.number().int(),
   position: z.string().max(20),
@@ -299,6 +316,21 @@ export interface StratzApi {
     days: number,
     signal?: AbortSignal
   ): Promise<{ day: number; matches: number; wins: number }[]>;
+  /** Every hero's matches and wins at one position for the last `weeks` weeks in a bracket (null: every bracket), newest first. */
+  positionWeeks(
+    bracket: number | null,
+    position: number,
+    weeks: number,
+    signal?: AbortSignal
+  ): Promise<{ heroId: number; week: number; matches: number; wins: number }[]>;
+  /** Every hero's lanes by position (Divine and Immortal): `matches` lanes played, `wins` lanes won. */
+  laneRates(signal?: AbortSignal): Promise<{ heroId: number; position: number; matches: number; wins: number }[]>;
+  /** Every hero's matches and wins by position and match length (Divine and Immortal); `minute` is the length bin's start. */
+  lengthRates(
+    signal?: AbortSignal
+  ): Promise<{ heroId: number; position: number; minute: number; matches: number; wins: number }[]>;
+  /** Every hero's matches and bans (Divine and Immortal). */
+  banRates(signal?: AbortSignal): Promise<{ heroId: number; matches: number; bans: number }[]>;
   /** Every hero's matches and wins by position 1–5 (Divine and Immortal). */
   positions(signal?: AbortSignal): Promise<{ heroId: number; position: number; matches: number; wins: number }[]>;
   /** A hero's starting buys at one position (1–5), each item with its copy number. */
@@ -420,6 +452,63 @@ export function createStratzApi(input: { token: string; bridgeUrl?: string; fetc
       return rows
         .map((row) => ({ heroId: row.heroId, week: row.week, matches: row.matchCount, wins: row.winCount }))
         .sort((a, b) => b.week - a.week);
+    },
+    async positionWeeks(bracket, position, weeks, signal) {
+      const name = bracket === null ? Object.values(BRACKETS).join(', ') : BRACKETS[bracket];
+      if (name === undefined) throw new StratzError('STRATZ_SHAPE');
+      const rows = await query(
+        `{ heroStats { winWeek(take: ${Math.min(Math.max(Math.trunc(weeks), 1), 4)}, bracketIds: [${name}], positionIds: [POSITION_${place(position)}]) { heroId week matchCount winCount } } }`,
+        (data) => heroStats(data, 'winWeek'),
+        winRowSchema,
+        signal
+      );
+      return rows
+        .map((row) => ({ heroId: row.heroId, week: row.week, matches: row.matchCount, wins: row.winCount }))
+        .sort((a, b) => b.week - a.week);
+    },
+    async laneRates(signal) {
+      const rows = await query(
+        '{ heroStats { laneOutcome(groupByPosition: true, bracketBasicIds: [DIVINE_IMMORTAL]) { heroId position matchCount winCount } } }',
+        (data) => heroStats(data, 'laneOutcome'),
+        laneSchema,
+        signal
+      );
+      return rows
+        .map((row) => ({ row, place: Number(/POSITION_(d)/u.exec(row.position)?.[1] ?? 0) }))
+        .filter((each) => each.place >= 1 && each.place <= 5)
+        .map((each) => ({
+          heroId: each.row.heroId,
+          position: each.place,
+          matches: each.row.matchCount,
+          wins: each.row.winCount
+        }));
+    },
+    async lengthRates(signal) {
+      const rows = await query(
+        '{ heroStats { matchLength(groupByPosition: true, bracketBasicIds: [DIVINE_IMMORTAL]) { heroId position duration matchCount winCount } } }',
+        (data) => heroStats(data, 'matchLength'),
+        lengthSchema,
+        signal
+      );
+      return rows
+        .map((row) => ({ row, place: Number(/POSITION_(d)/u.exec(row.position)?.[1] ?? 0) }))
+        .filter((each) => each.place >= 1 && each.place <= 5)
+        .map((each) => ({
+          heroId: each.row.heroId,
+          position: each.place,
+          minute: each.row.duration,
+          matches: each.row.matchCount,
+          wins: each.row.winCount
+        }));
+    },
+    async banRates(signal) {
+      const rows = await query(
+        '{ heroStats { stats(bracketBasicIds: [DIVINE_IMMORTAL]) { heroId matchCount banCount } } }',
+        (data) => heroStats(data, 'stats'),
+        banSchema,
+        signal
+      );
+      return rows.map((row) => ({ heroId: row.heroId, matches: row.matchCount, bans: row.banCount }));
     },
     async heroPurchases(id, signal) {
       const rows = await query(

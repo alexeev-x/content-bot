@@ -13,6 +13,7 @@ import {
   wouldYouRather
 } from './fun-rubrics';
 import { whoseAbility } from './game-rubrics';
+import { recruitPicks } from './recruit-picks';
 import { grandpa, nerfOrBuff, patchBroken, valveFixed, valveSeriously, valveTime, whoIsImba } from './patch-rubrics';
 import {
   forgottenHero,
@@ -20,11 +21,10 @@ import {
   heroTrial,
   horoscope,
   notBuiltYet,
-  recruitPicks,
-  tierList,
   whoBeatsWhom,
   whoGetsNerfed
 } from './stats-rubrics';
+import { tierList } from './tier-list';
 import type { RubricContext, RubricSample } from './types';
 
 // The channel's rubrics, each built from live data the way the channel would show it: 01–10 approved by the owner, the

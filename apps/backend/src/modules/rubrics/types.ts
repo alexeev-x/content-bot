@@ -140,6 +140,18 @@ export interface StatsSource {
   heroMatchups(heroId: number): Promise<{ heroId: number; matches: number; wins: number }[]>;
   /** The hero's recent matches at one position, one row per match (the guide's sample). */
   heroGuideSample(heroId: number, position: number, withPurchases: boolean): Promise<GuideSample>;
+  /** Every hero's matches and wins at one position for the last `weeks` weeks in a bracket (null: all), newest first. */
+  positionWeeks(
+    bracket: number | null,
+    position: number,
+    weeks: number
+  ): Promise<{ heroId: number; week: number; matches: number; wins: number }[]>;
+  /** Every hero's lanes by position: `matches` lanes played, `wins` lanes won (Divine+). */
+  laneRates(): Promise<{ heroId: number; position: number; matches: number; wins: number }[]>;
+  /** Every hero's matches and wins by position and match length; `minute` is the length bin's start (Divine+). */
+  lengthRates(): Promise<{ heroId: number; position: number; minute: number; matches: number; wins: number }[]>;
+  /** Every hero's matches and bans (Divine+). */
+  banRates(): Promise<{ heroId: number; matches: number; bans: number }[]>;
   /** Every hero's matches and wins by position 1–5. */
   positions(): Promise<{ heroId: number; position: number; matches: number; wins: number }[]>;
   /** Every hero's last two weeks in a bracket (null: every bracket together), newest first. */

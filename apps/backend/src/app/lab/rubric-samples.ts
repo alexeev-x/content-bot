@@ -303,6 +303,10 @@ function rubricSources(
             heroGuideSample: (heroId, position, withPurchases) =>
               inTurn(() => stratz.guideSample(heroId, position, withPurchases)),
             positions: () => inTurn(() => stratz.positions()),
+            positionWeeks: (bracket, position, weeks) => inTurn(() => stratz.positionWeeks(bracket, position, weeks)),
+            laneRates: () => inTurn(() => stratz.laneRates()),
+            lengthRates: () => inTurn(() => stratz.lengthRates()),
+            banRates: () => inTurn(() => stratz.banRates()),
             twoWeeks: (bracket) => inTurn(() => stratz.heroWeeks(bracket, 2))
           }
   };

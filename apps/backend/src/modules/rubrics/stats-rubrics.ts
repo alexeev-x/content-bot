@@ -18,7 +18,7 @@ import {
   GUIDE_DAYS
 } from './guide-data';
 import { type GuideItem, guideAltPicture, guideItemsPicture, guidePicture, type HeroGuideCard } from './guide-pictures';
-import { heroImage, PICTURE_SIZE, picturePage } from './picture';
+import { PICTURE_SIZE } from './picture';
 import { type PatchOutcome, patchOutcomes } from './patch-rubrics';
 import { NERF_LOOKS, nerfQuestionPicture, nerfResultPicture } from './nerf-pictures';
 import { VERSUS_LOOKS, VERSUS_TITLES, versusPicture } from './versus-pictures';
@@ -40,19 +40,6 @@ import {
 
 // Rubrics over pick and win rates by rank (STRATZ, once its token is set). Without it each answers
 // STATS_NOT_CONFIGURED, so the studio shows what is waiting for the token.
-
-const RANKS: Record<number, { name: string; on: string }> = {
-  1: { name: 'Рекрут', on: 'Рекрутах' },
-  2: { name: 'Страж', on: 'Стражах' },
-  3: { name: 'Рыцарь', on: 'Рыцарях' },
-  4: { name: 'Герой', on: 'Героях' },
-  5: { name: 'Легенда', on: 'Легендах' },
-  6: { name: 'Властелин', on: 'Властелинах' },
-  7: { name: 'Божество', on: 'Божествах' },
-  8: { name: 'Титан', on: 'Титанах' }
-};
-const BRACKETS = [1, 2, 3, 4, 5, 6, 7, 8];
-const rank = (bracket: number) => RANKS[bracket] ?? { name: 'ранг', on: 'ранге' };
 
 interface Share {
   hero: HeroInfo;
@@ -85,43 +72,6 @@ export async function forgottenHero(context: RubricContext): Promise<RubricSampl
   return {
     picture: null,
     text: `🕸 Забытый герой: ${hero.hero.localizedName}.\nЕго берут в ${percent(hero.pickRate)} игр, а он выигрывает ${percent(hero.winRate)}. Почему вы его не пикаете? Пишите в комментарии.`,
-    poll: null
-  };
-}
-
-const TIERS = [
-  { name: 'ЛЕГ', min: 0.53, color: 'var(--tier-s)' },
-  { name: 'НОРМ', min: 0.5, color: 'var(--tier-a)' },
-  { name: 'НОЛЬ', min: 0.47, color: 'var(--tier-b)' },
-  { name: 'РАК', min: 0, color: 'var(--tier-c)' }
-];
-
-export async function tierList(context: RubricContext): Promise<RubricSample> {
-  const bracket = pick(BRACKETS, context.random);
-  const list = (await shares(context, bracket)).filter((each) => each.matches >= 500);
-  const rows = TIERS.map((tier, index) => {
-    const upper = index === 0 ? Number.POSITIVE_INFINITY : (TIERS[index - 1]?.min ?? 1);
-    const heroes = list
-      .filter((each) => each.winRate >= tier.min && each.winRate < upper)
-      .sort((a, b) => b.pickRate - a.pickRate)
-      .slice(0, 6);
-    return { tier, heroes };
-  });
-  const html = picturePage(
-    `<div class="title">Тир-лист на <b>${rank(bracket).on}</b></div><div class="tiers">${rows
-      .map(
-        (row) => `<div class="tier"><div class="label" style="background:${row.tier.color}">${row.tier.name}</div>
-${row.heroes.map((each) => `<img class="portrait small" src="${heroImage(each.hero.name)}" alt="">`).join('')}</div>`
-      )
-      .join('')}</div>`,
-    `.tiers{display:flex;flex-direction:column;gap:12px;margin-top:28px}
-.tier{display:flex;align-items:center;gap:12px}
-.label{width:150px;height:88px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:34px;color:#0b0e13}
-.portrait.small{width:156px;height:88px;border-width:2px}`
-  );
-  return {
-    picture: { html, ...PICTURE_SIZE },
-    text: `Тир-лист на ${rank(bracket).on} по реальному винрейту: лег, норм, ноль и рак.\nСогласен? Кого бы переставил — в комментарии.`,
     poll: null
   };
 }
@@ -247,27 +197,6 @@ export async function whoBeatsWhom(context: RubricContext): Promise<RubricSample
     },
     text: '',
     ownText: true,
-    poll: null
-  };
-}
-
-// «Что брать рекруту» (owner, 27.10.2026): the newbie author's side, «бери и побеждай» — the heroes that win most on
-// Рекрут with enough matches to trust.
-const RECRUIT_MIN_MATCHES = 500;
-const RECRUIT_TOP = 5;
-
-export async function recruitPicks(context: RubricContext): Promise<RubricSample> {
-  const top = (await shares(context, 1))
-    .filter((each) => each.matches >= RECRUIT_MIN_MATCHES)
-    .sort((a, b) => b.winRate - a.winRate)
-    .slice(0, RECRUIT_TOP);
-  if (top.length < 3) throw noData('recruit heroes');
-  return {
-    picture: null,
-    text: [
-      'Кого брать на Рекрутах, чтобы побеждать:',
-      ...top.map((each) => `${each.hero.localizedName} — ${percent(each.winRate)} побед`)
-    ].join('\n'),
     poll: null
   };
 }
