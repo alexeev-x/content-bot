@@ -438,7 +438,9 @@ export async function tierList(context: RubricContext): Promise<RubricSample> {
   const stats = needStats(context);
   const heroes = await context.sources.heroes();
   const ctx: Ctx = { stats, names: new Map(heroes.map((hero) => [hero.id, hero.name.replace(/^npc_dota_hero_/, '')])) };
-  const name = pick(LOOKS, context.random);
+  // The looks take turns by the minute, so presses a minute or more apart walk through all eight (owner's check on DEV)
+  // and weekly posts still vary.
+  const name = LOOKS[Math.floor(context.now / 60_000) % LOOKS.length] ?? pick(LOOKS, context.random);
   try {
     const look = await buildLook(name, ctx, context.random);
     return { picture: { html: lookPage(look), ...PICTURE_SIZE }, text: '', ownText: true, poll: null };
