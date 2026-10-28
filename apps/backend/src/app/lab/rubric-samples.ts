@@ -515,7 +515,7 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
         { ...FLAGS, entities: [] },
         signal()
       );
-    const rich = pollOnly || album.length > 0 ? null : rubricRichHtml(text, picture !== null);
+    const rich = pollOnly || album.length > 0 ? null : (sample.rich ?? rubricRichHtml(text, picture !== null));
     if (album.length > 0) {
       // One rich message, the photos and GIFs as a carousel on top (owner, 27.10.2026: «формата rich, чтобы был как
       // карусель»), then the text, the verdict and the links as words.

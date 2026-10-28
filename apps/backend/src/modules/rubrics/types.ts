@@ -227,6 +227,8 @@ export interface RubricSample {
   reference?: string;
   /** The text is final as written (fixed captions): no AI caption. */
   ownText?: boolean;
+  /** The post as a rich message (tables, bold, italics) in place of the plain text; `text` stays its plain form. */
+  rich?: string;
   /** The rubric posts no picture at all, not even the drawn title scene (a text joke or a bare poll). */
   noPicture?: boolean;
   /** The text's first line is bold: a setup or a heading that must stand out in the feed. */

@@ -1,4 +1,5 @@
 import { type HeroInfo, noData, pick, poll, type RubricContext, type RubricSample, shuffled } from './types';
+import { escapeHtml } from './picture';
 
 // The channel's creative rubrics (owner, 27.10.2026: «пока просто общее сделай, потом каждый по одному»): a hero, an
 // ability or an item from live data plus a line from a small bank, and the AI writer makes the joke. The facts go to
@@ -1152,13 +1153,46 @@ const THREE_RANKS: readonly Entry[] = [
   }
 ];
 
+const TRANSLATOR_FOOTER = '🤝 — слышу каждую катку · 🤡 — сам так пишу';
+const unquote = (text: string) => text.trim().replace(/^«(.*)»$/u, '$1');
+
+/**
+ * The entry as a rich message, so it reads at a glance (owner, 28.10.2026: «чтобы людям читать удобно было»): the
+ * heading in bold, «Как сказать по-дотерски» and the three ranks as two-column tables, the example in italics.
+ */
+function translatorRich(entry: Entry): string {
+  const [heading = '', ...lines] = entry.text.split('\n');
+  const head = `<p><b>${escapeHtml(heading)}</b></p>`;
+  const table = (left: string, right: string, rows: string[][]) =>
+    `<table bordered compact><tr><th>${left}</th><th>${right}</th></tr>${rows
+      .map(([a = '', b = '']) => `<tr><td>${escapeHtml(a)}</td><td>${escapeHtml(b)}</td></tr>`)
+      .join('')}</table>`;
+  let body: string;
+  if (entry.id.startsWith('B')) {
+    const rows = lines.map((line) => line.split(/ — (?=«)/u).map(unquote));
+    body = table('По-человечески', 'По-дотерски', rows);
+  } else if (entry.id.startsWith('C')) {
+    const rows = lines.map((line) => {
+      const [rank = '', meaning = ''] = line.split(/ — (.*)/su);
+      return [rank.replace(/^На /u, ''), meaning];
+    });
+    body = table('Ранг', 'Что значит', rows);
+  } else {
+    body = lines
+      .map((line) => (line.startsWith('Пример:') ? `<p><i>${escapeHtml(line)}</i></p>` : `<p>${escapeHtml(line)}</p>`))
+      .join('');
+  }
+  return `${head}${body}<p>${escapeHtml(TRANSLATOR_FOOTER)}</p>`;
+}
+
 export function toxicTranslator(context: RubricContext): Promise<RubricSample> {
   const roll = context.random();
   const chosen = pick(roll < 0.08 ? THREE_RANKS : roll < 0.36 ? HOW_TO_SAY : DICTIONARY, context.random);
   return Promise.resolve({
     picture: null,
     text: chosen.text,
-    footer: '🤝 — слышу каждую катку · 🤡 — сам так пишу',
+    rich: translatorRich(chosen),
+    footer: TRANSLATOR_FOOTER,
     boldLead: true,
     noPicture: true,
     ownText: true,
