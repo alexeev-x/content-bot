@@ -64,18 +64,6 @@ async function shares(context: RubricContext, bracket: number): Promise<Share[]>
     .filter((each): each is Share => each.hero !== undefined);
 }
 
-export async function forgottenHero(context: RubricContext): Promise<RubricSample> {
-  const list = await shares(context, 7);
-  const candidates = list.filter((each) => each.pickRate < 0.03 && each.winRate > 0.51 && each.matches >= 100);
-  const hero = candidates.sort((a, b) => b.winRate - a.winRate)[0];
-  if (hero === undefined) throw noData('heroes');
-  return {
-    picture: null,
-    text: `🕸 Забытый герой: ${hero.hero.localizedName}.\nЕго берут в ${percent(hero.pickRate)} игр, а он выигрывает ${percent(hero.winRate)}. Почему вы его не пикаете? Пишите в комментарии.`,
-    poll: null
-  };
-}
-
 async function lateBuild(context: RubricContext, heroId: number, items: Map<number, ItemInfo>): Promise<ItemInfo[]> {
   const ids = await needStats(context).heroLateItems(heroId);
   return ids

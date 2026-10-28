@@ -1,3 +1,4 @@
+import { FORGOTTEN_BRIEF } from './forgotten-hero';
 import type { RubricKey } from './samples';
 
 // Each rubric's own task for the AI writer (owner, 26.10.2026: «общее все получают, а уже детали рубрики — каждая
@@ -134,7 +135,7 @@ export const RUBRIC_BRIEFS: Record<RubricKey, string> = {
   item_leaflet: STANDARD,
   tier_list: STANDARD,
   recruit_picks: STANDARD,
-  forgotten_hero: STANDARD,
+  forgotten_hero: FORGOTTEN_BRIEF,
   horoscope: STANDARD,
   hero_trial: HERO_TRIAL,
   // Final as written (ownText).
