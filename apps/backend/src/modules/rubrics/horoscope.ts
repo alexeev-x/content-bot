@@ -1,10 +1,11 @@
+import { RICH_MEDIA_SLOT } from '@alexeev/contracts';
 import { escapeHtml } from './picture';
 import { pick, type RubricContext, type RubricSample } from './types';
 
 // «Гороскоп» (owner, 28.10.2026): a Monday horoscope by role (А), by role pairs (Б), by rank (В) or in the gachimuchi
 // meme (Г) — final as written from the owner's bank, no data (live numbers made it a fifth STRATZ rubric and the
 // «talisman» was noise). A rich message: signs in bold. The picture (the owner's fortune-teller template with five
-// tarot cards) comes later.
+// tarot cards): the image model seats a fortune-teller (always gachi) and puts the week's riser in the ball.
 
 type Horoscope = { id: string; form: 'А' | 'Б' | 'В' | 'Г'; lines: readonly string[] };
 
@@ -497,20 +498,73 @@ const FORM_TURN = ['А', 'Б', 'А', 'В', 'А', 'Г'] as const;
 const strip = (line: string) => line.replace(/\*\*/gu, '');
 const lineHtml = (line: string) => `<p>${escapeHtml(line).replace(/\*\*(.+?)\*\*/gu, '<b>$1</b>')}</p>`;
 
-export function horoscope(context: RubricContext): Promise<RubricSample> {
+const RENDERS = 'https://cdn.cloudflare.steamstatic.com/apps/dota2/videos/dota_react/heroes/renders';
+/** Heroes who make a good fortune-teller behind the ball; each is drawn in the gachimuchi look. */
+const TELLERS = [
+  'juggernaut',
+  'invoker',
+  'oracle',
+  'kunkka',
+  'warlock',
+  'rubick',
+  'axe',
+  'pudge',
+  'legion_commander',
+  'lina',
+  'crystal_maiden',
+  'sven',
+  'tusk',
+  'witch_doctor'
+] as const;
+/** A riser needs this many games in both weeks across all ranks, so a few lucky games don't make the hero of the week. */
+const RISER_MIN_MATCHES = 20_000;
+const PAGE = `<!doctype html><html><head><meta charset="utf-8"><style>*{margin:0}html,body{width:1536px;height:768px;overflow:hidden}
+body{background:#140c14 var(--scene,none) center/cover no-repeat}</style></head><body><script>document.documentElement.setAttribute('data-fonts-ready','')</script></body></html>`;
+
+/** The hero who rose most this week over all ranks (one STRATZ read); any hero when that read fails. */
+async function heroOfTheWeek(context: RubricContext): Promise<{ name: string; localizedName: string }> {
+  const heroes = await context.sources.heroes();
+  try {
+    const rows = (await context.sources.stats?.twoWeeks(null)) ?? [];
+    const byHero = new Map<number, { week: number; matches: number; wins: number }[]>();
+    for (const row of rows) byHero.set(row.heroId, [...(byHero.get(row.heroId) ?? []), row]);
+    let best: { heroId: number; rise: number } | null = null;
+    for (const [heroId, weeks] of byHero) {
+      const [now, before] = [...weeks].sort((a, b) => b.week - a.week);
+      if (now === undefined || before === undefined) continue;
+      if (now.matches < RISER_MIN_MATCHES || before.matches < RISER_MIN_MATCHES) continue;
+      const rise = now.wins / now.matches - before.wins / before.matches;
+      if (best === null || rise > best.rise) best = { heroId, rise };
+    }
+    const hero = heroes.find((each) => each.id === best?.heroId);
+    if (hero !== undefined) return hero;
+  } catch {
+    // The picture only needs a face: a failed read leaves the ball to a random hero.
+  }
+  return pick(heroes, context.random);
+}
+
+export async function horoscope(context: RubricContext): Promise<RubricSample> {
   const form = pick(FORM_TURN, context.random);
   const chosen = pick(
     HOROSCOPES.filter((each) => each.form === form),
     context.random
   );
   const [heading = '', ...rest] = chosen.lines;
-  return Promise.resolve({
-    picture: null,
+  const tellerKey = pick(TELLERS, context.random);
+  const teller = (await context.sources.heroes()).find((each) => each.name === `npc_dota_hero_${tellerKey}`);
+  const ball = await heroOfTheWeek(context);
+  const short = (name: string) => name.replace(/^npc_dota_hero_/, '');
+  return {
+    picture: { html: PAGE, width: 1536, height: 768 },
+    fortuneScene: {
+      teller: { renderUrl: `${RENDERS}/${tellerKey}.png`, heroName: teller?.localizedName ?? tellerKey },
+      ball: { renderUrl: `${RENDERS}/${short(ball.name)}.png`, heroName: ball.localizedName }
+    },
     text: chosen.lines.map(strip).join('\n'),
-    rich: [`<p><b>${escapeHtml(strip(heading))}</b></p>`, ...rest.map(lineHtml)].join(''),
+    rich: [RICH_MEDIA_SLOT, `<p><b>${escapeHtml(strip(heading))}</b></p>`, ...rest.map(lineHtml)].join(''),
     boldLead: true,
-    noPicture: true,
     ownText: true,
     poll: null
-  });
+  };
 }

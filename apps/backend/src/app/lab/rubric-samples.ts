@@ -7,7 +7,7 @@ import { createOpenDotaApi, OpenDotaError } from '../../integrations/opendota/op
 import { createStratzApi, StratzError } from '../../integrations/stratz/stratz-api';
 import { createTelegramApi, type TelegramSendApi } from '../../integrations/telegram/telegram-api';
 import { createValveDatafeedApi, DatafeedError } from '../../integrations/valve-datafeed/valve-datafeed';
-import { drawAnketaScene, drawRubricScene, writeRubricCaption } from '../../modules/ai';
+import { drawAnketaScene, drawHoroscopeScene, drawRubricScene, writeRubricCaption } from '../../modules/ai';
 import { condenseBuild, isRelevantPath, parseBuildMessage, splitDiff, type GameFind } from '../../modules/game-files';
 import {
   buildRubricSample,
@@ -352,6 +352,13 @@ export type RubricSampleDeps = {
     scene: (input: { heading: { text: string; red: string | null } | null }) => Promise<Scene>;
     /** «Анкета»: the hero placed into the owner's scene. */
     heroScene: (input: { hero: Uint8Array; heroName: string }) => Promise<Scene>;
+    /** «Гороскоп»: the fortune-teller and the ball's head drawn into the owner's scene. */
+    fortuneScene: (input: {
+      teller: Uint8Array;
+      tellerName: string;
+      ball: Uint8Array;
+      ballName: string;
+    }) => Promise<Scene>;
   } | null;
   /** The picture law (workflows/picture-quality.ts): a narrow source picture comes back sharper, else as it was. */
   improvePhoto: (file: SourcePicture) => Promise<SourcePicture>;
@@ -436,7 +443,31 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
     // A rubric with a layout of its own is drawn by code alone on the flat style (owner, 26.10.2026); only a rubric
     // with no layout gets the model's scene under its title.
     // «Анкета»: the model puts the hero into the scene; without it the board alone would float on nothing.
-    if (sample.heroScene !== undefined) {
+    if (sample.fortuneScene !== undefined) {
+      const { teller, ball } = sample.fortuneScene;
+      const tellerBytes = deps.ai === null ? null : await fetchRender(teller.renderUrl);
+      const ballBytes = deps.ai === null || tellerBytes === null ? null : await fetchRender(ball.renderUrl);
+      const scene =
+        tellerBytes === null || ballBytes === null || deps.ai === null
+          ? null
+          : await deps.ai.fortuneScene({
+              teller: tellerBytes,
+              tellerName: teller.heroName,
+              ball: ballBytes,
+              ballName: ball.heroName
+            });
+      if (scene?.kind === 'drawn' && /^[A-Za-z0-9+/=]+$/.test(scene.base64)) {
+        html = html.replace(
+          '</head>',
+          `<style>:root{--scene:url(data:image/jpeg;base64,${scene.base64})}</style></head>`
+        );
+      } else {
+        html = null;
+        notes.push(
+          `Гадалка не нарисована (${tellerBytes === null || ballBytes === null ? 'нет рендера' : scene?.kind === 'failed' ? scene.reason : 'нет ИИ'}): пост без картинки.`
+        );
+      }
+    } else if (sample.heroScene !== undefined) {
       const render = deps.ai === null ? null : await fetchRender(sample.heroScene.renderUrl);
       const scene =
         render === null || deps.ai === null
@@ -557,7 +588,14 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
         { ...FLAGS, entities: [] },
         signal()
       );
-    const rich = pollOnly || album.length > 0 ? null : (sample.rich ?? rubricRichHtml(text, picture !== null));
+    // A rubric's own rich HTML marks where its picture goes; without a drawn picture that mark is dropped.
+    const ownRich =
+      sample.rich === undefined
+        ? null
+        : picture === null
+          ? sample.rich.replace(RICH_MEDIA_SLOT, '')
+          : expandRichMedia(sample.rich, [{ kind: 'photo' }]);
+    const rich = pollOnly || album.length > 0 ? null : (ownRich ?? rubricRichHtml(text, picture !== null));
     if (album.length > 0) {
       // One rich message, the photos and GIFs as a carousel on top (owner, 27.10.2026: «формата rich, чтобы был как
       // карусель»), then the text, the verdict and the links as words.
@@ -690,7 +728,8 @@ export async function runRubricSampleJob(
         ai: {
           caption: (input) => writeRubricCaption(aiDeps, input),
           scene: (input) => drawRubricScene({ ...aiDeps, images: container.aiImageProvider, onError }, input),
-          heroScene: (input) => drawAnketaScene({ ...aiDeps, images: container.aiImageProvider, onError }, input)
+          heroScene: (input) => drawAnketaScene({ ...aiDeps, images: container.aiImageProvider, onError }, input),
+          fortuneScene: (input) => drawHoroscopeScene({ ...aiDeps, images: container.aiImageProvider, onError }, input)
         },
         improvePhoto: pictureImproverFor(container, requestId, onError, RUBRIC_PHOTO_MIN_WIDTH),
         telegram,
