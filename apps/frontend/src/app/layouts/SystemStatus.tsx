@@ -83,7 +83,7 @@ export function SystemStatusSection({ status }: { status: ReturnType<typeof useS
     <section className={styles.section} aria-label={ru.systemStatus.title}>
       <AriaButton className={menu.row} aria-expanded={open} onPress={() => setOpen((value) => !value)}>
         <Icon name="monitor" size={18} />
-        <span className={menu.rowLabel}>{ru.systemStatus.title}</span>
+        <span className={`${menu.rowLabel} ${styles.title}`}>{ru.systemStatus.title}</span>
         <span className={styles.summary}>
           <span className={styles.dot} data-tone={status.checks ? status.tone : 'off'} aria-hidden="true" />
           <span className={styles.summaryText}>{status.label}</span>

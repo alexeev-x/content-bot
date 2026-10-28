@@ -212,7 +212,7 @@ function heroMatchSource(container: Container): HeroMatchSource {
 
 function rubricSources(
   gameFinds: (since: number) => Promise<GameFind[]>,
-  stratzAccess: { token: string; bridgeUrl: string } | null
+  stratzAccess: { token: string; bridgeUrl?: string } | null
 ): RubricSources {
   const stratz =
     stratzAccess === null
@@ -359,7 +359,7 @@ export type RubricSampleDeps = {
   /** The finds in the game's files since a time (the game-files module's read). */
   gameFinds: (since: number) => Promise<GameFind[]>;
   /** STRATZ through the stats bridge; null until both the token and the bridge are set. */
-  stratzAccess: { token: string; bridgeUrl: string } | null;
+  stratzAccess: { token: string; bridgeUrl?: string } | null;
   /** The bot's own match base «Гайд на героя» counts from. */
   heroMatches: HeroMatchSource | null;
   /** The horoscope's round of fortune-tellers. */
@@ -732,7 +732,7 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
 /** What a sample needs beyond the container: the browser and STRATZ, read from the Worker's env by `lab-queue.ts`. */
 export type RubricSampleAccess = {
   renderer: PictureRenderer | null;
-  stratzAccess: { token: string; bridgeUrl: string } | null;
+  stratzAccess: { token: string; bridgeUrl?: string } | null;
 };
 
 /** The `rubric_sample` job: runs once per press and tells the owner in the chat when the sample could not be built. */

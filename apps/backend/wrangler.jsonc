@@ -42,7 +42,9 @@
     // Content analytics sources (public identifiers, not secrets). Empty here so local runs and
     // tests never reach the network; YOUTUBE_API_KEY is a Worker secret the owner sets.
     "ANALYTICS_TELEGRAM_CHANNEL": "",
-    "ANALYTICS_YOUTUBE_CHANNEL_ID": ""
+    "ANALYTICS_YOUTUBE_CHANNEL_ID": "",
+    // Local runs only: STRATZ and OpenDota are called directly from the owner's one home address (no bridge).
+    "STATS_DIRECT": "true"
   },
 
   // Cloudflare Vite plugin selects these at build time via CLOUDFLARE_ENV.

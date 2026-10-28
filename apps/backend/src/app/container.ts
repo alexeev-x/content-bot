@@ -324,6 +324,8 @@ export interface ContainerEnv {
   BROWSER?: unknown;
   STRATZ_TOKEN?: string;
   STATS_BRIDGE_URL?: string;
+  /** "true" only in local runs: STRATZ and OpenDota are called directly, without the bridge. */
+  STATS_DIRECT?: string;
   OWNER_TELEGRAM_ID?: string;
   /** Public username of the owner's channel; empty means content analytics skips Telegram. */
   ANALYTICS_TELEGRAM_CHANNEL?: string;
@@ -599,7 +601,7 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get statsApis(): Container['statsApis'] {
       if (overrides.statsApis !== undefined) return overrides.statsApis;
-      const access = stratzAccess(env.STRATZ_TOKEN, env.STATS_BRIDGE_URL);
+      const access = stratzAccess(env.STRATZ_TOKEN, env.STATS_BRIDGE_URL, env.STATS_DIRECT);
       return access === null
         ? null
         : {

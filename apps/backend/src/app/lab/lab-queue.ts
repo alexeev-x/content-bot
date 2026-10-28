@@ -26,7 +26,7 @@ export function createLabQueue(env: Partial<AppEnv>): LabQueue {
         container,
         {
           renderer: isBrowserBinding(env.BROWSER) ? createBrowserPictureRenderer(env.BROWSER) : null,
-          stratzAccess: stratzAccess(env.STRATZ_TOKEN, env.STATS_BRIDGE_URL)
+          stratzAccess: stratzAccess(env.STRATZ_TOKEN, env.STATS_BRIDGE_URL, env.STATS_DIRECT)
         },
         token,
         rubric,

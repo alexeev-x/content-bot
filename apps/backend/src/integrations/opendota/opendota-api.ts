@@ -81,9 +81,10 @@ export interface OpenDotaApi {
   ): Promise<{ match_id: number; start_time: number; avg_rank_tier: number | null }[]>;
 }
 
-/** `bridgeUrl`: the stats bridge's origin. */
-export function createOpenDotaApi(input: { bridgeUrl: string; fetchImpl?: typeof fetch }): OpenDotaApi {
-  const base = `${input.bridgeUrl.replace(/\/+$/, '')}/opendota`;
+/** `bridgeUrl`: the stats bridge's origin; without it OpenDota is called directly (a local run). */
+export function createOpenDotaApi(input: { bridgeUrl?: string; fetchImpl?: typeof fetch }): OpenDotaApi {
+  const base =
+    input.bridgeUrl === undefined ? 'https://api.opendota.com/api' : `${input.bridgeUrl.replace(/\/+$/, '')}/opendota`;
   const fetchImpl = input.fetchImpl ?? fetch;
   async function read<T>(path: string, schema: z.ZodType<T>, signal?: AbortSignal): Promise<T> {
     let response: Response;
