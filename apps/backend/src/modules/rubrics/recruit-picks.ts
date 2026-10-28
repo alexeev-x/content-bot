@@ -211,12 +211,16 @@ export async function recruitPicks(context: RubricContext): Promise<RubricSample
     .slice(0, RECRUIT_TOP);
   const candidates = RECRUIT_POSTS.flatMap((post) => {
     const found = top.find((each) => each.heroId === idByName.get(post.hero));
-    return found === undefined ? [] : [{ post, winRate: found.winRate }];
+    return found === undefined ? [] : [{ post, winRate: found.winRate, first: found === top[0] }];
   });
   if (candidates.length === 0) throw noData('bank heroes among the Рекрут leaders');
-  const { post, winRate } = pick(candidates, context.random);
+  const { post, winRate, first } = pick(candidates, context.random);
   const games = Math.round(winRate * 100);
-  const lines = post.lines.map((line) => line.replace(/≈\d+ игр\S* из 100/u, `${games} ${gamesWord(games)} из 100`));
+  const lines = post.lines.map((line) => {
+    const counted = line.replace(/≈\d+ игр\S* из 100/u, `${games} ${gamesWord(games)} из 100`);
+    // «— больше всех» stays only when the hero really tops the week on Рекрут.
+    return first ? counted : counted.replace(' — больше всех.', '.');
+  });
   const [heading = '', ...rest] = lines;
   return {
     picture: null,
