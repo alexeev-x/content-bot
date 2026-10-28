@@ -751,7 +751,7 @@ export async function runRubricSampleJob(
     // «No data» names what was missing (a tier-list look, a bracket): the owner sees which part to look at.
     const missing =
       error instanceof AppError && error.details?.['reason'] === 'NO_DATA'
-        ? `: ${error.message.replace(/^No data for the rubric: /, '').slice(0, 160)}`
+        ? `: ${error.message.replace(/^No data for the rubric: /, '').slice(0, 400)}`
         : '';
     const reason =
       error instanceof AppError ? `${error.details?.['reason'] ?? error.code}${missing}` : describeError(error);

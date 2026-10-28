@@ -447,6 +447,11 @@ export async function tierList(context: RubricContext): Promise<RubricSample> {
   } catch (error) {
     const code = codeOf(error);
     if (code === 'STRATZ_TOKEN' || code === 'STRATZ_BLOCKED' || code === 'STRATZ_RATE') throw error;
-    throw noData(`вид «${name}» (${code === 'UNAVAILABLE' ? reasonOf(error) : code})`);
+    // The source's own detail (which STRATZ fields failed, its message) rides along, already bounded and redacted.
+    const detail =
+      error instanceof Error && 'detail' in error && typeof error.detail === 'string' && error.detail !== ''
+        ? ` — ${error.detail}`
+        : '';
+    throw noData(`вид «${name}» (${code === 'UNAVAILABLE' ? reasonOf(error) : code}${detail})`);
   }
 }
