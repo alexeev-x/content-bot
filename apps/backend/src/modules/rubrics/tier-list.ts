@@ -369,7 +369,9 @@ const buildLook = (name: LookName, ctx: Ctx, random: () => number): Promise<Look
   }
 };
 
-const STOP_CODES = new Set(['STRATZ_TOKEN', 'STRATZ_BLOCKED', 'STRATZ_RATE', 'STRATZ_FETCH']);
+// A fetch that failed or timed out is one look's heavy read (DEV, 28.10.2026: STRATZ_FETCH stopped the whole sample), so it
+// only skips that look; a refused key, address or rate limit hits every look and stops.
+const STOP_CODES = new Set(['STRATZ_TOKEN', 'STRATZ_BLOCKED', 'STRATZ_RATE']);
 const codeOf = (error: unknown) =>
   error instanceof Error && 'code' in error ? String((error as { code: unknown }).code) : 'ошибка';
 const reasonOf = (error: unknown) =>
