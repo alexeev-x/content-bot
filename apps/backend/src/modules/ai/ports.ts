@@ -61,6 +61,8 @@ export interface AiImageProvider {
     references: readonly Uint8Array[];
     /** `<width>x<height>`, both multiples of 16. */
     size: string;
+    /** «high» where the picture is the post itself and must be sharp; «medium» (the default) elsewhere. */
+    quality?: 'medium' | 'high';
     signal: AbortSignal;
   }): Promise<AiImage>;
 }

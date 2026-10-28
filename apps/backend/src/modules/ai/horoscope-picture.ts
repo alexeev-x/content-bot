@@ -17,9 +17,9 @@ function horoscopePrompt(teller: string, ball: string): string {
     // The owner, 28.10.2026, on a Silencer whose helmet became a cap and whose face changed: the head is never touched,
     // and the gachi gear goes over the hero's own clothes rather than replacing them.
     'The HEAD is exactly as in image 2 and untouched: the same face, eyes, mouth, teeth, mask, helmet, hood, hat, horns, hair and beard, the same colours — nothing changed, added or removed, no new headwear. Only when the head in image 2 is bare may a black leather biker cap sit on top of it, never covering the face.',
-    "The body is in the gachimuchi look, whoever the character is (man, woman or monster), WITHOUT losing his own outfit: keep the character's own clothes, armour and colours recognisable (e.g. Silencer keeps his purple robes and mask) and add the gear over or under them — a black leather harness with metal rings across the chest, a spiked leather collar, fingerless leather gloves, studded wristbands, leather straps on the arms; pumped-up muscles where skin shows. Not nude, nothing explicit: a costume parody, not erotica.",
-    `Image 3 is ${ball} from Dota 2. Inside the crystal ball show this character's head exactly as in image 3 — the face not changed, nothing added or removed — glowing in the ball's red-pink light like a vision.`,
-    'Light everything like the scene: candlelight, red glow from the ball. Add no other text anywhere.'
+    "The character must be recognisable at first glance — a player knows who it is instantly. The body is in a big, bold gachimuchi look, whoever the character is (man, woman or monster): huge pumped-up muscles, WITHOUT losing his own outfit: keep the character's own clothes, armour and colours recognisable (e.g. Silencer keeps his purple robes and mask) and add the gear over or under them — a black leather harness with metal rings across the chest, a spiked leather collar, fingerless leather gloves, studded wristbands, leather straps on the arms; pumped-up muscles where skin shows. Not nude, nothing explicit: a costume parody, not erotica.",
+    `Image 3 is ${ball} from Dota 2. Inside the crystal ball show this character's FACE clearly: the head seen from the front, large, filling most of the ball, sharp and recognisable at first glance, exactly as in image 3 — nothing changed, added or removed — lit by the ball's red-pink glow like a vision.`,
+    'Light everything like the scene: candlelight, red glow from the ball. Sharp, detailed, high resolution, no blur on the characters. Add no other text anywhere.'
   ].join('\n');
 }
 
@@ -36,6 +36,7 @@ export async function drawHoroscopeScene(
     const picture = await ready.images.draw({
       model: IMAGE_MODEL,
       prompt: horoscopePrompt(input.tellerName, input.ballName),
+      quality: 'high',
       references: [template, input.teller, input.ball],
       size: `${HOROSCOPE_SIZE.width}x${HOROSCOPE_SIZE.height}`,
       signal: AbortSignal.timeout(DRAW_TIMEOUT_MS)

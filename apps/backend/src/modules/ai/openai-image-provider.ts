@@ -24,13 +24,14 @@ const responseSchema = z.object({
 export function createOpenAiImageProvider(apiKey: string, fetchImpl: typeof fetch): AiImageProvider {
   return {
     provider: 'openai',
-    async draw({ model, prompt, references, size, signal }): Promise<AiImage> {
+    async draw({ model, prompt, references, size, quality, signal }): Promise<AiImage> {
       const form = new FormData();
       form.set('model', model);
       form.set('prompt', prompt);
       form.set('size', size);
-      // «medium» keeps a picture at a few cents (owner, 22.10.2026); the read-back catches a wrong letter.
-      form.set('quality', 'medium');
+      // «medium» keeps a picture at a few cents (owner, 22.10.2026); a scene that is the whole post asks for «high»
+      // (owner, 28.10.2026: «почему оно размытое»).
+      form.set('quality', quality ?? 'medium');
       form.set('output_format', 'jpeg');
       form.set('n', '1');
       // A reference is a JPEG, or a PNG with transparency (a hero's render); the type follows its first bytes.

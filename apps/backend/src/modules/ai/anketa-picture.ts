@@ -33,6 +33,7 @@ export async function drawAnketaScene(
     const picture = await ready.images.draw({
       model: IMAGE_MODEL,
       prompt: anketaPrompt(input.heroName),
+      quality: 'high',
       references: [template, input.hero],
       size: `${ANKETA_SIZE.width}x${ANKETA_SIZE.height}`,
       signal: AbortSignal.timeout(DRAW_TIMEOUT_MS)
