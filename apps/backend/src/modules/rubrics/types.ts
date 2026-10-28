@@ -203,6 +203,8 @@ export interface RubricSources {
   fallback?: FallbackStatsSource | null;
   /** The bot's own base of high-rank matches (14 days); absent outside the Worker. */
   heroMatches?: HeroMatchSource | null;
+  /** The horoscope's fortune-tellers so far this round; absent outside the Worker (any hero may come then). */
+  tellers?: { used(): Promise<number[]>; remember(heroIds: number[]): Promise<void> } | null;
 }
 
 /** The bot's own high-rank matches, one row per player, the last 14 days (migration 0116). */

@@ -605,7 +605,12 @@ export async function horoscope(context: RubricContext): Promise<RubricSample> {
   // A new fortune-teller every post (owner, 28.10.2026: «гадалка и герой в шаре меняются всегда»); the ball never
   // shows the teller himself.
   if (heroes.length < 2) throw noData('heroes');
-  const teller = pick(heroes, context.random);
+  // …and nobody reads it twice before every hero has (owner, 28.10.2026); then a new round begins.
+  const used = new Set((await context.sources.tellers?.used()) ?? []);
+  const fresh = heroes.filter((hero) => !used.has(hero.id));
+  const round = fresh.length === 0 ? heroes : fresh;
+  const teller = pick(round, context.random);
+  await context.sources.tellers?.remember(fresh.length === 0 ? [teller.id] : [...used, teller.id]);
   const ball = await ballHero(context, heroes, teller);
   const short = (name: string) => name.replace(/^npc_dota_hero_/, '');
   return {

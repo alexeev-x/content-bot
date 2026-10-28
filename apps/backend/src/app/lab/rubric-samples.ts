@@ -362,6 +362,8 @@ export type RubricSampleDeps = {
   stratzAccess: { token: string; bridgeUrl: string } | null;
   /** The bot's own match base «Гайд на героя» counts from. */
   heroMatches: HeroMatchSource | null;
+  /** The horoscope's round of fortune-tellers. */
+  tellers: { used(): Promise<number[]>; remember(heroIds: number[]): Promise<void> } | null;
   renderer: PictureRenderer | null;
   /** The AI writer's caption and the drawn scene with the title; null when the AI is not wired. */
   ai: {
@@ -414,7 +416,11 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
   let sample;
   try {
     sample = await buildRubricSample(rubric, {
-      sources: { ...rubricSources(deps.gameFinds, deps.stratzAccess), heroMatches: deps.heroMatches },
+      sources: {
+        ...rubricSources(deps.gameFinds, deps.stratzAccess),
+        heroMatches: deps.heroMatches,
+        tellers: deps.tellers
+      },
       random: deps.random,
       now: deps.now
     });
@@ -759,6 +765,10 @@ export async function runRubricSampleJob(
         },
         stratzAccess: access.stratzAccess,
         heroMatches: heroMatchSource(container),
+        tellers: {
+          used: () => container.systemState.readHoroscopeTellers(),
+          remember: (heroIds) => container.systemState.rememberHoroscopeTellers(heroIds, container.clock.now())
+        },
         renderer: access.renderer,
         ai: {
           caption: (input) => writeRubricCaption(aiDeps, input),

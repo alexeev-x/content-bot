@@ -24,12 +24,18 @@ export interface SystemStateStore {
    * failure stays quiet), so a failure that repeats every minute is one message, not sixty.
    */
   claimFailureNotice(key: string, now: number, windowMs: number): Promise<boolean>;
+  /** The horoscope's fortune-tellers since the round began (owner, 28.10.2026: nobody twice before everyone). */
+  readHoroscopeTellers(): Promise<number[]>;
+  rememberHoroscopeTellers(heroIds: number[], now: number): Promise<void>;
 }
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
 const CRON_KEY = 'cron_last_run';
 const ORIGIN_KEY = 'app_origin';
 const COVER_THEME_KEY = 'patch_cover_theme';
+const TELLERS_KEY = 'horoscope_tellers';
+// Hero ids are three digits at most; 200 of them stay well inside the column's 1024 characters.
+const tellersSchema = z.object({ ids: z.array(z.number().int().min(1).max(999)).max(200) });
 const coverThemeSchema = z.object({ theme: z.string().min(1).max(40) });
 
 const cronValueSchema = z.object({
@@ -129,6 +135,24 @@ export function createD1SystemState(db: D1Database): SystemStateStore {
         .bind(now - 24 * 60 * 60 * 1000)
         .run();
       return true;
+    },
+
+    async readHoroscopeTellers() {
+      const row = await read(TELLERS_KEY);
+      if (row === null) return [];
+      const value = tellersSchema.safeParse(parseJson(row.value));
+      return value.success ? value.data.ids : [];
+    },
+
+    async rememberHoroscopeTellers(heroIds, now) {
+      const ids = tellersSchema.shape.ids.parse(heroIds.slice(-200));
+      await db
+        .prepare(
+          `INSERT INTO system_state (key, value, updated_at) VALUES (?1, ?2, ?3)
+           ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+        )
+        .bind(TELLERS_KEY, JSON.stringify({ ids }), now)
+        .run();
     },
 
     async readCoverTheme() {
