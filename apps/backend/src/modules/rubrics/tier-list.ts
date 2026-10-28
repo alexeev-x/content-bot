@@ -405,7 +405,8 @@ function lookPage(look: Look): string {
 }
 
 type LookName = 'best' | 'worst' | 'easy' | 'swing' | 'ranks' | 'lane' | 'length' | 'bans';
-const LOOKS: readonly LookName[] = ['best', 'worst', 'easy', 'swing', 'ranks', 'lane', 'length', 'bans'];
+// The order of the turns: the looks the owner hasn't seen yet come first (worst and swing approved, 28.10.2026).
+const LOOKS: readonly LookName[] = ['best', 'easy', 'ranks', 'lane', 'length', 'bans', 'worst', 'swing'];
 const buildLook = (name: LookName, ctx: Ctx, random: () => number): Promise<Look> => {
   switch (name) {
     case 'best':
@@ -438,9 +439,11 @@ export async function tierList(context: RubricContext): Promise<RubricSample> {
   const stats = needStats(context);
   const heroes = await context.sources.heroes();
   const ctx: Ctx = { stats, names: new Map(heroes.map((hero) => [hero.id, hero.name.replace(/^npc_dota_hero_/, '')])) };
-  // The looks take turns by the minute, so presses a minute or more apart walk through all eight (owner's check on DEV)
-  // and weekly posts still vary.
-  const name = LOOKS[Math.floor(context.now / 60_000) % LOOKS.length] ?? pick(LOOKS, context.random);
+  // The looks take turns, one per post, the count kept between posts (owner, 28.10.2026: by the minute kept giving
+  // the same two).
+  const turn = await context.sources.turns?.next('tier_list');
+  const name =
+    turn === undefined ? pick(LOOKS, context.random) : (LOOKS[turn % LOOKS.length] ?? pick(LOOKS, context.random));
   try {
     const look = await buildLook(name, ctx, context.random);
     return { picture: { html: lookPage(look), ...PICTURE_SIZE }, text: '', ownText: true, poll: null };

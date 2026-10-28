@@ -364,6 +364,8 @@ export type RubricSampleDeps = {
   heroMatches: HeroMatchSource | null;
   /** The horoscope's round of fortune-tellers. */
   tellers: { used(): Promise<number[]>; remember(heroIds: number[]): Promise<void> } | null;
+  /** A rubric's counter of turns. */
+  turns: { next(name: string): Promise<number> } | null;
   renderer: PictureRenderer | null;
   /** The AI writer's caption and the drawn scene with the title; null when the AI is not wired. */
   ai: {
@@ -419,7 +421,8 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
       sources: {
         ...rubricSources(deps.gameFinds, deps.stratzAccess),
         heroMatches: deps.heroMatches,
-        tellers: deps.tellers
+        tellers: deps.tellers,
+        turns: deps.turns
       },
       random: deps.random,
       now: deps.now
@@ -769,6 +772,7 @@ export async function runRubricSampleJob(
           used: () => container.systemState.readHoroscopeTellers(),
           remember: (heroIds) => container.systemState.rememberHoroscopeTellers(heroIds, container.clock.now())
         },
+        turns: { next: (name) => container.systemState.nextTurn(name, container.clock.now()) },
         renderer: access.renderer,
         ai: {
           caption: (input) => writeRubricCaption(aiDeps, input),

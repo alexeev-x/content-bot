@@ -205,6 +205,8 @@ export interface RubricSources {
   heroMatches?: HeroMatchSource | null;
   /** The horoscope's fortune-tellers so far this round; absent outside the Worker (any hero may come then). */
   tellers?: { used(): Promise<number[]>; remember(heroIds: number[]): Promise<void> } | null;
+  /** A rubric's own counter of turns (0, 1, 2…), kept between posts; absent outside the Worker. */
+  turns?: { next(name: string): Promise<number> } | null;
 }
 
 /** The bot's own high-rank matches, one row per player, the last 14 days (migration 0116). */

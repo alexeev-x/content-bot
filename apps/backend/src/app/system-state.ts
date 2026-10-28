@@ -27,6 +27,8 @@ export interface SystemStateStore {
   /** The horoscope's fortune-tellers since the round began (owner, 28.10.2026: nobody twice before everyone). */
   readHoroscopeTellers(): Promise<number[]>;
   rememberHoroscopeTellers(heroIds: number[], now: number): Promise<void>;
+  /** One atomic step of a named counter (a rubric's turn of looks); the first call gives 0. */
+  nextTurn(name: string, now: number): Promise<number>;
 }
 
 const LOOPBACK_HOSTS = new Set(['localhost', '127.0.0.1', '[::1]']);
@@ -153,6 +155,19 @@ export function createD1SystemState(db: D1Database): SystemStateStore {
         )
         .bind(TELLERS_KEY, JSON.stringify({ ids }), now)
         .run();
+    },
+
+    async nextTurn(name, now) {
+      // One statement: the row is created at 0 or moved on by one, and the new value comes back.
+      const row = await db
+        .prepare(
+          `INSERT INTO system_state (key, value, updated_at) VALUES (?1, '{"n":0}', ?2)
+           ON CONFLICT (key) DO UPDATE SET value = json_set(system_state.value, '$.n', coalesce(json_extract(system_state.value, '$.n'), -1) + 1), updated_at = excluded.updated_at
+           RETURNING json_extract(value, '$.n') AS n`
+        )
+        .bind(`turn:${name}`.slice(0, 32), now)
+        .first<{ n: number }>();
+      return Math.max(0, Math.trunc(row?.n ?? 0));
     },
 
     async readCoverTheme() {
