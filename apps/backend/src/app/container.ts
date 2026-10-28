@@ -69,7 +69,6 @@ import {
   type AiImageProvider,
   type AiTextProvider,
   type DraftHistoryRepository,
-  type JokeRepository,
   type RulesRepository,
   type StyleLessonsRepository,
   type HypothesesRepository,
@@ -77,7 +76,6 @@ import {
   createD1AuthorProfileRepository,
   createD1ReviewRepository,
   createD1DraftHistoryRepository,
-  createD1JokeRepository,
   createD1RulesRepository,
   createD1StyleLessonsRepository,
   createD1HypothesesRepository,
@@ -268,8 +266,6 @@ export interface Container {
   aiHypotheses: HypothesesRepository;
   /** The studio's history of AI drafts (AI plan P8, read-only). */
   aiDraftHistory: DraftHistoryRepository;
-  /** The quiet builds' joke bank the critic fills (migration 0115). */
-  aiJokes: JokeRepository;
   /** The bot's AI model calls go through Queue AI_JOBS (owner, 19.10.2026); UNAVAILABLE without the binding. */
   aiJobs: { send: (job: AiJob, options?: { delaySeconds?: number }) => Promise<void> };
   /** AI drafts, their revisions with provenance and the owner's feedback (migration 0054). */
@@ -720,9 +716,6 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get aiDraftHistory() {
       return createD1DraftHistoryRepository(db());
-    },
-    get aiJokes() {
-      return createD1JokeRepository(db());
     },
     get aiStyleLessons() {
       return createD1StyleLessonsRepository(db());

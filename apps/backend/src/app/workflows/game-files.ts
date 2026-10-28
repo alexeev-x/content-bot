@@ -1,11 +1,9 @@
-import { gameFilesWorthPost, QUIET_BUILD_THEMES, quietBuildJoke } from '../../modules/ai';
+import { gameFilesWorthPost } from '../../modules/ai';
 import { GitHubApiError } from '../../integrations/github/github-api';
 import { condenseBuild, mayMatter, parseBuildMessage, splitDiff } from '../../modules/game-files';
 import { getOwnerOperationsSettings } from '../../modules/settings';
 import type { AiJob } from '../bot/ai-job';
 import type { Container } from '../container';
-import { recordAutopublish } from './autopublish-log';
-import { publishFixedPost } from './publish-fixed-post';
 import { recordWatchFailure } from './watch-error-code';
 
 // Changes in the game's files (owner, 23.10.2026: «это очень интересное»; 24.10.2026: required before the release and
@@ -30,111 +28,6 @@ const FINAL_FAILURES: Partial<Record<string, string>> = { GITHUB_TOO_BIG: 'too_b
 const CHECK_TIMEOUT_MS = 60_000;
 /** A new patch-notes string of Valve's (`"DOTA_Patch_7_41f_…"`) added by the build. */
 const OFFICIAL_PATCH = /^\+\s*"DOTA_Patch_\d/mu;
-
-/**
- * A build with nothing worth a post (owner, 24.10.2026: «если ничего не нашлось можно смешную добавить текст и сам
- * diff»; «шуточные посты всегда разные»): a joke the cheap model writes on a random theme, and the version lines as
- * they are in the game's files. These lines stand in when the model cannot write one.
- */
-const QUIET_JOKES = [
-  (build: string) => `Valve подняла сборку ${build} — ничего такого нет, просто ИИ мутит воду, чтобы ты больше фидил.`,
-  (build: string) =>
-    `Новая сборка ${build}: перекопали файлы — героев не трогали, предметы на месте. Можно дальше спокойно фидить.`,
-  (build: string) => `Сборка ${build} прилетела тихо: в файлах ничего интересного, Valve просто протёрла пыль.`
-];
-
-/** Both calls together: the writer's three variants and the critic's verdict. */
-const JOKE_TIMEOUT_MS = 90_000;
-
-/** The post: the joke (or a stand-in picked by the build number) and the version lines. */
-export function quietBuildPost(build: string, previous: string | null, joke: string | null = null): string {
-  const standIn = QUIET_JOKES[Number(build) % QUIET_JOKES.length] ?? QUIET_JOKES[0];
-  return [
-    joke ?? standIn?.(build) ?? '',
-    '',
-    '```diff',
-    ...(previous === null ? [] : [`- ClientVersion=${previous}`]),
-    `+ ClientVersion=${build}`,
-    '```'
-  ].join('\n');
-}
-
-/**
- * The quiet post waits this long in the queue (QA 24.10.2026): the other commits of the same build are read first, so
- * a build with a find never gets a joke as well.
- */
-const QUIET_DELAY_SECONDS = 10 * 60;
-
-/** Queues a quiet build's post; never throws (a refused send only loses the joke). */
-async function queueQuietBuild(
-  container: Container,
-  chatId: number,
-  build: string,
-  onError: (error: unknown) => void
-): Promise<void> {
-  if (!/^\d{1,9}$/.test(build)) return;
-  await container.aiJobs
-    .send({ id: container.newId(), kind: 'game_files_quiet', chatId, build }, { delaySeconds: QUIET_DELAY_SECONDS })
-    .catch(onError);
-}
-
-/** The claim of a build's quiet post: one id per build, so a repeat or a second commit never pays the joke again. */
-const quietClaimId = (build: string) => `00000000-0000-4000-8000-${build.padStart(12, '0')}`;
-
-/** Posts a quiet build once (its own queue job, so its D1 statements have their own budget); never throws. */
-export async function runQuietBuild(
-  container: Container,
-  job: Extract<AiJob, { kind: 'game_files_quiet' }>,
-  requestId: string,
-  onError: (error: unknown) => void
-): Promise<void> {
-  const build = job.build;
-  try {
-    if (await container.gameFileBuilds.hadFind(build)) return;
-    if (!(await container.aiWriter.claimJob(quietClaimId(build), container.clock.now()))) return;
-    const previous = await container.gameFileBuilds.previousBuild(build);
-    const outcome = await publishFixedPost(
-      container,
-      `files-quiet:${build}`,
-      async () => {
-        const { timezone } = await getOwnerOperationsSettings({
-          repo: container.settings,
-          logger: container.logger,
-          requestId
-        });
-        const theme = QUIET_BUILD_THEMES[Math.floor(container.random() * QUIET_BUILD_THEMES.length)] ?? 'фид';
-        const joke = await quietBuildJoke(
-          {
-            repo: container.aiRepository,
-            clock: container.clock,
-            timezone,
-            newId: container.newId,
-            random: container.random,
-            jokes: container.aiJokes,
-            provider: container.aiProvider
-          },
-          { build, previous, theme, signal: AbortSignal.timeout(JOKE_TIMEOUT_MS) }
-        ).catch((error: unknown) => {
-          onError(error);
-          return null;
-        });
-        return quietBuildPost(build, previous, joke);
-      },
-      requestId
-    );
-    container.logger.info({ component: 'game_files', operation: 'quiet_build', requestId, status: outcome });
-    // Switched off is the owner's choice: nothing to record (QA 24.10.2026).
-    if (outcome !== 'off')
-      await recordAutopublish(container, {
-        source: 'game_files',
-        title: `Сборка ${build}: ничего интересного`,
-        outcome: outcome === 'published' ? 'published' : 'held',
-        ...(outcome === 'published' ? {} : { reason: outcome })
-      });
-  } catch (error) {
-    onError(error);
-  }
-}
 
 /** The automatic publishing's key of a build's post: one publication per build. */
 export const gameFilesExternalId = (sha: string) => `files:${sha}`;
@@ -181,20 +74,7 @@ export async function runGameFilesWatch(
       })),
       now
     );
-    // The newest build touching nothing a player sees still gets its one short post (owner, 24.10.2026), unless another
-    // fresh commit of the same build may hold a find; at most one quiet post a run (QA 24.10.2026).
-    let quietQueued = false;
-    const newest = fresh.at(-1);
-    const newestBuild = newest?.header?.build;
-    if (
-      newest !== undefined &&
-      newestBuild !== undefined &&
-      quiet.includes(newest) &&
-      !fresh.some((each) => !quiet.includes(each) && each.header?.build === newestBuild)
-    ) {
-      await queueQuietBuild(container, job.chatId, newestBuild, onError);
-      quietQueued = true;
-    }
+    // A build with nothing worth a post gets no post at all (owner, 28.10.2026: «такие пустые не публиковать»).
     const appOrigin = await container.systemState.readAppOrigin();
     for (const commit of fresh.filter((each) => !quiet.includes(each)).slice(0, READS_PER_RUN)) {
       const build = commit.header?.build ?? '0';
@@ -212,8 +92,6 @@ export async function runGameFilesWatch(
         const diff = condenseBuild(splitDiff(whole));
         if (diff === null) {
           await builds.skip([{ sha: commit.sha, build, committedAt: commit.committedAt, reason: 'no_changes' }], now);
-          if (!quietQueued) await queueQuietBuild(container, job.chatId, build, onError);
-          quietQueued = true;
           continue;
         }
         // The one claim of the build's post: an overlapping run that found it too stops here.
@@ -289,7 +167,6 @@ export async function prepareGameFilesPost(
     if (verdict !== null && !verdict.worth) {
       container.logger.info({ component: 'game_files', operation: 'check', requestId, status: 'skipped' });
       await container.gameFileBuilds.release(job.sha, 'skipped', 'not_worth');
-      await queueQuietBuild(container, job.chatId, job.build, onError);
       return null;
     }
     if (verdict !== null) reason = verdict.reason.slice(0, 200);

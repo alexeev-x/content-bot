@@ -26,7 +26,7 @@ import {
 } from './workflows/autopublish-source-event';
 import { runSeriesPublishStep } from './workflows/autopublish-series';
 import { runTreasureWatch } from './workflows/treasure-watch';
-import { gameFilesExternalId, prepareGameFilesPost, runGameFilesWatch, runQuietBuild } from './workflows/game-files';
+import { gameFilesExternalId, prepareGameFilesPost, runGameFilesWatch } from './workflows/game-files';
 import type { LabQueue } from './lab';
 import { runSteamWatch } from './workflows/steam-watch';
 import { getOwnerOperationsSettings } from '../modules/settings';
@@ -442,11 +442,6 @@ async function handleAiQueueMessages(
     }
     if (job.kind === 'game_files_watch') {
       await runGameFilesWatch(container, job, requestId, onError);
-      message.ack();
-      continue;
-    }
-    if (job.kind === 'game_files_quiet') {
-      await runQuietBuild(container, job, requestId, onError);
       message.ack();
       continue;
     }
