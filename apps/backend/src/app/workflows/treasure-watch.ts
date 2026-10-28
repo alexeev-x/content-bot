@@ -113,7 +113,8 @@ export async function runTreasureWatch(
   /** Liquipedia asks for 2 s between requests; tests pass 0. */
   spacingMs: number = LIQUIPEDIA_SPACING_MS
 ): Promise<void> {
-  if (!(await container.aiWriter.claimJob(job.id, container.clock.now()).catch(() => false))) return;
+  // No job bookkeeping in ai_queue_jobs (28.10.2026: about 3 300 D1 rows written a day for the watches alone): a
+  // redelivered copy is harmless, every claim inside is conditional.
   try {
     await container.treasureWatches.startRecent(container.clock.now());
     const watches = await container.treasureWatches.active(PER_RUN);
@@ -133,8 +134,6 @@ export async function runTreasureWatch(
     }
   } catch (error) {
     onError(error);
-  } finally {
-    await container.aiWriter.finishJob(job.id, container.clock.now()).catch(onError);
   }
 }
 

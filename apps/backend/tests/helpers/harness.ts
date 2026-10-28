@@ -51,6 +51,8 @@ export async function resetDb(): Promise<void> {
       'treasure_watches',
       'game_file_builds',
       'steam_app_watch',
+      'hero_match_players',
+      'hero_match_queue',
       'source_watch_checks',
       'autopublish_log',
       'source_series_posts',
@@ -130,6 +132,7 @@ export async function resetDb(): Promise<void> {
     ].map((table) => db.prepare(`DELETE FROM ${table}`))
   );
   await db.prepare('UPDATE automations SET enabled = 1, revision = 0, updated_at = 0').run();
+  await db.prepare('UPDATE hero_match_state SET last_match_id = 0, listed_at = 0, purged_at = 0').run();
   await db
     .prepare(
       'UPDATE content_sources SET next_run_at = 0, claimed_at = 0, last_success_at = NULL, last_error_at = NULL, last_error_code = NULL'

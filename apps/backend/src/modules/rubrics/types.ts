@@ -114,8 +114,12 @@ export interface StatsSource {
   heroLateItems(heroId: number): Promise<number[]>;
   /** A hero's item purchases by minute with the wins of those matches. */
   heroPurchases(heroId: number): Promise<{ itemId: number; minute: number; matches: number; wins: number }[]>;
-  /** A hero's matches still going at each minute and the wins among them. */
-  heroTimeline(heroId: number): Promise<{ minute: number; remaining: number; wins: number }[]>;
+  /** A hero's matches and wins at one position on each of the newest days counted. */
+  heroPositionDays(
+    heroId: number,
+    position: number,
+    days: number
+  ): Promise<{ day: number; matches: number; wins: number }[]>;
   /** A hero's starting buys at a position (1–5). */
   heroStartingItems(
     heroId: number,
@@ -189,6 +193,16 @@ export interface RubricSources {
   stats: StatsSource | null;
   /** OpenDota through the stats bridge; null without the bridge. */
   fallback?: FallbackStatsSource | null;
+  /** The bot's own base of high-rank matches (14 days); absent outside the Worker. */
+  heroMatches?: HeroMatchSource | null;
+}
+
+/** The bot's own high-rank matches, one row per player, the last 14 days (migration 0116). */
+export interface HeroMatchSource {
+  /** Every game of the hero at the position: outcome, length in minutes and the opponents' hero ids. */
+  games(heroId: number, position: number): Promise<{ won: boolean; minutes: number; enemies: number[] }[]>;
+  /** The newest `limit` games of the hero at the position as guide matches (purchases, skills, items). */
+  sample(heroId: number, position: number, limit: number): Promise<GuideMatch[]>;
 }
 
 export interface RubricSample {

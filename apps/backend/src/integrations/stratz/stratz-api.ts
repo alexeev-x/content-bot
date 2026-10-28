@@ -175,7 +175,58 @@ const detailSchema = z.record(
     .nullable()
     .catch(null)
 );
-const timeSchema = z.object({ time: z.number().int(), remainingMatchCount: count, winCount: count });
+const dayRowSchema = z.object({ day: z.number().int(), matchCount: count, winCount: count });
+/** Whole matches by id for the hero-matches base: every player's position, inventory, purchases and skill order. */
+const matchPlayersSchema = z.record(
+  z.string(),
+  z
+    .object({
+      id: z.number().int(),
+      startDateTime: z.number().int().nonnegative().nullable().catch(null),
+      durationSeconds: z.number().int().nonnegative().nullable().catch(null),
+      gameVersionId: z.number().int().nullable().catch(null),
+      didRadiantWin: z.boolean().nullable().catch(null),
+      players: z
+        .array(
+          z.object({
+            heroId: z.number().int(),
+            isRadiant: z.boolean().nullable().catch(null),
+            position: z.string().max(20).nullable().catch(null),
+            item0Id: slot,
+            item1Id: slot,
+            item2Id: slot,
+            item3Id: slot,
+            item4Id: slot,
+            item5Id: slot,
+            neutral0Id: slot,
+            abilities: z
+              .array(z.object({ abilityId: z.number().int(), level: z.number().catch(0) }))
+              .max(60)
+              .nullable()
+              .catch(null),
+            stats: z
+              .object({
+                itemPurchases: z
+                  .array(z.object({ time: z.number(), itemId: z.number().int() }))
+                  .max(300)
+                  .nullable()
+                  .catch(null)
+              })
+              .nullable()
+              .catch(null)
+          })
+        )
+        .max(10)
+        .catch([])
+    })
+    .nullable()
+    .catch(null)
+);
+/**
+ * Matches per `matchPlayers` request: six took 9–12 ms of CPU to parse on a fresh isolate (QA 28.10.2026, over the Free
+ * plan's 10 ms); four keep the reply near 120 KB.
+ */
+export const MATCH_PLAYERS_MAX = 4;
 const positionSchema = z.object({
   heroId: z.number().int(),
   position: z.string().max(20),
@@ -207,6 +258,30 @@ export interface StratzGuideMatch {
   abilities: { abilityId: number; time: number; level: number }[];
 }
 
+/** One player of a whole match; `position` 1–5, null when STRATZ has not set it yet. */
+export interface StratzMatchPlayer {
+  heroId: number;
+  /** Null when STRATZ leaves the side out: such a match is not kept. */
+  radiant: boolean | null;
+  position: number | null;
+  items: number[];
+  neutral: number | null;
+  /** Every purchase with its minute (negative: before the horn). */
+  purchases: { itemId: number; minute: number }[];
+  /** Ability ids in the order the points were spent. */
+  skills: number[];
+}
+
+/** A whole match from STRATZ; `startedAt` in UTC seconds. */
+export interface StratzMatch {
+  id: number;
+  startedAt: number | null;
+  patch: number | null;
+  minutes: number | null;
+  radiantWon: boolean | null;
+  players: StratzMatchPlayer[];
+}
+
 export interface StratzApi {
   /**
    * Every hero's matches and wins for the last `weeks` weeks (newest first per hero), in one bracket or, with null, in
@@ -222,8 +297,16 @@ export interface StratzApi {
     heroId: number,
     signal?: AbortSignal
   ): Promise<{ itemId: number; minute: number; matches: number; wins: number }[]>;
-  /** A hero's matches still going at each minute and the wins among them (Divine and Immortal). */
-  heroTimeline(heroId: number, signal?: AbortSignal): Promise<{ minute: number; remaining: number; wins: number }[]>;
+  /**
+   * A hero's matches and wins at one position on each of the newest days STRATZ has counted (Divine and Immortal).
+   * Unlike `stats`, whose sample leans to wins (Techies 61.7%, 28.10.2026), it agrees with Dota2ProTracker.
+   */
+  heroPositionDays(
+    heroId: number,
+    position: number,
+    days: number,
+    signal?: AbortSignal
+  ): Promise<{ day: number; matches: number; wins: number }[]>;
   /** Every hero's matches and wins by position 1–5 (Divine and Immortal). */
   positions(signal?: AbortSignal): Promise<{ heroId: number; position: number; matches: number; wins: number }[]>;
   /** Every hero's per-match averages this week (Divine and Immortal); STRATZ leaves goldPerMinute empty. */
@@ -274,6 +357,8 @@ export interface StratzApi {
     matches: StratzGuideMatch[];
     positions: Record<string, number>;
   }>;
+  /** Whole matches by id (at most `MATCH_PLAYERS_MAX`) in one request; a match STRATZ does not hold is left out. */
+  matchPlayers(ids: readonly number[], signal?: AbortSignal): Promise<StratzMatch[]>;
 }
 
 /** Matches per guide sample and opponents per matchup read: both bound the reply. */
@@ -359,14 +444,14 @@ export function createStratzApi(input: { token: string; bridgeUrl?: string; fetc
       );
       return rows.map((row) => ({ itemId: row.itemId, minute: row.time, matches: row.matchCount, wins: row.winCount }));
     },
-    async heroTimeline(id, signal) {
+    async heroPositionDays(id, position, days, signal) {
       const rows = await query(
-        `{ heroStats { stats(heroIds: [${heroId(id)}], groupByTime: true, bracketBasicIds: [DIVINE_IMMORTAL], minTime: 0, maxTime: 75) { time remainingMatchCount winCount } } }`,
-        (data) => heroStats(data, 'stats'),
-        timeSchema,
+        `{ heroStats { winDay(take: ${Math.min(Math.max(Math.trunc(days), 1), 14)}, heroIds: [${heroId(id)}], positionIds: [POSITION_${place(position)}], bracketIds: [DIVINE, IMMORTAL]) { day matchCount winCount } } }`,
+        (data) => heroStats(data, 'winDay'),
+        dayRowSchema,
         signal
       );
-      return rows.map((row) => ({ minute: row.time, remaining: row.remainingMatchCount, wins: row.winCount }));
+      return rows.map((row) => ({ day: row.day, matches: row.matchCount, wins: row.winCount }));
     },
     async positions(signal) {
       const rows = await query(
@@ -456,6 +541,48 @@ export function createStratzApi(input: { token: string; bridgeUrl?: string; fetc
       return rows
         .flatMap((row) => row.vs)
         .map((row) => ({ heroId: row.heroId2, matches: row.matchCount, wins: row.winCount }));
+    },
+    async matchPlayers(ids, signal) {
+      const wanted = [...new Set(ids.map((each) => Math.trunc(each)))].filter((each) => each > 0);
+      if (wanted.length === 0) return [];
+      if (wanted.length > MATCH_PLAYERS_MAX) throw new StratzError('STRATZ_SHAPE');
+      const fields = wanted.map(
+        (matchId, index) =>
+          `m${index}: match(id: ${matchId}) { id startDateTime durationSeconds gameVersionId didRadiantWin players { heroId isRadiant position item0Id item1Id item2Id item3Id item4Id item5Id neutral0Id abilities { abilityId level } stats { itemPurchases { time itemId } } } }`
+      );
+      const [reply] = await query(`{ ${fields.join(' ')} }`, (data) => [data], matchPlayersSchema, signal);
+      return Object.values(reply ?? {}).flatMap((match) =>
+        match === null
+          ? []
+          : [
+              {
+                id: match.id,
+                startedAt: match.startDateTime,
+                patch: match.gameVersionId,
+                minutes: match.durationSeconds === null ? null : Math.round(match.durationSeconds / 60),
+                radiantWon: match.didRadiantWin,
+                players: match.players.map((player) => ({
+                  heroId: player.heroId,
+                  radiant: player.isRadiant,
+                  position: Number(/^POSITION_([1-5])$/u.exec(player.position ?? '')?.[1] ?? 0) || null,
+                  items: [
+                    player.item0Id,
+                    player.item1Id,
+                    player.item2Id,
+                    player.item3Id,
+                    player.item4Id,
+                    player.item5Id
+                  ].filter((item): item is number => item !== null && item > 0),
+                  neutral: player.neutral0Id,
+                  purchases: (player.stats?.itemPurchases ?? []).map((each) => ({
+                    itemId: each.itemId,
+                    minute: Math.floor(each.time / 60)
+                  })),
+                  skills: [...(player.abilities ?? [])].sort((a, b) => a.level - b.level).map((each) => each.abilityId)
+                }))
+              }
+            ]
+      );
     },
     async guideSample(id, position, withPurchases, signal) {
       const wanted = place(position);

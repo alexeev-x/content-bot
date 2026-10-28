@@ -80,4 +80,6 @@ ready; the release plan picks picture or text per post.
 - **«Гайд на героя»** — a hero does not repeat (owner, 27.10.2026: «чтобы не повторялись герои», details when wired to
   publishing): the scheduler skips heroes already guided (the history in item 3). It also picks the role, not only the
   hero's main one (owner, 27.10.2026: «Инвокер саппорт, Рубик мид»), and may take the hero most named in the channel's
-  comments; both are for when the scheduler is built.
+  comments; both are for when the scheduler is built. Its rubric sources must carry the bot's match base
+  (`heroMatches`, `docs/backend/sources.md` «Hero-matches base»), as «Тестирование» does, and it should prefer a hero and
+  role with at least 150 games there.

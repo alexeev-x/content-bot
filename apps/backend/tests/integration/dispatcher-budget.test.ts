@@ -171,9 +171,10 @@ describe('the budget of a busy tick (Free plan: 50 D1 queries, 50 subrequests)',
     expect(await jobOf(marked.publicationId)).toMatchObject({ status: 'unknown' });
     expect(await count('incidents')).toBe(1 + DISPATCH_BATCH);
     expect(await count('posts', 'archived_at IS NOT NULL')).toBe(0);
-    // Pinned: 49 statements and 28 round trips, leaving one statement of Free-plan headroom.
-    expect(meter.statements).toBe(49);
-    expect(meter.roundTrips).toBe(28);
+    // Pinned: 48 statements and 27 round trips (the heartbeat is written on minutes ending in 2 or 7, never with the
+    // hourly cleanup), leaving two statements of Free-plan headroom.
+    expect(meter.statements).toBe(48);
+    expect(meter.roundTrips).toBe(27);
     // Even if D1 counted every statement of a batch on its own, and Telegram calls beside them.
     expect(meter.statements).toBeLessThanOrEqual(50);
     expect(meter.roundTrips).toBeLessThanOrEqual(50);
@@ -222,20 +223,20 @@ describe('the purge tick (minute 30, nothing due)', () => {
     expect(await count('posts', 'deleted_at IS NOT NULL')).toBe(PURGE_BATCH);
     expect(await count('jobs')).toBe(PURGE_BATCH);
     // Reconciliation, due/archive/expired scans, automation reconciliation (no Dota claim at minute 30, review 24.10.2026), then the audit row,
-    // eight child deletes, the hard delete and the soft delete of the posts, and the heartbeat.
-    expect(meter.roundTrips).toBe(10);
-    expect(meter.statements).toBe(3 + 7 + 1 + 8 + 1);
+    // eight child deletes, the hard delete and the soft delete of the posts (no heartbeat at minute 30).
+    expect(meter.roundTrips).toBe(9);
+    expect(meter.statements).toBe(3 + 7 + 1 + 8);
   });
 
-  it('an idle one costs one read more than a regular idle tick', async () => {
+  it('an idle one writes no heartbeat', async () => {
     const { db, meter } = meteredDb(testDb());
 
     await makeTick({ clock, transport: fakeTransport(SENT), db, scheduledTime: START + 30 * 60_000 }).run();
 
-    expect(meter.roundTrips).toBe(9);
-    // Reads only, except the heartbeat upsert at the end.
+    expect(meter.roundTrips).toBe(8);
+    // Reads first, and no heartbeat at minute 30.
     expect(meter.sql.slice(0, 4).every((statement) => /^\s*SELECT\b/i.test(statement))).toBe(true);
-    expect(meter.sql.at(-1)).toMatch(/^\s*INSERT INTO system_state\b/);
+    expect(meter.sql.some((statement) => /INSERT INTO system_state\b/.test(statement))).toBe(false);
   });
 });
 

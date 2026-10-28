@@ -8,6 +8,7 @@ export type {
   HeroBracketStat,
   HeroDetail,
   HeroInfo,
+  HeroMatchSource,
   ItemInfo,
   PatchNotes,
   PrimaryAttr,

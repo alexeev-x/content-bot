@@ -84,6 +84,8 @@ export interface HeroGuideCard {
   buildDays: number;
   /** The rate is the hero's at the position, not the build's (the sample held winners only). */
   buildRateOfRole?: boolean;
+  /** The days the alternative's sample spans when they differ from `buildDays` (the base's newest games). */
+  altDays?: number;
   /** At most six each; core in buy order. */
   start: GuideItem[];
   core: GuideItem[];
@@ -483,7 +485,7 @@ function diffSlide(guide: HeroGuideCard, alt: GuideAltBuild) {
       : stat(
           `Винрейт сборки <b>${percent(alt.winRate)}</b>`,
           alt.matches,
-          guide.buildDays,
+          guide.altDays ?? guide.buildDays,
           '',
           rarerButBetter ? 'реже берут, но побед больше' : undefined
         )
@@ -743,7 +745,7 @@ function altFullSlide(guide: HeroGuideCard, alt: GuideAltBuild & { core: GuideIt
   const line =
     alt.winRate === undefined
       ? `<p class="z stat"><span>Так собирают <b>${percent(alt.share)}</b> победителей</span></p>`
-      : stat(`Винрейт сборки <b>${percent(alt.winRate)}</b>`, alt.matches, guide.buildDays, 'z');
+      : stat(`Винрейт сборки <b>${percent(alt.winRate)}</b>`, alt.matches, guide.altDays ?? guide.buildDays, 'z');
   const rows: [string, string][] = [
     ['Стартовый закуп', alt.start === undefined ? '' : markedItems(alt.start, guide.start, false, 6)],
     ['Основа', markedItems(alt.core, guide.core, true, 9)],

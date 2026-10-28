@@ -24,7 +24,8 @@ export async function runSteamWatch(
   onError: (error: unknown) => void,
   readApps: ReadSteamApps = (appIds) => readSteamAppInfo(appIds)
 ): Promise<void> {
-  if (!(await container.aiWriter.claimJob(job.id, container.clock.now()).catch(() => false))) return;
+  // No job bookkeeping in ai_queue_jobs (28.10.2026: about 3 300 D1 rows written a day for the watches alone): a
+  // redelivered copy is harmless, every claim inside is conditional.
   try {
     const [app] = (await readApps([DOTA_APP_ID])).filter((each) => each.appId === DOTA_APP_ID);
     const now = container.clock.now();
@@ -60,7 +61,5 @@ export async function runSteamWatch(
       'steam_apps',
       error
     ).catch(onError);
-  } finally {
-    await container.aiWriter.finishJob(job.id, container.clock.now()).catch(onError);
   }
 }

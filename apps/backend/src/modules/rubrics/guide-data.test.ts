@@ -72,15 +72,14 @@ describe('the core from the purchase log', () => {
   );
   const split = splitAnchors(inventoryShares(matches, ITEMS, false));
 
-  it('takes the early Magic Wand, then the most bought real items, a 30% one too, in the order they were bought', () => {
+  it('takes the early Magic Wand, then the real items half the matches buy, in the order they were bought; a 30% one is situational', () => {
     expect(split.core.map((row) => [row.item.key, row.minute])).toEqual([
       ['magic_wand', 5],
       ['battle_fury', 12],
       ['blink', 18],
-      ['black_king_bar', 25],
-      ['nullifier', 30]
+      ['black_king_bar', 25]
     ]);
-    expect(split.anchorShare).toBe(0.3);
+    expect(split.situational.map((row) => row.item.key)).toContain('nullifier');
   });
 
   it('keeps Magic Stick out of every block', () => {
@@ -135,14 +134,10 @@ describe('a support sample without carry items', () => {
     expect(keys).not.toContain('ward_observer');
   });
 
-  it('fills the core with the items bought, even under half the matches, in buy order (Tranquil Boots count)', () => {
+  it('keeps in the core only what half the matches buy, in buy order (Tranquil Boots count); the rest is situational', () => {
     const split = splitAnchors(inventoryShares(support, ITEMS, true));
-    expect(split.core.map((row) => row.item.key)).toEqual([
-      'tranquil_boots',
-      'force_staff',
-      'glimmer_cape',
-      'nullifier'
-    ]);
+    expect(split.core.map((row) => row.item.key)).toEqual(['tranquil_boots', 'force_staff']);
+    expect(split.situational.map((row) => row.item.key)).toEqual(['glimmer_cape', 'nullifier']);
   });
 });
 

@@ -42,6 +42,12 @@ import type { LabCron } from './lab';
 export const CLEANUP_LIMIT = 100;
 // The heartbeat upsert plus slack for the final log line's bookkeeping.
 const HEARTBEAT_RESERVE = 3;
+/** The heartbeat's minutes: those ending in 2 or 7. */
+const HEARTBEAT_EVERY_MINUTES = 5;
+const HEARTBEAT_MINUTE = 2;
+/** The hero-matches runs: two jobs every five minutes, on minutes ending in 1 or 6. */
+const HERO_MATCHES_MINUTE = 1;
+const HERO_MATCHES_RUNS = 2;
 // The cheapest single source (Telegram: 5 preview pages + its D1 statements). All three sources need about
 // 45 of the 50 subrequests, more than an idle tick has left, so the step collects what fits and defers the
 // rest to the next minute-3 tick ten minutes later (each source keeps its own hourly schedule).
@@ -97,6 +103,7 @@ type TickContainer = Pick<
   | 'dotaWatcher'
   | 'dotaRepository'
   | 'sourceEvents'
+  | 'statsApis'
   | 'automations'
   | 'dotaWatchlists'
   | 'posts'
@@ -156,6 +163,18 @@ export async function handleScheduled(
   lab: LabCron | null = null
 ): Promise<void> {
   const { clock, logger } = container;
+  // DEV (owner, 28.10.2026: «дев максимально отключить кроны… к базе»): with the master switch off a tick reads the
+  // switch and stops — no publishing, reconcile, cleanup or heartbeat, so DEV writes nothing to D1 on its own.
+  if (
+    lab !== null &&
+    !(await lab.cronOn(
+      async () =>
+        (await getOwnerOperationsSettings({ repo: container.settings, logger, requestId: 'scheduled' })).background
+    ))
+  ) {
+    logger.info({ component: 'scheduled', operation: 'tick', status: 'lab_off' });
+    return;
+  }
   const startedAt = clock.now();
   const counts: Record<string, number> = {};
   let failures = 0;
@@ -492,6 +511,26 @@ export async function handleScheduled(
     });
   }
 
+  // 7a. the «Гайд на героя» match base (migration 0116): its own switch, so DEV collects only while the owner tests it
+  // (owner, 28.10.2026); production runs it always. Every five minutes two runs, each reading four matches within its
+  // own CPU. Without STRATZ and the stats bridge it is off.
+  if (
+    publicationIdle &&
+    container.statsApis !== null &&
+    container.ownerChatId !== null &&
+    minute % 5 === HERO_MATCHES_MINUTE &&
+    (await backgroundOn('heroMatches')) &&
+    container.queryBudget.remaining() >= 1 + HEARTBEAT_RESERVE
+  ) {
+    const ownerChat = Number(container.ownerChatId);
+    await step('hero-matches', async (): Promise<Record<string, number>> => {
+      if (!Number.isSafeInteger(ownerChat)) return {};
+      for (let run = 0; run < HERO_MATCHES_RUNS; run += 1)
+        await container.aiJobs.send({ id: container.newId(), kind: 'hero_matches', chatId: ownerChat });
+      return { heroMatchesQueued: HERO_MATCHES_RUNS };
+    });
+  }
+
   // 7b. content analytics: the owner's Telegram/YouTube/TikTok counters, on idle ticks of minutes ending in 3.
   // The per-source claim keeps it to about once an hour (sooner after a failure); sources that do not fit
   // the tick's remaining subrequests wait for the next such tick.
@@ -754,8 +793,11 @@ export async function handleScheduled(
   const durationMs = clock.now() - startedAt;
   const status = failures === 0 ? 'ok' : 'error';
   // Not a tick failure when it cannot be written (a deployment before migration 0009): the work above is done.
+  // Every fifth minute, or at once on a failure (28.10.2026: one upsert a minute was 1 440 D1 rows written a day);
+  // the owner's /status calls a run older than seven minutes stale.
   try {
-    await container.systemState.recordCronRun({ at: clock.now(), status, durationMs });
+    if (status !== 'ok' || minute % HEARTBEAT_EVERY_MINUTES === HEARTBEAT_MINUTE)
+      await container.systemState.recordCronRun({ at: clock.now(), status, durationMs });
   } catch (error) {
     logger.warn({
       component: 'scheduled',

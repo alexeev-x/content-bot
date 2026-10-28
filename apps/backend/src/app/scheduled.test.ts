@@ -213,9 +213,10 @@ describe('handleScheduled', () => {
       'archive',
       'purge platform',
       'purge sessions',
-      'purge operational',
-      'heartbeat'
+      'purge operational'
     ]);
+    // The heartbeat is written on minutes ending in 2 or 7, or at once after a failure.
+    expect(minuteTick.calls).toContain('heartbeat');
   });
 
   it('skips operational retention when the hourly publication slot is busy', async () => {
@@ -288,8 +289,8 @@ describe('handleScheduled', () => {
     await handleScheduled(controller(HALF_PAST), busy.container);
     await handleScheduled(controller(NOT_HOUR), other.container);
 
-    expect(idle.calls).toEqual(['reconcile', 'due', 'archive', 'purge', 'heartbeat']);
-    expect(busy.calls).toEqual(['reconcile', 'due', 'archive', 'heartbeat']);
+    expect(idle.calls).toEqual(['reconcile', 'due', 'archive', 'purge']);
+    expect(busy.calls).toEqual(['reconcile', 'due', 'archive']);
     expect(other.calls).not.toContain('purge');
   });
 

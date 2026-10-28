@@ -241,32 +241,6 @@ export function matchupRows(
 }
 
 /**
- * Win rate in games under 35 minutes, 35–50 and over 50. STRATZ gives the matches still going at each minute and the
- * wins among them, so a stretch is the difference between its two ends; null when the numbers do not fall as time
- * passes or a stretch has too few games.
- */
-export function lengthWinRates(
-  rows: { minute: number; remaining: number; wins: number }[]
-): [number, number, number] | null {
-  const sorted = [...rows].sort((a, b) => a.minute - b.minute);
-  const start = sorted[0];
-  if (start === undefined) return null;
-  const at = (minute: number) => sorted.find((row) => row.minute >= minute) ?? { remaining: 0, wins: 0 };
-  const edges = [start, at(35), at(50), { remaining: 0, wins: 0 }];
-  const rates: number[] = [];
-  for (let index = 0; index < 3; index += 1) {
-    const from = edges[index];
-    const to = edges[index + 1];
-    if (from === undefined || to === undefined) return null;
-    const games = from.remaining - to.remaining;
-    const wins = from.wins - to.wins;
-    if (games < LENGTH_MIN_MATCHES || wins < 0 || wins > games) return null;
-    rates.push(wins / games);
-  }
-  return rates as [number, number, number];
-}
-
-/**
  * The same three stretches from OpenDota's duration bins (`from`: the bin's start in seconds); null when a stretch has
  * too few games. OpenDota's bins are 5 minutes wide, so 35 and 50 minutes fall on bin edges.
  */
@@ -311,7 +285,11 @@ const EARLY_SHARE = 0.5;
  * The core is always six real items, the six most bought (owner, 27.10.2026: «основа все 6 предметов помимо стиков …
  * там шард если надо, а то 4 предмета основы это смешно»); an item bought in fewer matches than this is no core item.
  */
-const CORE_MIN_SHARE = 0.1;
+/**
+ * A real item is a core item when at least half the sample buys it, like the anchors of Dota2ProTracker's builds (70% of
+ * one build's matches, 28.10.2026); a rarer one is situational.
+ */
+const CORE_MIN_SHARE = 0.5;
 const SITUATIONAL_SHARE = 0.1;
 const MINUTE_MIN_BUYERS = 3;
 /** The newest patch alone is the sample when it holds at least this many matches. */
@@ -498,22 +476,20 @@ export function lateInventories(matches: GuideMatch[], items: Map<number, ItemIn
 }
 
 /**
- * The core: the cheap early items most matches buy, then the six most bought real items (boots, Blink, Aghanim's
- * Shard alike), in the order they were bought; then the situational items: the next ones, 10% and more.
- * `anchorShare` is the share of the core's least bought item.
+ * The core: the cheap early items most matches buy, then at most six real items (boots, Blink, Aghanim's Shard alike)
+ * half the matches buy, in the order they were bought; then the situational items: the next ones, 10% and more.
  */
-export function splitAnchors(rows: BuildItem[]): { core: BuildItem[]; situational: BuildItem[]; anchorShare: number } {
+export function splitAnchors(rows: BuildItem[]): { core: BuildItem[]; situational: BuildItem[] } {
   const big = rows.filter((row) => !row.early);
   const early = rows.filter((row) => row.early && row.share > EARLY_SHARE);
   const anchors = big.filter((row) => row.share >= CORE_MIN_SHARE).slice(0, ITEMS_MAX);
-  const anchorShare = Math.min(1, ...anchors.map((row) => row.share));
   const late = Number.POSITIVE_INFINITY;
   const core = [...early, ...anchors].sort((a, b) => (a.minute ?? late) - (b.minute ?? late) || b.share - a.share);
   const chosen = new Set(core.map((row) => row.item.key));
   const situational = big
     .filter((row) => !chosen.has(row.item.key) && row.share >= SITUATIONAL_SHARE)
     .slice(0, ITEMS_MAX);
-  return { core, situational, anchorShare };
+  return { core, situational };
 }
 
 /**
@@ -739,8 +715,6 @@ export interface SampleGuide {
   days: number | null;
   core: GuideItem[];
   situational: GuideItem[];
-  /** The share of inventories an item needed to be an anchor (0.5 when 0.7 left too few). */
-  anchorShare: number;
   /** Null without purchase times or a repeated starting set. */
   start: GuideItem[] | null;
   plan: SkillPlan | null;
@@ -763,7 +737,7 @@ export function guideFromSample(input: {
   const { matches, days } = currentPatch(input.matches);
   if (matches.length < BUILD_SAMPLE_MIN) return null;
   const rows = inventoryShares(matches, input.items, input.support, input.fallbackMinutes);
-  const { core, situational, anchorShare } = splitAnchors(rows);
+  const { core, situational } = splitAnchors(rows);
   const plan = input.detail === null ? null : skillPlan(matches, input.detail);
   const alt = altFromSample({ ...input, matches, rows, core, plan });
   return {
@@ -773,39 +747,12 @@ export function guideFromSample(input: {
     days,
     core: core.map(guideItem),
     situational: situational.map(guideItem),
-    anchorShare,
     start: startingSet(matches, input.items)?.items ?? null,
     plan,
     alt,
     withPurchases: matches.some((match) => match.purchases !== null)
   };
 }
-
-/** A build's key item: its first big core item worth at least this (Battle Fury, Blink Dagger), not boots. */
-const KEY_ITEM_MIN_COST = 2000;
-
-/** The core item a build turns on: the first one bought that costs at least 2000; null when none does. */
-export function keyItemOf(core: GuideItem[], items: Map<number, ItemInfo>): ItemInfo | null {
-  const byKey = new Map([...items.values()].map((item) => [item.key, item]));
-  return (
-    core.map((each) => byKey.get(each.key)).find((item) => item !== undefined && item.cost >= KEY_ITEM_MIN_COST) ?? null
-  );
-}
-
-/**
- * The win rate and matches of the games at the position that bought an item, summed over STRATZ's per-minute purchase
- * totals; null under 100 matches. The guide sample holds winners only, so this stands for a build's win rate.
- */
-export function itemWinRate(
-  rows: { itemId: number; matches: number; wins: number }[],
-  itemId: number
-): { winRate: number; matches: number } | null {
-  const own = rows.filter((row) => row.itemId === itemId);
-  const matches = own.reduce((sum, row) => sum + row.matches, 0);
-  const wins = own.reduce((sum, row) => sum + row.wins, 0);
-  return matches < ITEM_RATE_MIN_MATCHES ? null : { winRate: wins / matches, matches };
-}
-const ITEM_RATE_MIN_MATCHES = 100;
 
 /** The median minute each item was bought at, from STRATZ's per-minute purchase totals. */
 export function medianMinutes(rows: { itemId: number; minute: number; matches: number }[]): Map<number, number> {

@@ -3,9 +3,6 @@ import {
   BUILD_SAMPLE_MIN,
   fallbackPurchases,
   guideFromSample,
-  itemWinRate,
-  keyItemOf,
-  lengthWinRates,
   lengthWinRatesFromBins,
   matchupRows,
   medianMinutes,
@@ -322,6 +319,26 @@ const ROLE_NAMES = { carry: 'керри', mid: 'мид', offlane: 'оффлей�
 // is optional: a read that fails or comes back thin leaves its block out of the card and puts a line, with its error
 // code, in the owner's notes; only the core build is required.
 const GUIDE_POPULAR = 30;
+/** The base's games of a hero at a position the guide counts from instead of STRATZ's sample. */
+const BASE_MIN_GAMES = 150;
+/** The newest games whose builds are counted: enough for the alternative's 15%, within the Free plan's CPU. */
+const BASE_SAMPLE = 150;
+/** Games against one opponent before it counts as a matchup. */
+const BASE_MATCHUP_MIN = 25;
+const BASE_DAYS = 14;
+
+/** The base's games as matchup rows: per opponent, the games against it and the wins. */
+function enemyRows(games: { won: boolean; enemies: number[] }[]): { heroId: number; matches: number; wins: number }[] {
+  const rows = new Map<number, { heroId: number; matches: number; wins: number }>();
+  for (const game of games)
+    for (const heroId of game.enemies) {
+      const row = rows.get(heroId) ?? { heroId, matches: 0, wins: 0 };
+      row.matches += 1;
+      if (game.won) row.wins += 1;
+      rows.set(heroId, row);
+    }
+  return [...rows.values()];
+}
 
 const codeOf = (error: unknown) =>
   error instanceof Error && 'code' in error ? String((error as { code: unknown }).code) : 'ошибка';
@@ -369,8 +386,21 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
     detail === null ? null : await attempt('уровни талантов', () => context.sources.talentLevels(hero.name));
   const talentList = detail === null ? [] : levels === null ? detail.talents : pairTalents(detail.talents, levels);
 
+  // The bot's own base first (owner, 28.10.2026: «по любому герою»): every high-rank game of the hero at the position,
+  // won and lost, so its win rate, builds, matchups and game lengths are the hero's own. Too few games there (the base
+  // fills over two weeks) and STRATZ's winners-only sample stands in.
+  const base = context.sources.heroMatches ?? null;
+  const baseGames = base === null ? null : await attempt('своя база матчей', () => base.games(hero.id, position));
+  const games = baseGames !== null && baseGames.length >= BASE_MIN_GAMES ? baseGames : null;
+  if (baseGames !== null && games === null)
+    notes.push(`Своя база: ${baseGames.length} матчей на позиции, нужно ${BASE_MIN_GAMES}: данные STRATZ`);
+  if (games !== null) notes.push(`Своя база: ${games.length} матчей на позиции за 14 дней`);
   // The sample: with the purchases (minutes, the starting set); without them when STRATZ refuses that field.
   const sample = await attempt('выборка матчей', async () => {
+    if (games !== null && base !== null) {
+      const matches = await base.sample(hero.id, position, BASE_SAMPLE);
+      return { fetched: matches.length, total: games.length, matches };
+    }
     try {
       return await stats.heroGuideSample(hero.id, position, true);
     } catch (error) {
@@ -413,8 +443,6 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
             .join(', ') || 'нет'
         }`
       );
-    if (built !== null && built.anchorShare < 0.3)
-      notes.push(`Основа: шестой предмет берут лишь в ${Math.round(built.anchorShare * 100)}% матчей`);
   }
 
   let core: GuideItem[] = built?.core ?? [];
@@ -471,56 +499,54 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
   if (built !== null && order === null && detail !== null)
     notes.push('Нет данных: прокачка (ни одна последовательность не повторилась или не видна ульта)');
   const heroById = new Map(heroes.map((each) => [each.id, each]));
-  const versus = await attempt('матчапы', () => stats.heroMatchups(hero.id), quiet);
-  let matchups = versus === null ? [] : matchupRows(versus, heroById);
+  const versus = games !== null ? enemyRows(games) : await attempt('матчапы', () => stats.heroMatchups(hero.id), quiet);
+  // The base's are the hero at its position against each opponent, like Dota2ProTracker's.
+  let matchups = versus === null ? [] : matchupRows(versus, heroById, games === null ? undefined : BASE_MATCHUP_MIN);
   if (matchups.length === 0 && fallback !== null) {
     const rows = await attempt('матчапы OpenDota', () => fallback.heroMatchups(hero.id), true);
     matchups = rows === null ? [] : matchupRows(rows, heroById, OPENDOTA_MATCHUP_MIN_MATCHES);
     if (matchups.length > 0) notes.push('Матчапы — из OpenDota');
   }
   if (matchups.length === 0 && (versus !== null || quiet)) missing('матчапы');
-  const timeline = await attempt('винрейт по длине матча', () => stats.heroTimeline(hero.id), quiet);
-  let byLength = timeline === null ? null : lengthWinRates(timeline);
-  if (byLength === null && fallback !== null) {
-    const bins = await attempt('винрейт по длине матча OpenDota', () => fallback.heroDurations(hero.id), true);
-    byLength = bins === null ? null : lengthWinRatesFromBins(bins);
-    if (byLength !== null) notes.push('Винрейт по длине матча — из OpenDota');
-  }
-  if (byLength === null && (timeline !== null || quiet)) missing('винрейт по длине матча');
+  // Win rate by length from OpenDota alone: STRATZ's per-minute counts lean to wins (Techies: 76% under 35 minutes,
+  // 49% on OpenDota, 28.10.2026).
+  const bins =
+    games !== null
+      ? games.map((game) => ({ from: game.minutes * 60, matches: 1, wins: game.won ? 1 : 0 }))
+      : fallback === null
+        ? null
+        : await attempt('винрейт по длине матча', () => fallback.heroDurations(hero.id));
+  const byLength = bins === null ? null : lengthWinRatesFromBins(bins);
+  if (bins !== null && byLength === null) notes.push('Нет данных: винрейт по длине матча (мало матчей)');
 
-  let alt = built?.alt ?? null;
+  const alt = built?.alt ?? null;
   if (built !== null && alt === null) notes.push('Нет данных: альтернативная сборка (нет другого набора в 15% матчей)');
-  // The build's own numbers are the sample's; without a sample, STRATZ's win rate of the hero at the position.
-  const own = positionRows.find((row) => row.heroId === hero.id && row.position === position);
-  // STRATZ's guide lists hold winning matches only (every sampled player won, 27.10.2026): such a sample's win rate says
-  // nothing about the build.
-  const winnersOnly = sample !== null && sample.matches.length > 0 && sample.matches.every((match) => match.victory);
-  // Such a build's win rate is its key item's at the position (Battle Fury's games), else the hero's at the position.
-  const bought = built !== null && winnersOnly ? await totals() : null;
-  const key = built === null ? null : keyItemOf(built.core, items);
-  const keyRate = bought === null || key === null ? null : itemWinRate(bought, key.id);
-  if (alt !== null && bought !== null && alt.keyItemId !== undefined) {
-    const altRate = itemWinRate(bought, alt.keyItemId);
-    if (altRate !== null) alt = { ...alt, winRate: altRate.winRate, matches: altRate.matches };
-  }
+  // The win rate at the position from STRATZ's counts by day, which agree with Dota2ProTracker (Techies support 50.7%
+  // against its 50%, 28.10.2026). The sample holds winners only, and an item's buyers win more the later it comes
+  // (55.7% for Techies), so neither tells how a build does.
+  const days =
+    games !== null
+      ? null
+      : await attempt('винрейт на позиции', () => stats.heroPositionDays(hero.id, position, GUIDE_DAYS));
+  const played = games?.length ?? (days ?? []).reduce((sum, day) => sum + day.matches, 0);
+  const won = games?.filter((game) => game.won).length ?? (days ?? []).reduce((sum, day) => sum + day.wins, 0);
   const ownRate =
-    built !== null && winnersOnly
-      ? keyRate !== null
-        ? { buildWinRate: keyRate.winRate, buildMatches: keyRate.matches }
-        : own === undefined || own.matches === 0
-          ? {}
-          : { buildWinRate: own.wins / own.matches, buildMatches: own.matches, buildRateOfRole: true }
-      : built !== null
-        ? { buildWinRate: built.winRate, buildMatches: built.matches }
-        : own === undefined || own.matches === 0
-          ? {}
-          : { buildWinRate: own.wins / own.matches, buildMatches: own.matches };
+    played === 0
+      ? {}
+      : {
+          buildWinRate: won / played,
+          buildMatches: played,
+          buildRateOfRole: true,
+          buildDays: games !== null ? BASE_DAYS : (days?.length ?? GUIDE_DAYS)
+        };
 
   const card: HeroGuideCard = {
     hero: { name: hero.name, localizedName: hero.localizedName },
     role: roleOf(position),
+    buildDays: GUIDE_DAYS,
     ...ownRate,
-    buildDays: built === null || winnersOnly ? GUIDE_DAYS : (built.days ?? GUIDE_DAYS),
+    // The alternative counts the newest games only: a popular hero's 150 span a few days, not the base's 14.
+    ...(games !== null && built?.days != null ? { altDays: Math.max(1, built.days) } : {}),
     start,
     core,
     situational,

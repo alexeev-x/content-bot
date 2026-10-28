@@ -41,7 +41,8 @@ export async function runGameFilesWatch(
 ): Promise<void> {
   const github = container.gameFilesRepo;
   if (github === null) return;
-  if (!(await container.aiWriter.claimJob(job.id, container.clock.now()).catch(() => false))) return;
+  // No job bookkeeping in ai_queue_jobs (28.10.2026: about 3 300 D1 rows written a day for the watches alone): a
+  // redelivered copy is harmless, every claim inside is conditional.
   try {
     const builds = container.gameFileBuilds;
     const commits = await github.listCommits(LIST_SIZE);
@@ -132,8 +133,6 @@ export async function runGameFilesWatch(
       'game_files',
       error
     ).catch(onError);
-  } finally {
-    await container.aiWriter.finishJob(job.id, container.clock.now()).catch(onError);
   }
 }
 

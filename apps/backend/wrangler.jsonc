@@ -105,7 +105,10 @@
         "OWNER_TELEGRAM_ID": "768918661",
         "PUBLISHING_ENABLED": "true",
         "ANALYTICS_TELEGRAM_CHANNEL": "alexeev_x",
-        "ANALYTICS_YOUTUBE_CHANNEL_ID": "UCE-VQmi1Qym7MrEzHg9ngjA"
+        "ANALYTICS_YOUTUBE_CHANNEL_ID": "UCE-VQmi1Qym7MrEzHg9ngjA",
+        // The owner's stats bridge to STRATZ and OpenDota (bridge/stats-bridge): with the STRATZ_TOKEN secret it turns
+        // on the stats rubrics and the «Гайд на героя» match base.
+        "STATS_BRIDGE_URL": "https://faded-millipede-9696.alexeev-x.deno.net"
       }
     }
   }

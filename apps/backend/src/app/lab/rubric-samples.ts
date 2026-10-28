@@ -17,6 +17,7 @@ import {
   titlePicture,
   rubricRichHtml,
   type RubricKey,
+  type HeroMatchSource,
   type RubricSources,
   withBackground
 } from '../../modules/rubrics';
@@ -24,6 +25,7 @@ import type { Logger } from '../../platform/logging/logger';
 import { getOwnerOperationsSettings } from '../../modules/settings';
 import { AppError } from '../../shared/app-error';
 import type { Container } from '../container';
+import { HERO_MATCHES_KEEP_MS } from '../workflows/hero-matches';
 import { pictureImproverFor, type SourcePicture } from '../workflows/picture-quality';
 
 // DEV only (owner, 25.10.2026): one rubric's post from live data — the picture rendered by the browser from Valve's
@@ -150,6 +152,28 @@ async function fillBareFinds(container: Container, finds: GameFind[]): Promise<G
   return finds.map((find) => ({ ...find, text: filled.get(find.sha) ?? find.text }));
 }
 
+/** The bot's own match base as the guide reads it: the last 14 days of one hero at one position. */
+function heroMatchSource(container: Container): HeroMatchSource {
+  const since = () => container.clock.now() - HERO_MATCHES_KEEP_MS;
+  return {
+    games: (heroId, position) => container.heroMatches.games(heroId, position, since()),
+    async sample(heroId, position, limit) {
+      const rows = await container.heroMatches.sample(heroId, position, since(), limit);
+      return rows.map((row) => ({
+        victory: row.won,
+        startedAt: Math.floor(row.startedAt / 1000),
+        patch: row.detail.v,
+        minutes: row.minutes,
+        items: row.detail.i,
+        neutral: row.detail.n,
+        purchases: row.detail.p.map(([itemId, minute]) => ({ itemId, minute })),
+        // The base keeps the order the points were spent in: level n is the n-th point.
+        abilities: row.detail.s.map((abilityId, index) => ({ abilityId, time: index, level: index + 1 }))
+      }));
+    }
+  };
+}
+
 function rubricSources(
   gameFinds: (since: number) => Promise<GameFind[]>,
   stratzAccess: { token: string; bridgeUrl: string } | null
@@ -252,7 +276,7 @@ function rubricSources(
               return [...totals.entries()].sort((a, b) => b[1] - a[1]).map(([itemId]) => itemId);
             },
             heroPurchases: (heroId) => inTurn(() => stratz.heroPurchases(heroId)),
-            heroTimeline: (heroId) => inTurn(() => stratz.heroTimeline(heroId)),
+            heroPositionDays: (heroId, position, days) => inTurn(() => stratz.heroPositionDays(heroId, position, days)),
             heroStartingItems: (heroId, position) => inTurn(() => stratz.startingItems(heroId, position)),
             heroPositionPurchases: (heroId, position) => inTurn(() => stratz.positionPurchases(heroId, position)),
             heroNeutralItems: (heroId, position) => inTurn(() => stratz.neutralItems(heroId, position)),
@@ -291,6 +315,8 @@ export type RubricSampleDeps = {
   gameFinds: (since: number) => Promise<GameFind[]>;
   /** STRATZ through the stats bridge; null until both the token and the bridge are set. */
   stratzAccess: { token: string; bridgeUrl: string } | null;
+  /** The bot's own match base «Гайд на героя» counts from. */
+  heroMatches: HeroMatchSource | null;
   renderer: PictureRenderer | null;
   /** The AI writer's caption and the drawn scene with the title; null when the AI is not wired. */
   ai: {
@@ -334,7 +360,7 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
   let sample;
   try {
     sample = await buildRubricSample(rubric, {
-      sources: rubricSources(deps.gameFinds, deps.stratzAccess),
+      sources: { ...rubricSources(deps.gameFinds, deps.stratzAccess), heroMatches: deps.heroMatches },
       random: deps.random,
       now: deps.now
     });
@@ -613,6 +639,7 @@ export async function runRubricSampleJob(
           return fillBareFinds(container, stored.length > 0 ? stored : await trackerFinds(container, since));
         },
         stratzAccess: access.stratzAccess,
+        heroMatches: heroMatchSource(container),
         renderer: access.renderer,
         ai: {
           caption: (input) => writeRubricCaption(aiDeps, input),

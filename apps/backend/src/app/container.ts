@@ -45,6 +45,10 @@ import {
   type TelegramOwnerMessageApi
 } from '../integrations/telegram/telegram-api';
 import { createGitHubRepoApi, type GitHubRepoApi } from '../integrations/github/github-api';
+import { createOpenDotaApi, type OpenDotaApi } from '../integrations/opendota/opendota-api';
+import { createStratzApi, type StratzApi } from '../integrations/stratz/stratz-api';
+import { createD1HeroMatches, type HeroMatchRepository } from '../modules/hero-matches';
+import { stratzAccess } from './stats-access';
 import {
   createD1GameFileBuilds,
   createD1SteamApps,
@@ -222,6 +226,10 @@ export interface Container {
   autopublishLog: AutopublishLogStore;
   /** The game-files tracker on GitHub; null without `GITHUB_TOKEN`, which only leaves the source off. */
   gameFilesRepo: GitHubRepoApi | null;
+  /** The hero-matches base «Гайд на героя» counts from (migration 0116). */
+  heroMatches: HeroMatchRepository;
+  /** STRATZ and OpenDota through the stats bridge; null without `STRATZ_TOKEN` and `STATS_BRIDGE_URL`. */
+  statsApis: { stratz: StratzApi; openDota: OpenDotaApi } | null;
   dotaWatchlists: ReturnType<typeof createD1DotaWatchlists>;
   /** Owner-visible history and conditional control for fixed Dota recurring work. */
   automations: AutomationRepository;
@@ -351,6 +359,8 @@ export interface ContainerOverrides {
   contentFetch?: typeof fetch;
   /** Replaces the game-files tracker (tests script it; nothing reaches GitHub). */
   gameFilesRepo?: GitHubRepoApi | null;
+  /** Replaces STRATZ and OpenDota (tests script them). */
+  statsApis?: Container['statsApis'];
   /** Replaces the AI provider (tests); null forces «no key». */
   aiProvider?: AiTextProvider | null;
   /** Replaces the image provider (tests); null forces «no key». */
@@ -582,6 +592,16 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
       if (overrides.gameFilesRepo !== undefined) return overrides.gameFilesRepo;
       const token = env.GITHUB_TOKEN?.trim() ?? '';
       return token === '' ? null : createGitHubRepoApi({ owner: 'SteamTracking', repo: 'GameTracking-Dota2', token });
+    },
+    get heroMatches() {
+      return createD1HeroMatches(db());
+    },
+    get statsApis(): Container['statsApis'] {
+      if (overrides.statsApis !== undefined) return overrides.statsApis;
+      const access = stratzAccess(env.STRATZ_TOKEN, env.STATS_BRIDGE_URL);
+      return access === null
+        ? null
+        : { stratz: createStratzApi(access), openDota: createOpenDotaApi({ bridgeUrl: access.bridgeUrl }) };
     },
     get sourceEvents() {
       return createD1SourceEventsRepository(db(), () => (overrides.clock ?? systemClock).now());

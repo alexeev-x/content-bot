@@ -151,3 +151,22 @@ Both watches (game files and Steam) write their last run to `source_watch_checks
 or the failure's stable code. «Источники → Состояние лент» shows them beside the two feeds (`GET /api/v1/dota`
 `watches`).
 A watch whose third run in a row fails raises one content alert «Источник … не работает» with its code (`watch-down:<key>:<time>`, review 24.10.2026), sent with the next content alerts.
+
+## Hero-matches base for «Гайд на героя» (migration 0116, owner 28.10.2026)
+
+«По любому герою», with position matchups, a real win rate and room for unusual builds: no public source splits
+matchups by position (STRATZ's `heroVsHeroMatchup` has no positions, its `guide` lists only wins, Dota2ProTracker's API
+is closed), so the bot keeps its own base the way Dota2ProTracker counts from STRATZ's matches
+(`app/workflows/hero-matches.ts`, `modules/hero-matches`). Every five minutes (minutes ending in 1 or 6) the Cron queues
+two `hero_matches` jobs, only with `STRATZ_TOKEN` and `STATS_BRIDGE_URL`; production always, DEV only while the owner's
+«Фоновые задачи → База матчей» switch is on (owner, 28.10.2026: DEV lives without Cron). Every 90 minutes a run lists OpenDota's newest public
+matches of rank tier 75 and up (`/publicMatches?min_rank=75` through the bridge, 100 a page, about 1 600 a day) past the
+newest id taken; twelve hours after a match (STRATZ fills positions late; 82% of day-old matches had them, 28.10.2026)
+it is read from STRATZ with three others in one request (each job its own CPU; six took 9–12 ms to parse) (`match(id)` aliases). A match whose ten players all have a
+position becomes ten rows of `hero_match_players` (hero, position, outcome, length, the «hero:position» of allies and
+opponents, and a compact JSON of items, purchases with minutes and skill order; consumables only before the horn);
+one without is tried again six hours later, three tries at most. Claims are conditional (the listing turn, each due
+match moved ahead before it is read), so overlapping runs never read a match twice and a failed read only waits. Rows
+older than 14 days are deleted once a day (a full scan, once). The guide counts from the base when it holds at least
+150 games of the hero at its position: win rate, game-length rates and matchups from every game, builds from the newest
+150; with fewer it keeps STRATZ's sample, and the owner's note says which.
