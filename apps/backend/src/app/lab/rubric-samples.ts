@@ -85,6 +85,22 @@ async function fetchRender(url: string): Promise<Uint8Array | null> {
   }
 }
 
+/**
+ * A hero's image for the image model: Valve's big render, or — when a hero has none under that name (DEV, 28.10.2026:
+ * «Гадалка не нарисована (нет рендера)») — Valve's portrait of the same hero, which the model reads just as well.
+ */
+async function fetchHeroImage(renderUrl: string): Promise<Uint8Array | null> {
+  return (
+    (await fetchRender(renderUrl)) ??
+    (await fetchRender(renderUrl.replace('/videos/dota_react/heroes/renders/', '/images/dota_react/heroes/')))
+  );
+}
+
+/** A rubric whose post IS its drawn scene does not go out without it (owner, 28.10.2026): the sample fails, in detail. */
+function sceneFailed(what: string, why: string): never {
+  throw new AppError('UNAVAILABLE', `No picture: ${what}`, { reason: `PICTURE: ${what} — ${why}` });
+}
+
 /** The carousel's order: stills first, then GIFs, then clips. */
 const ALBUM_ORDER = { photo: 0, animation: 1, video: 2 } as const;
 
@@ -449,8 +465,8 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
     // «Анкета»: the model puts the hero into the scene; without it the board alone would float on nothing.
     if (sample.fortuneScene !== undefined) {
       const { teller, ball } = sample.fortuneScene;
-      const tellerBytes = deps.ai === null ? null : await fetchRender(teller.renderUrl);
-      const ballBytes = deps.ai === null || tellerBytes === null ? null : await fetchRender(ball.renderUrl);
+      const tellerBytes = deps.ai === null ? null : await fetchHeroImage(teller.renderUrl);
+      const ballBytes = deps.ai === null || tellerBytes === null ? null : await fetchHeroImage(ball.renderUrl);
       const scene =
         tellerBytes === null || ballBytes === null || deps.ai === null
           ? null
@@ -466,13 +482,19 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
           `<style>:root{--scene:url(data:image/jpeg;base64,${scene.base64})}</style></head>`
         );
       } else {
-        html = null;
-        notes.push(
-          `Гадалка не нарисована (${tellerBytes === null || ballBytes === null ? 'нет рендера' : scene?.kind === 'failed' ? sceneWhy(scene) : 'нет ИИ'}): пост без картинки.`
+        sceneFailed(
+          `гадалка ${teller.heroName}, в шаре ${ball.heroName}`,
+          tellerBytes === null
+            ? `нет изображения героя ${teller.heroName}`
+            : ballBytes === null
+              ? `нет изображения героя ${ball.heroName}`
+              : scene?.kind === 'failed'
+                ? sceneWhy(scene)
+                : 'ИИ не подключён'
         );
       }
     } else if (sample.heroScene !== undefined) {
-      const render = deps.ai === null ? null : await fetchRender(sample.heroScene.renderUrl);
+      const render = deps.ai === null ? null : await fetchHeroImage(sample.heroScene.renderUrl);
       const scene =
         render === null || deps.ai === null
           ? null
@@ -483,9 +505,13 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
           `<style>:root{--scene:url(data:image/jpeg;base64,${scene.base64})}</style></head>`
         );
       } else {
-        html = null;
-        notes.push(
-          `Герой не вставлен в сцену (${render === null ? 'нет рендера' : scene?.kind === 'failed' ? sceneWhy(scene) : 'нет ИИ'}): пост без картинки.`
+        sceneFailed(
+          `анкета ${sample.heroScene.heroName}`,
+          render === null
+            ? `нет изображения героя ${sample.heroScene.heroName}`
+            : scene?.kind === 'failed'
+              ? sceneWhy(scene)
+              : 'ИИ не подключён'
         );
       }
     } else if (sample.picture === null && deps.ai !== null) {
