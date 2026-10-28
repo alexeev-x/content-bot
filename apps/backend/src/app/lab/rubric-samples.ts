@@ -1,3 +1,4 @@
+import { edgeTextCache, STRATZ_CACHE_SECONDS } from '../../platform/edge-cache';
 import { expandRichMedia, RICH_MEDIA_SLOT, richMediaId } from '@alexeev/contracts';
 import { InputFile } from 'grammy';
 import { type PictureRenderer } from '../../integrations/browser-render/browser-render';
@@ -213,7 +214,10 @@ function rubricSources(
   gameFinds: (since: number) => Promise<GameFind[]>,
   stratzAccess: { token: string; bridgeUrl: string } | null
 ): RubricSources {
-  const stratz = stratzAccess === null ? null : createStratzApi(stratzAccess);
+  const stratz =
+    stratzAccess === null
+      ? null
+      : createStratzApi({ ...stratzAccess, cache: edgeTextCache('stratz', STRATZ_CACHE_SECONDS) });
   // One STRATZ request at a time with a pause between (owner, 27.10.2026: «не надо спешить… делай по 1 запросу»):
   // eight at once came back STRATZ_BLOCKED. The chain lives for this one sample only.
   let turn: Promise<unknown> = Promise.resolve();

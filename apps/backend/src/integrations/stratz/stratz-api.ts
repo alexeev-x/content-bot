@@ -389,7 +389,16 @@ export interface StratzApi {
 const MATCHUP_TAKE = 130;
 
 /** `bridgeUrl`: the stats bridge's origin; without it STRATZ is called directly (it works from any non-Cloudflare host). */
-export function createStratzApi(input: { token: string; bridgeUrl?: string; fetchImpl?: typeof fetch }): StratzApi {
+/**
+ * `cache`: answers kept by query text and reused (STRATZ's aggregates change weekly); only a body that parsed is kept,
+ * so an error is never repeated from the cache.
+ */
+export function createStratzApi(input: {
+  token: string;
+  bridgeUrl?: string;
+  fetchImpl?: typeof fetch;
+  cache?: { get(key: string): Promise<string | null>; put(key: string, body: string): Promise<void> };
+}): StratzApi {
   const endpoint = input.bridgeUrl === undefined ? DIRECT : `${input.bridgeUrl.replace(/\/+$/, '')}/stratz/graphql`;
   const fetchImpl = input.fetchImpl ?? fetch;
   async function query<T>(
@@ -398,6 +407,11 @@ export function createStratzApi(input: { token: string; bridgeUrl?: string; fetc
     schema: z.ZodType<T>,
     signal?: AbortSignal
   ): Promise<T[]> {
+    const cached = (await input.cache?.get(text)) ?? null;
+    if (cached !== null) {
+      const fromCache = parseRows(cached, pick, schema);
+      if (fromCache !== null) return fromCache;
+    }
     let response: Response;
     try {
       response = await fetchImpl(endpoint, {
@@ -435,7 +449,20 @@ export function createStratzApi(input: { token: string; bridgeUrl?: string; fetc
     const rows = pick((json as { data?: unknown }).data);
     const parsed = z.array(schema).max(5000).safeParse(rows);
     if (!parsed.success) throw new StratzError('STRATZ_SHAPE', null, schemaDetail(parsed.error));
+    await input.cache?.put(text, body);
     return parsed.data;
+  }
+  /** A cached body read the same way; null when it no longer fits (the read then goes to STRATZ). */
+  function parseRows<T>(body: string, pick: (data: unknown) => unknown, schema: z.ZodType<T>): T[] | null {
+    try {
+      const parsed = z
+        .array(schema)
+        .max(5000)
+        .safeParse(pick((JSON.parse(body) as { data?: unknown }).data));
+      return parsed.success ? parsed.data : null;
+    } catch {
+      return null;
+    }
   }
   const heroStats = (data: unknown, field: string) =>
     (data as { heroStats?: Record<string, unknown> } | undefined)?.heroStats?.[field];

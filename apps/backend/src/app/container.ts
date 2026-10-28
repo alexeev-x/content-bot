@@ -1,3 +1,4 @@
+import { edgeTextCache, STRATZ_CACHE_SECONDS } from '../platform/edge-cache';
 import {
   createD1PostRepository,
   createD1PostMediaRepository,
@@ -601,7 +602,10 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
       const access = stratzAccess(env.STRATZ_TOKEN, env.STATS_BRIDGE_URL);
       return access === null
         ? null
-        : { stratz: createStratzApi(access), openDota: createOpenDotaApi({ bridgeUrl: access.bridgeUrl }) };
+        : {
+            stratz: createStratzApi({ ...access, cache: edgeTextCache('stratz', STRATZ_CACHE_SECONDS) }),
+            openDota: createOpenDotaApi({ bridgeUrl: access.bridgeUrl })
+          };
     },
     get sourceEvents() {
       return createD1SourceEventsRepository(db(), () => (overrides.clock ?? systemClock).now());
