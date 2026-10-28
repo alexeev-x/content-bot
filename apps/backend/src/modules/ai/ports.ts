@@ -57,7 +57,7 @@ export interface AiImageProvider {
   draw(input: {
     model: string;
     prompt: string;
-    /** JPEG references the picture follows in style. */
+    /** References the picture follows: JPEG, or PNG for a render with transparency. */
     references: readonly Uint8Array[];
     /** `<width>x<height>`, both multiples of 16. */
     size: string;

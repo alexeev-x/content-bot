@@ -7,7 +7,7 @@ import { createOpenDotaApi, OpenDotaError } from '../../integrations/opendota/op
 import { createStratzApi, StratzError } from '../../integrations/stratz/stratz-api';
 import { createTelegramApi, type TelegramSendApi } from '../../integrations/telegram/telegram-api';
 import { createValveDatafeedApi, DatafeedError } from '../../integrations/valve-datafeed/valve-datafeed';
-import { drawRubricScene, writeRubricCaption } from '../../modules/ai';
+import { drawAnketaScene, drawRubricScene, writeRubricCaption } from '../../modules/ai';
 import { condenseBuild, isRelevantPath, parseBuildMessage, splitDiff, type GameFind } from '../../modules/game-files';
 import {
   buildRubricSample,
@@ -64,6 +64,24 @@ function withLinks(
     text += link.text;
   }
   return { text, entities };
+}
+
+const RENDER_MAX_BYTES = 8 * 1024 * 1024;
+const RENDER_TIMEOUT_MS = 15_000;
+
+/** Valve's hero render for the image model; null when it can't be read. */
+async function fetchRender(url: string): Promise<Uint8Array | null> {
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(RENDER_TIMEOUT_MS) });
+    if (!response.ok) {
+      await response.body?.cancel();
+      return null;
+    }
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    return bytes.length > 0 && bytes.length <= RENDER_MAX_BYTES ? bytes : null;
+  } catch {
+    return null;
+  }
 }
 
 /** The carousel's order: stills first, then GIFs, then clips. */
@@ -328,6 +346,8 @@ export type RubricSampleDeps = {
       signal: AbortSignal;
     }) => Promise<string | null>;
     scene: (input: { heading: { text: string; red: string | null } | null }) => Promise<Scene>;
+    /** «Анкета»: the hero placed into the owner's scene. */
+    heroScene: (input: { hero: Uint8Array; heroName: string }) => Promise<Scene>;
   } | null;
   /** The picture law (workflows/picture-quality.ts): a narrow source picture comes back sharper, else as it was. */
   improvePhoto: (file: SourcePicture) => Promise<SourcePicture>;
@@ -411,7 +431,25 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
     let html: string | null = page.html;
     // A rubric with a layout of its own is drawn by code alone on the flat style (owner, 26.10.2026); only a rubric
     // with no layout gets the model's scene under its title.
-    if (sample.picture === null && deps.ai !== null) {
+    // «Анкета»: the model puts the hero into the scene; without it the board alone would float on nothing.
+    if (sample.heroScene !== undefined) {
+      const render = deps.ai === null ? null : await fetchRender(sample.heroScene.renderUrl);
+      const scene =
+        render === null || deps.ai === null
+          ? null
+          : await deps.ai.heroScene({ hero: render, heroName: sample.heroScene.heroName });
+      if (scene?.kind === 'drawn' && /^[A-Za-z0-9+/=]+$/.test(scene.base64)) {
+        html = html.replace(
+          '</head>',
+          `<style>:root{--scene:url(data:image/jpeg;base64,${scene.base64})}</style></head>`
+        );
+      } else {
+        html = null;
+        notes.push(
+          `Герой не вставлен в сцену (${render === null ? 'нет рендера' : scene?.kind === 'failed' ? scene.reason : 'нет ИИ'}): пост без картинки.`
+        );
+      }
+    } else if (sample.picture === null && deps.ai !== null) {
       const scene = await deps.ai.scene({ heading: pictureHeading(page.html) });
       if (scene.kind === 'drawn') html = withBackground(page.html, scene.base64);
       else {
@@ -647,7 +685,8 @@ export async function runRubricSampleJob(
         renderer: access.renderer,
         ai: {
           caption: (input) => writeRubricCaption(aiDeps, input),
-          scene: (input) => drawRubricScene({ ...aiDeps, images: container.aiImageProvider, onError }, input)
+          scene: (input) => drawRubricScene({ ...aiDeps, images: container.aiImageProvider, onError }, input),
+          heroScene: (input) => drawAnketaScene({ ...aiDeps, images: container.aiImageProvider, onError }, input)
         },
         improvePhoto: pictureImproverFor(container, requestId, onError, RUBRIC_PHOTO_MIN_WIDTH),
         telegram,

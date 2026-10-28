@@ -1,4 +1,4 @@
-import { type HeroInfo, noData, pick, poll, type RubricContext, type RubricSample, shuffled } from './types';
+import { noData, pick, poll, type RubricContext, type RubricSample, shuffled } from './types';
 import { escapeHtml } from './picture';
 
 // The channel's creative rubrics (owner, 27.10.2026: «пока просто общее сделай, потом каждый по одному»): a hero, an
@@ -2120,30 +2120,6 @@ export function abilityInLife(context: RubricContext): Promise<RubricSample> {
     ownText: true,
     poll: poll(chosen.question, [...chosen.options, chosen.joke])
   });
-}
-
-// «Анкета»: a hero's real facts in a document of a random genre.
-const PROFILE_GENRES = ['Медкарта', 'Резюме', 'Анкета знакомств', 'Анонимные руинеры: карточка участника'] as const;
-const ATTACK_TYPES: Record<HeroInfo['attackType'], string> = { Melee: 'ближний бой', Ranged: 'дальний бой' };
-
-export async function heroProfile(context: RubricContext): Promise<RubricSample> {
-  const hero = pick(await context.sources.heroes(), context.random);
-  const detail = await context.sources.heroDetail(hero.id);
-  const genre = pick(PROFILE_GENRES, context.random);
-  return {
-    picture: null,
-    text: `${genre}: ${hero.localizedName}.`,
-    reference: [
-      `Роли: ${hero.roles.join(', ')}`,
-      `Атака: ${ATTACK_TYPES[hero.attackType]}, дальность ${hero.attackRange}`,
-      `Скорость: ${hero.moveSpeed}`,
-      `Способности: ${detail.abilities
-        .map((each) => each.name.trim())
-        .filter((name) => name !== '')
-        .join(', ')}`
-    ].join('\n'),
-    poll: null
-  };
 }
 
 // «Инструкция по применению»: a big item written up as a medicine leaflet.

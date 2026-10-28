@@ -1,9 +1,9 @@
+import { heroProfile } from './anketa';
 import { fakeItem, filesDontLie, rateIt, rebus, workshopSet } from './content-rubrics';
 import {
   abilityInLife,
   confess,
   explainDumb,
-  heroProfile,
   itemLeaflet,
   onLane,
   toxicBingo,

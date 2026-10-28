@@ -32,9 +32,14 @@ export function createOpenAiImageProvider(apiKey: string, fetchImpl: typeof fetc
       form.set('quality', 'medium');
       form.set('output_format', 'jpeg');
       form.set('n', '1');
-      references.forEach((bytes, index) =>
-        form.append('image[]', new File([bytes], `reference-${index + 1}.jpg`, { type: 'image/jpeg' }))
-      );
+      // A reference is a JPEG, or a PNG with transparency (a hero's render); the type follows its first bytes.
+      references.forEach((bytes, index) => {
+        const png = bytes[0] === 0x89 && bytes[1] === 0x50;
+        form.append(
+          'image[]',
+          new File([bytes], `reference-${index + 1}.${png ? 'png' : 'jpg'}`, { type: png ? 'image/png' : 'image/jpeg' })
+        );
+      });
       let response: Response;
       try {
         // A plain call: the runtime's fetch throws «Illegal invocation» when called as a method of another object.
