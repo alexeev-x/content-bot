@@ -14,11 +14,11 @@ const ROTATION: { bracket: number; on: string }[] = [
   { bracket: 1, on: 'Рекрутах' },
   { bracket: 2, on: 'Стражах' },
   { bracket: 3, on: 'Рыцарях' },
-  { bracket: 4, on: 'Героях' },
+  // «на Героях» read as «heroes on heroes»: the rank is named as a rank.
+  { bracket: 4, on: 'ранге Герой' },
   { bracket: 5, on: 'Легендах' }
 ];
 const RECRUIT = 1;
-const DIVINE_MEDAL = 7;
 
 /** Matches a hero needs at a position in the stretch counted before its rate says anything (the card: 300 a week). */
 const MIN_WEEK_MATCHES = 300;
@@ -29,10 +29,11 @@ const MIN_WEEK_MATCHES = 300;
 const MIN_SWING_MATCHES = 2000;
 /** The easy heroes sit on the low ranks with few games each: a lower floor. */
 const MIN_EASY_MATCHES = 100;
-const MIN_LANE_MATCHES = 300;
-const MIN_LENGTH_MATCHES = 100;
+// A short game is about one in eight (DEV, 28.10.2026): fewer than this many swung the rate by luck.
+const MIN_LENGTH_MATCHES = 300;
 const SHORT_MINUTES = 30;
-const LONG_MINUTES = 50;
+/** STRATZ's timeline stops at minute 35: «long» is the games still running then. */
+const LONG_MINUTES = 35;
 /** The newest STRATZ week is still filling: under this share of the week before it, it is dropped. */
 const SETTLED_SHARE = 0.6;
 
@@ -72,7 +73,7 @@ interface Tile {
   num: string;
   fall?: boolean;
 }
-type Cell = Tile | { group: string; medal?: number };
+type Cell = Tile | { group: string };
 type Column = Cell[];
 
 interface Look {
@@ -128,6 +129,22 @@ async function weekRows(
  */
 const OWN_ROLE_SHARE = 0.25;
 
+/** Whether role `index` is the hero's own among five roles' games: his most-played, with OWN_ROLE_SHARE at least. */
+function ownRole(byRole: ReadonlyMap<number, { matches: number }>[]): (heroId: number, index: number) => boolean {
+  const totals = new Map<number, number>();
+  const home = new Map<number, number>();
+  byRole.forEach((rows, index) => {
+    for (const [heroId, each] of rows) {
+      totals.set(heroId, (totals.get(heroId) ?? 0) + each.matches);
+      const held = home.get(heroId);
+      if (held === undefined || each.matches > (byRole[held]?.get(heroId)?.matches ?? 0)) home.set(heroId, index);
+    }
+  });
+  return (heroId, index) =>
+    home.get(heroId) === index &&
+    (byRole[index]?.get(heroId)?.matches ?? 0) >= (totals.get(heroId) ?? 0) * OWN_ROLE_SHARE;
+}
+
 /** One role's rates in the settled newest week of a bracket. */
 async function weekRates(ctx: Ctx, bracket: number, position: number, floor: number): Promise<Scored[]> {
   const [week] = settledWeeks(await ctx.stats.positionWeeks(bracket, position, 3));
@@ -141,26 +158,12 @@ async function rankLook(ctx: Ctx, random: () => number, side: 'best' | 'worst'):
   const rank = pick(ROTATION, random);
   const byRole: Map<number, { matches: number; wins: number }>[] = [];
   for (const position of POSITIONS) byRole.push(await weekRows(ctx, rank.bracket, position));
-  // Each hero's games over the five roles, and the role he plays most: he can only show up there.
-  const totals = new Map<number, number>();
-  const home = new Map<number, number>();
-  byRole.forEach((rows, index) => {
-    for (const [heroId, each] of rows) {
-      totals.set(heroId, (totals.get(heroId) ?? 0) + each.matches);
-      const held = home.get(heroId);
-      if (held === undefined || each.matches > (byRole[held]?.get(heroId)?.matches ?? 0)) home.set(heroId, index);
-    }
-  });
+  const own = ownRole(byRole);
   const columns: Column[] = [];
   for (const [index, rows] of byRole.entries()) {
     const position = POSITIONS[index] ?? index + 1;
     const rates = [...rows.entries()]
-      .filter(
-        ([heroId, each]) =>
-          each.matches >= MIN_WEEK_MATCHES &&
-          home.get(heroId) === index &&
-          each.matches >= (totals.get(heroId) ?? 0) * OWN_ROLE_SHARE
-      )
+      .filter(([heroId, each]) => each.matches >= MIN_WEEK_MATCHES && own(heroId, index))
       .map(([heroId, each]) => ({ heroId, value: rate(each.matches, each.wins) }));
     const chosen = side === 'best' ? best(rates, PER_ROLE) : worst(rates, PER_ROLE);
     columns.push(full(`${ROLES[position - 1]} на ${rank.on}`, tilesOf(ctx, chosen, pct)));
@@ -191,11 +194,14 @@ async function easyLook(ctx: Ctx): Promise<Look> {
 
 async function swingLook(ctx: Ctx): Promise<Look> {
   // All roles first, so a hero who moved on several stays only where he moved most.
+  // A hero shows up only under his own role (owner, 28.10.2026: Mirana and Disruptor on the offlane).
   const byRole: Scored[][] = [];
+  const nows: Map<number, { matches: number }>[] = [];
   for (const position of POSITIONS) {
     const weeks = settledWeeks(await ctx.stats.positionWeeks(null, position, 4));
     const [now, before] = weeks;
     if (now === undefined || before === undefined) throw noData('two weeks');
+    nows.push(now);
     const moves: Scored[] = [...now.entries()].flatMap(([heroId, each]) => {
       const earlier = before.get(heroId);
       if (earlier === undefined || each.matches < MIN_SWING_MATCHES || earlier.matches < MIN_SWING_MATCHES) return [];
@@ -203,9 +209,11 @@ async function swingLook(ctx: Ctx): Promise<Look> {
     });
     byRole.push(moves);
   }
+  const own = ownRole(nows);
   const strongest = new Map<number, number>();
   byRole.forEach((moves, index) => {
     for (const each of moves) {
+      if (!own(each.heroId, index)) continue;
       const held = strongest.get(each.heroId);
       const heldMove =
         held === undefined ? 0 : Math.abs(byRole[held]?.find((m) => m.heroId === each.heroId)?.value ?? 0);
@@ -242,24 +250,36 @@ function mainRole(rows: { heroId: number; position: number; matches: number }[])
 }
 
 async function ranksLook(ctx: Ctx): Promise<Look> {
-  const recruits: Scored[][] = [];
-  for (const position of POSITIONS) recruits.push(await weekRates(ctx, RECRUIT, position, MIN_WEEK_MATCHES));
+  // Рекруты: each hero only under the role that holds most of his games there, and a quarter of them at least (DEV,
+  // 28.10.2026: Bristleback on mid and offlane, Troll on carry and four).
+  const recruitRows: Map<number, { matches: number; wins: number }>[] = [];
+  for (const position of POSITIONS) recruitRows.push(await weekRows(ctx, RECRUIT, position));
+  const recruitOwn = ownRole(recruitRows);
+  // Божества: the same rule over STRATZ's positions.
   const divine = await ctx.stats.positions();
-  const columns: Column[] = POSITIONS.map((position) => {
-    const low = best(recruits[position - 1] ?? [], PER_ROLE / 2);
-    const taken = new Set(low.map((each) => each.heroId));
+  const divineHome = mainRole(divine);
+  const divineTotals = new Map<number, number>();
+  for (const row of divine) divineTotals.set(row.heroId, (divineTotals.get(row.heroId) ?? 0) + row.matches);
+  const columns: Column[] = POSITIONS.map((position, index) => {
+    const low = best(
+      [...(recruitRows[index] ?? new Map()).entries()]
+        .filter(([heroId, each]) => each.matches >= MIN_WEEK_MATCHES && recruitOwn(heroId, index))
+        .map(([heroId, each]) => ({ heroId, value: rate(each.matches, each.wins) })),
+      PER_ROLE / 2
+    );
     const high = best(
       divine
-        .filter((each) => each.position === position && each.matches >= MIN_WEEK_MATCHES && !taken.has(each.heroId))
+        .filter(
+          (each) =>
+            each.position === position &&
+            each.matches >= MIN_WEEK_MATCHES &&
+            divineHome.get(each.heroId) === position &&
+            each.matches >= (divineTotals.get(each.heroId) ?? 0) * OWN_ROLE_SHARE
+        )
         .map((each) => ({ heroId: each.heroId, value: rate(each.matches, each.wins) })),
       PER_ROLE / 2
     );
-    return [
-      { group: 'Рекруты', medal: RECRUIT },
-      ...tilesOf(ctx, low, pct),
-      { group: 'Божества', medal: DIVINE_MEDAL },
-      ...tilesOf(ctx, high, pct)
-    ];
+    return [{ group: 'Рекруты' }, ...tilesOf(ctx, low, pct), { group: 'Божества' }, ...tilesOf(ctx, high, pct)];
   });
   for (const [index, column] of columns.entries()) {
     if (column.length < PER_ROLE + 2) throw noData(`Рекруты и Божества: ${ROLES[index]}`);
@@ -267,86 +287,69 @@ async function ranksLook(ctx: Ctx): Promise<Look> {
   return { title: '<b>Лучшие</b><br>герои:<br>Рекруты<br>и Божества', columns };
 }
 
-async function laneLook(ctx: Ctx): Promise<Look> {
-  const rows = await ctx.stats.laneRates();
-  const columns = POSITIONS.map((position) =>
-    full(
-      `линия: ${ROLES[position - 1]}`,
-      tilesOf(
-        ctx,
-        best(
-          rows
-            .filter((each) => each.position === position && each.matches >= MIN_LANE_MATCHES)
-            .map((each) => ({ heroId: each.heroId, value: rate(each.matches, each.wins) })),
-          PER_ROLE
-        ),
-        pct
-      )
-    )
-  );
-  return { title: 'Кто чаще<br><b>выигрывает</b><br>линию', columns };
-}
-
 async function lengthLook(ctx: Ctx): Promise<Look> {
-  const rows = await ctx.stats.lengthRates();
-  // A hero's games of one length group are summed over its length bins.
-  const group = (position: number, inGroup: (minute: number) => boolean): Scored[] => {
-    const sums = new Map<number, { matches: number; wins: number }>();
-    for (const row of rows) {
-      if (row.position !== position || !inGroup(row.minute)) continue;
-      const own = sums.get(row.heroId) ?? { matches: 0, wins: 0 };
-      sums.set(row.heroId, { matches: own.matches + row.matches, wins: own.wins + row.wins });
-    }
-    return [...sums]
+  const rows: { heroId: number; position: number; minute: number; matches: number; wins: number }[] = [];
+  for (const position of POSITIONS) rows.push(...(await ctx.stats.lengthRates(position)));
+  // STRATZ's `time` is a timeline (DEV, 28.10.2026: values 0…35), not a length: the row at minute t counts the games
+  // still running then. So games shorter than 30 minutes are «all at 0» minus «still running at 30», and long games
+  // are those still running at 35.
+  const at = (position: number, minute: number) =>
+    new Map(
+      rows
+        .filter((row) => row.position === position && row.minute === minute)
+        .map((row) => [row.heroId, { matches: row.matches, wins: row.wins }])
+    );
+  const scored = (games: Map<number, { matches: number; wins: number }>): Scored[] =>
+    [...games]
       .filter(([, each]) => each.matches >= MIN_LENGTH_MATCHES)
       .map(([heroId, each]) => ({ heroId, value: rate(each.matches, each.wins) }));
+  const shortGames = (position: number) => {
+    const all = at(position, 0);
+    const late = at(position, SHORT_MINUTES);
+    return new Map(
+      [...all].map(([heroId, each]) => {
+        const still = late.get(heroId) ?? { matches: 0, wins: 0 };
+        return [heroId, { matches: each.matches - still.matches, wins: each.wins - still.wins }];
+      })
+    );
   };
-  const columns: Column[] = POSITIONS.map((position) => {
-    const short = best(
-      group(position, (minute) => minute < SHORT_MINUTES),
+  // Only under a hero's own role, judged on all his games (minute 0).
+  const own = ownRole(POSITIONS.map((position) => at(position, 0)));
+  // Over 35 minutes holds about two thirds of the games (DEV, 28.10.2026), so picking by the long-game rate just
+  // repeated the overall best. A hero is picked by how much better he does in one kind of game than in the other.
+  const columns: Column[] = POSITIONS.map((position, index) => {
+    const shortRates = new Map(scored(shortGames(position)).map((each) => [each.heroId, each.value]));
+    const longRates = new Map(scored(at(position, LONG_MINUTES)).map((each) => [each.heroId, each.value]));
+    const both = [...shortRates.keys()].filter((heroId) => longRates.has(heroId) && own(heroId, index));
+    const gap = (heroId: number) => (shortRates.get(heroId) ?? 0) - (longRates.get(heroId) ?? 0);
+    const early = best(
+      both.map((heroId) => ({ heroId, value: gap(heroId) })),
       PER_ROLE / 2
     );
-    const taken = new Set(short.map((each) => each.heroId));
-    const long = best(
-      group(position, (minute) => minute >= LONG_MINUTES).filter((each) => !taken.has(each.heroId)),
+    // «Strong late» under 50% read as a contradiction (DEV, 28.10.2026: 42.7% on the mid): late picks win long games.
+    const late = worst(
+      both.filter((heroId) => (longRates.get(heroId) ?? 0) >= 50).map((heroId) => ({ heroId, value: gap(heroId) })),
       PER_ROLE / 2
     );
+    const short = early.map((each) => ({ heroId: each.heroId, value: shortRates.get(each.heroId) ?? 0 }));
+    const long = late.map((each) => ({ heroId: each.heroId, value: longRates.get(each.heroId) ?? 0 }));
     return [
-      { group: 'До 30 минут' },
+      { group: 'Быстрые игры: до 30 минут' },
       ...tilesOf(ctx, short, pct),
-      { group: 'После 50 минут' },
+      { group: 'Затяжные игры: после 35 минут' },
       ...tilesOf(ctx, long, pct)
     ];
   });
   for (const [index, column] of columns.entries()) {
-    if (column.length < PER_ROLE + 2) throw noData(`игры по длине: ${ROLES[index]}`);
+    if (column.length < PER_ROLE + 2) {
+      // Which length values STRATZ sent, so a unit mismatch (seconds, bins) shows in the note.
+      const minutes = [...new Set(rows.map((row) => row.minute))].sort((a, b) => a - b);
+      throw noData(
+        `игры по длине: ${ROLES[index]} (строк ${rows.length}, длины ${minutes.slice(0, 6).join(',')}…${minutes.slice(-3).join(',')})`
+      );
+    }
   }
-  return { title: '<b>Лучшие</b><br>в коротких<br>и долгих<br>играх', columns };
-}
-
-async function bansLook(ctx: Ctx): Promise<Look> {
-  const bans = await ctx.stats.banRates();
-  const positions = await ctx.stats.positions();
-  const roleOf = mainRole(positions);
-  // Ten players a match: the games counted are a tenth of the heroes' pick counts.
-  const games = bans.reduce((sum, each) => sum + each.matches, 0) / 10;
-  if (games === 0) throw noData('bans');
-  const columns = POSITIONS.map((position) =>
-    full(
-      `баны: ${ROLES[position - 1]}`,
-      tilesOf(
-        ctx,
-        best(
-          bans
-            .filter((each) => roleOf.get(each.heroId) === position)
-            .map((each) => ({ heroId: each.heroId, value: (each.bans / games) * 100 })),
-          PER_ROLE
-        ),
-        pct
-      )
-    )
-  );
-  return { title: 'Кого<br>чаще всех<br><b>банят</b>', columns };
+  return { title: 'Кто силён<br><b>рано</b>,<br>а кто<br><b>поздно</b>', columns };
 }
 
 // Scale (owner-approved mock-ups S-*-r4): type 120 (title max)/32/26, margins 72 side, 44 top and bottom. Left block
@@ -362,9 +365,10 @@ white-space:nowrap;color:#f1ebe0;align-self:flex-start}
 .col{width:178px;height:680px;padding:6px;border-radius:14px;background:var(--red);display:flex;flex-direction:column;gap:6px}
 .tab{height:48px;flex:none;display:flex;align-items:center;justify-content:center;font-family:Oswald,sans-serif;font-weight:700;
 font-size:32px;line-height:1;text-transform:uppercase;color:#0b0c0e}
-.grp{height:44px;flex:none;border-radius:8px;background:#f1ebe0;display:flex;align-items:center;justify-content:center;gap:4px;
-font-family:Oswald,sans-serif;font-weight:700;font-size:28px;line-height:1;text-transform:uppercase;color:#0b0c0e;white-space:nowrap;overflow:hidden}
-.grp img{width:40px;height:40px;margin-left:-6px;flex:none}
+.grid.rows{left:532px;top:50px;width:926px;height:668px;display:grid;grid-template-columns:repeat(5,166px);column-gap:24px;row-gap:6px}
+.bg{margin:-6px;border-radius:14px;background:var(--red)}
+.band{margin:0 -6px;border-radius:8px;background:#ffffff;display:flex;align-items:center;justify-content:center;
+font-family:Oswald,sans-serif;font-weight:700;font-size:30px;line-height:1;letter-spacing:.06em;text-transform:uppercase;color:#0b0c0e}
 .tile{flex:1 1 0;min-height:0;border-radius:8px;overflow:hidden;background:#0b0c0e;display:flex;flex-direction:column;position:relative}
 .tile img{flex:1 1 0;min-height:0;width:100%;object-fit:cover;object-position:50% 30%;display:block}
 .num{height:38px;flex:none;display:flex;align-items:center;justify-content:center;font-family:Oswald,sans-serif;font-weight:700;
@@ -373,12 +377,9 @@ font-size:34px;line-height:1;font-variant-numeric:tabular-nums;color:#fff;backgr
 .up,.down{display:inline-flex;align-items:center}.down{color:#ff5a3c}
 .tile.fall img{filter:grayscale(.85) brightness(.8)}`;
 // The title starts at 150 px and shrinks until its widest line fits the left block and the whole block fits the height;
-// group bars shrink their own text until it fits the tile width.
 const FIT = `<script>document.fonts.ready.then(()=>{const l=document.querySelector('.left'),t=l.firstElementChild;
 const h=()=>[...l.children].reduce((a,c)=>a+c.getBoundingClientRect().height,0)+40*(l.children.length-1);
-let s=150;t.style.fontSize=s+'px';while((t.getBoundingClientRect().width>420||h()>640)&&s>60){s-=2;t.style.fontSize=s+'px'}
-for(const e of document.querySelectorAll('.grp')){let f=parseFloat(getComputedStyle(e).fontSize);
-while(e.scrollWidth>e.clientWidth&&f>16){f-=1;e.style.fontSize=f+'px'}}})</script>`;
+let s=150;t.style.fontSize=s+'px';while((t.getBoundingClientRect().width>420||h()>640)&&s>60){s-=2;t.style.fontSize=s+'px'}})</script>`;
 const FONT = `<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@700&amp;display=block&amp;subset=cyrillic" rel="stylesheet">`;
 
 const tileHtml = (tile: Tile) =>
@@ -386,27 +387,46 @@ const tileHtml = (tile: Tile) =>
 
 function lookPage(look: Look): string {
   const medal = look.medal === undefined ? '' : `<img class="medal" src="${rankMedalImage(look.medal)}" alt="">`;
-  const columns = look.columns
-    .map(
-      (column, index) =>
-        `<div class="col"><div class="tab">${escapeHtml(ROLES[index] ?? '')}</div>${column
-          .map((cell) =>
-            'group' in cell
-              ? `<div class="grp">${cell.medal === undefined ? '' : `<img src="${rankMedalImage(cell.medal)}" alt="">`}${escapeHtml(cell.group)}</div>`
-              : tileHtml(cell)
-          )
-          .join('')}</div>`
+  const head = `${FONT}<div class="left"><div class="title">${look.title}</div>${medal}</div>${FIT}`;
+  const first = look.columns[0] ?? [];
+  if (!first.some((cell) => 'group' in cell)) {
+    const columns = look.columns
+      .map(
+        (column, index) =>
+          `<div class="col"><div class="tab">${escapeHtml(ROLES[index] ?? '')}</div>${column
+            .map((cell) => ('group' in cell ? '' : tileHtml(cell)))
+            .join('')}</div>`
+      )
+      .join('');
+    return picturePage(`${head}<div class="grid">${columns}</div>`, CSS);
+  }
+  // Blocks (Рекруты / Божества, short / long games): one band across all five columns names each block (owner,
+  // 28.10.2026: the same label in every column read as noise). The columns share rows, so a band lines up with them.
+  const rows = ['48px', ...first.map((cell) => ('group' in cell ? '44px' : 'minmax(0,1fr)'))].join(' ');
+  const at = (column: number, row: number) => `style="grid-column:${column};grid-row:${row}"`;
+  const backs = look.columns.map((_, index) => `<div class="bg" style="grid-column:${index + 1};grid-row:1/-1"></div>`);
+  const tabs = look.columns.map(
+    (_, index) => `<div class="tab" ${at(index + 1, 1)}>${escapeHtml(ROLES[index] ?? '')}</div>`
+  );
+  const bands = first.flatMap((cell, row) =>
+    'group' in cell
+      ? [`<div class="band" style="grid-column:1/-1;grid-row:${row + 2}">${escapeHtml(cell.group)}</div>`]
+      : []
+  );
+  const tiles = look.columns.flatMap((column, index) =>
+    column.flatMap((cell, row) =>
+      'group' in cell ? [] : [tileHtml(cell).replace('<div class="tile', `<div ${at(index + 1, row + 2)} class="tile`)]
     )
-    .join('');
+  );
   return picturePage(
-    `${FONT}<div class="left"><div class="title">${look.title}</div>${medal}</div>${FIT}<div class="grid">${columns}</div>`,
+    `${head}<div class="grid rows" style="grid-template-rows:${rows}">${[...backs, ...tabs, ...bands, ...tiles].join('')}</div>`,
     CSS
   );
 }
 
-type LookName = 'best' | 'worst' | 'easy' | 'swing' | 'ranks' | 'lane' | 'length' | 'bans';
+type LookName = 'best' | 'worst' | 'easy' | 'swing' | 'ranks' | 'length';
 // The order of the turns: the looks the owner hasn't seen yet come first (worst and swing approved, 28.10.2026).
-const LOOKS: readonly LookName[] = ['best', 'easy', 'ranks', 'lane', 'length', 'bans', 'worst', 'swing'];
+const LOOKS: readonly LookName[] = ['best', 'easy', 'ranks', 'length', 'worst', 'swing'];
 const buildLook = (name: LookName, ctx: Ctx, random: () => number): Promise<Look> => {
   switch (name) {
     case 'best':
@@ -418,12 +438,8 @@ const buildLook = (name: LookName, ctx: Ctx, random: () => number): Promise<Look
       return swingLook(ctx);
     case 'ranks':
       return ranksLook(ctx);
-    case 'lane':
-      return laneLook(ctx);
     case 'length':
       return lengthLook(ctx);
-    case 'bans':
-      return bansLook(ctx);
   }
 };
 

@@ -234,12 +234,6 @@ export const MATCH_PLAYERS_MAX = 4;
 // reads follow STRATZ's generated schema (STRATZ_Models, read 28.10.2026: `laneOutcome` rows are pairs heroId1 vs
 // heroId2, length is `stats(groupByTime)`, bans are `banDay`) but are not yet checked against a live reply; a reply
 // that does not parse is a STRATZ_SHAPE and the rubric's look then says «Нет данных» instead of drawing guesses.
-const laneSchema = z.object({
-  heroId1: z.number().int(),
-  position: z.string().max(20).nullable().catch(null),
-  matchCount: count,
-  winCount: count
-});
 const lengthSchema = z.object({
   heroId: z.number().int(),
   position: z.string().max(20),
@@ -247,8 +241,6 @@ const lengthSchema = z.object({
   matchCount: count,
   winCount: count
 });
-const banSchema = z.object({ heroId: z.number().int(), matchCount: count });
-const totalSchema = z.object({ heroId: z.number().int(), matchCount: count });
 const positionPlace = (position: string | null) => Number(/POSITION_(\d)/u.exec(position ?? '')?.[1] ?? 0);
 const positionSchema = z.object({
   heroId: z.number().int(),
@@ -329,14 +321,11 @@ export interface StratzApi {
     weeks: number,
     signal?: AbortSignal
   ): Promise<{ heroId: number; week: number; matches: number; wins: number }[]>;
-  /** Every hero's lanes by position (Divine and Immortal): `matches` lanes played, `wins` lanes won. */
-  laneRates(signal?: AbortSignal): Promise<{ heroId: number; position: number; matches: number; wins: number }[]>;
   /** Every hero's matches and wins by position and match length (Divine and Immortal); `minute` is the length bin's start. */
   lengthRates(
+    position: number,
     signal?: AbortSignal
   ): Promise<{ heroId: number; position: number; minute: number; matches: number; wins: number }[]>;
-  /** Every hero's matches and bans (Divine and Immortal). */
-  banRates(signal?: AbortSignal): Promise<{ heroId: number; matches: number; bans: number }[]>;
   /** Every hero's matches and wins by position 1–5 (Divine and Immortal). */
   positions(signal?: AbortSignal): Promise<{ heroId: number; position: number; matches: number; wins: number }[]>;
   /** A hero's starting buys at one position (1–5), each item with its copy number. */
@@ -502,29 +491,10 @@ export function createStratzApi(input: {
         .map((row) => ({ heroId: row.heroId, week: row.week, matches: row.matchCount, wins: row.winCount }))
         .sort((a, b) => b.week - a.week);
     },
-    async laneRates(signal) {
+    async lengthRates(position, signal) {
+      // One role at a time: every role with every minute came back over the 1 MB cap (DEV, 28.10.2026).
       const rows = await query(
-        '{ heroStats { laneOutcome(isWith: false, bracketBasicIds: [DIVINE_IMMORTAL]) { heroId1 position matchCount winCount } } }',
-        (data) => heroStats(data, 'laneOutcome'),
-        laneSchema,
-        signal
-      );
-      // One row per opponent: a hero's lane at a position is the sum over his rows.
-      const sums = new Map<string, { heroId: number; position: number; matches: number; wins: number }>();
-      for (const row of rows) {
-        const at = positionPlace(row.position);
-        if (at < 1 || at > 5) continue;
-        const key = `${row.heroId1}:${at}`;
-        const sum = sums.get(key) ?? { heroId: row.heroId1, position: at, matches: 0, wins: 0 };
-        sum.matches += row.matchCount;
-        sum.wins += row.winCount;
-        sums.set(key, sum);
-      }
-      return [...sums.values()];
-    },
-    async lengthRates(signal) {
-      const rows = await query(
-        '{ heroStats { stats(groupByPosition: true, groupByTime: true, bracketBasicIds: [DIVINE_IMMORTAL]) { heroId position time matchCount winCount } } }',
+        `{ heroStats { stats(groupByPosition: true, groupByTime: true, bracketBasicIds: [DIVINE_IMMORTAL], positionIds: [POSITION_${place(position)}]) { heroId position time matchCount winCount } } }`,
         (data) => heroStats(data, 'stats'),
         lengthSchema,
         signal
@@ -539,23 +509,6 @@ export function createStratzApi(input: {
           matches: each.row.matchCount,
           wins: each.row.winCount
         }));
-    },
-    async banRates(signal) {
-      // Bans and all matches are two reads, one after the other; the rate is bans over the hero's matches.
-      const bans = await query(
-        '{ heroStats { banDay(groupByDay: false, bracketBasicIds: [DIVINE_IMMORTAL]) { heroId matchCount } } }',
-        (data) => heroStats(data, 'banDay'),
-        banSchema,
-        signal
-      );
-      const totals = await query(
-        '{ heroStats { stats(bracketBasicIds: [DIVINE_IMMORTAL]) { heroId matchCount } } }',
-        (data) => heroStats(data, 'stats'),
-        totalSchema,
-        signal
-      );
-      const banned = new Map(bans.map((row) => [row.heroId, row.matchCount]));
-      return totals.map((row) => ({ heroId: row.heroId, matches: row.matchCount, bans: banned.get(row.heroId) ?? 0 }));
     },
     async heroPurchases(id, signal) {
       const rows = await query(

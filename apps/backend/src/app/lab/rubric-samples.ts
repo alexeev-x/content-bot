@@ -325,9 +325,7 @@ function rubricSources(
               inTurn(() => stratz.guideSample(heroId, position, withPurchases)),
             positions: () => inTurn(() => stratz.positions()),
             positionWeeks: (bracket, position, weeks) => inTurn(() => stratz.positionWeeks(bracket, position, weeks)),
-            laneRates: () => inTurn(() => stratz.laneRates()),
-            lengthRates: () => inTurn(() => stratz.lengthRates()),
-            banRates: () => inTurn(() => stratz.banRates()),
+            lengthRates: (position) => inTurn(() => stratz.lengthRates(position)),
             twoWeeks: (bracket) => inTurn(() => stratz.heroWeeks(bracket, 2))
           }
   };
@@ -355,7 +353,12 @@ type Scene = { kind: 'drawn'; base64: string } | { kind: 'failed'; reason: strin
 const sceneWhy = (scene: Scene & { kind: 'failed' }) =>
   scene.detail === undefined ? scene.reason : `${scene.reason} — ${scene.detail}`;
 
+/** A local run's copy of a sample (`SAMPLE_MIRROR`, local vars only): read back from the local R2 to check results. */
+export type SampleMirror = (name: string, body: Uint8Array | string, contentType: string) => Promise<void>;
+
 export type RubricSampleDeps = {
+  /** Local runs only: every sample is also kept in the local R2. */
+  mirror?: SampleMirror | null;
   /** The finds in the game's files since a time (the game-files module's read). */
   gameFinds: (since: number) => Promise<GameFind[]>;
   /** STRATZ through the stats bridge; null until both the token and the bridge are set. */
@@ -621,6 +624,21 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
     }
   }
 
+  if (deps.mirror) {
+    const stamp = `${new Date(deps.now).toISOString().replace(/[:.]/g, '-')}-${rubric}`;
+    await deps
+      .mirror(
+        `samples/${stamp}.txt`,
+        [text, '', ...notes.map((note) => `NOTE: ${note}`)].join('\n'),
+        'text/plain; charset=utf-8'
+      )
+      .catch(() => undefined);
+    if (picture !== null) await deps.mirror(`samples/${stamp}.png`, picture, 'image/png').catch(() => undefined);
+    // A local run checks samples from the copy; nothing goes to Telegram (owner, 28.10.2026: «в тг ничего слать не надо»).
+    log('sent');
+    return;
+  }
+
   try {
     const signal = () => AbortSignal.timeout(TELEGRAM_TIMEOUT_MS);
     if (notes.length > 0)
@@ -732,6 +750,7 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
 /** What a sample needs beyond the container: the browser and STRATZ, read from the Worker's env by `lab-queue.ts`. */
 export type RubricSampleAccess = {
   renderer: PictureRenderer | null;
+  mirror?: SampleMirror | null;
   stratzAccess: { token: string; bridgeUrl?: string } | null;
 };
 
@@ -767,6 +786,7 @@ export async function runRubricSampleJob(
           return fillBareFinds(container, stored.length > 0 ? stored : await trackerFinds(container, since));
         },
         stratzAccess: access.stratzAccess,
+        mirror: access.mirror ?? null,
         heroMatches: heroMatchSource(container),
         tellers: {
           used: () => container.systemState.readHoroscopeTellers(),
@@ -799,6 +819,13 @@ export async function runRubricSampleJob(
         : '';
     const reason =
       error instanceof AppError ? `${error.details?.['reason'] ?? error.code}${missing}` : describeError(error);
+    await access
+      .mirror?.(
+        `samples/${new Date(container.clock.now()).toISOString().replace(/[:.]/g, '-')}-${rubric}-FAILED.txt`,
+        `образец не собран. ${reason}`,
+        'text/plain; charset=utf-8'
+      )
+      .catch(() => undefined);
     await telegram
       .sendMessage(
         ownerChatId,

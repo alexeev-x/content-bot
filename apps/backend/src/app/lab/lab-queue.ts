@@ -26,7 +26,13 @@ export function createLabQueue(env: Partial<AppEnv>): LabQueue {
         container,
         {
           renderer: isBrowserBinding(env.BROWSER) ? createBrowserPictureRenderer(env.BROWSER) : null,
-          stratzAccess: stratzAccess(env.STRATZ_TOKEN, env.STATS_BRIDGE_URL, env.STATS_DIRECT)
+          stratzAccess: stratzAccess(env.STRATZ_TOKEN, env.STATS_BRIDGE_URL, env.STATS_DIRECT),
+          mirror:
+            env.SAMPLE_MIRROR === 'true' && env.MEDIA_BUCKET !== undefined
+              ? async (name, body, contentType) => {
+                  await env.MEDIA_BUCKET?.put(name, body, { httpMetadata: { contentType } });
+                }
+              : null
         },
         token,
         rubric,

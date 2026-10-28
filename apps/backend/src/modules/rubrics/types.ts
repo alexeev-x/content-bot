@@ -146,12 +146,10 @@ export interface StatsSource {
     position: number,
     weeks: number
   ): Promise<{ heroId: number; week: number; matches: number; wins: number }[]>;
-  /** Every hero's lanes by position: `matches` lanes played, `wins` lanes won (Divine+). */
-  laneRates(): Promise<{ heroId: number; position: number; matches: number; wins: number }[]>;
   /** Every hero's matches and wins by position and match length; `minute` is the length bin's start (Divine+). */
-  lengthRates(): Promise<{ heroId: number; position: number; minute: number; matches: number; wins: number }[]>;
-  /** Every hero's matches and bans (Divine+). */
-  banRates(): Promise<{ heroId: number; matches: number; bans: number }[]>;
+  lengthRates(
+    position: number
+  ): Promise<{ heroId: number; position: number; minute: number; matches: number; wins: number }[]>;
   /** Every hero's matches and wins by position 1–5. */
   positions(): Promise<{ heroId: number; position: number; matches: number; wins: number }[]>;
   /** Every hero's last two weeks in a bracket (null: every bracket together), newest first. */
