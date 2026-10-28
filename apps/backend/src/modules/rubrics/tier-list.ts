@@ -112,6 +112,22 @@ const full = (what: string, tiles: Tile[]) => {
 const best = (list: Scored[], count: number) => [...list].sort((a, b) => b.value - a.value).slice(0, count);
 const worst = (list: Scored[], count: number) => [...list].sort((a, b) => a.value - b.value).slice(0, count);
 
+/** One role's games and wins per hero in the settled newest week of a bracket. */
+async function weekRows(
+  ctx: Ctx,
+  bracket: number,
+  position: number
+): Promise<Map<number, { matches: number; wins: number }>> {
+  const [week] = settledWeeks(await ctx.stats.positionWeeks(bracket, position, 3));
+  return week ?? new Map();
+}
+
+/**
+ * A hero counts under a role only when it is his own: at least this share of his games on the rank are there (DEV,
+ * 28.10.2026: Invoker «worst carry» at 29% from a few off-role picks, the same heroes in three columns).
+ */
+const OWN_ROLE_SHARE = 0.25;
+
 /** One role's rates in the settled newest week of a bracket. */
 async function weekRates(ctx: Ctx, bracket: number, position: number, floor: number): Promise<Scored[]> {
   const [week] = settledWeeks(await ctx.stats.positionWeeks(bracket, position, 3));
@@ -123,9 +139,29 @@ async function weekRates(ctx: Ctx, bracket: number, position: number, floor: num
 
 async function rankLook(ctx: Ctx, random: () => number, side: 'best' | 'worst'): Promise<Look> {
   const rank = pick(ROTATION, random);
+  const byRole: Map<number, { matches: number; wins: number }>[] = [];
+  for (const position of POSITIONS) byRole.push(await weekRows(ctx, rank.bracket, position));
+  // Each hero's games over the five roles, and the role he plays most: he can only show up there.
+  const totals = new Map<number, number>();
+  const home = new Map<number, number>();
+  byRole.forEach((rows, index) => {
+    for (const [heroId, each] of rows) {
+      totals.set(heroId, (totals.get(heroId) ?? 0) + each.matches);
+      const held = home.get(heroId);
+      if (held === undefined || each.matches > (byRole[held]?.get(heroId)?.matches ?? 0)) home.set(heroId, index);
+    }
+  });
   const columns: Column[] = [];
-  for (const position of POSITIONS) {
-    const rates = await weekRates(ctx, rank.bracket, position, MIN_WEEK_MATCHES);
+  for (const [index, rows] of byRole.entries()) {
+    const position = POSITIONS[index] ?? index + 1;
+    const rates = [...rows.entries()]
+      .filter(
+        ([heroId, each]) =>
+          each.matches >= MIN_WEEK_MATCHES &&
+          home.get(heroId) === index &&
+          each.matches >= (totals.get(heroId) ?? 0) * OWN_ROLE_SHARE
+      )
+      .map(([heroId, each]) => ({ heroId, value: rate(each.matches, each.wins) }));
     const chosen = side === 'best' ? best(rates, PER_ROLE) : worst(rates, PER_ROLE);
     columns.push(full(`${ROLES[position - 1]} на ${rank.on}`, tilesOf(ctx, chosen, pct)));
   }
