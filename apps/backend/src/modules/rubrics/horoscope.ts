@@ -577,7 +577,13 @@ async function worstEnemy(context: RubricContext, heroes: readonly Hero[], telle
  * Who appears in the ball (owner, 28.10.2026): the teller's worst enemy, the week's riser or anyone — one of them at
  * random, never the teller himself; a failed read falls back to a random hero.
  */
-async function ballHero(context: RubricContext, heroes: readonly Hero[], teller: Hero): Promise<Hero> {
+const WAY_NAMES = { enemy: 'злейший враг', riser: 'герой недели', random: 'случайный' } as const;
+
+async function ballHero(
+  context: RubricContext,
+  heroes: readonly Hero[],
+  teller: Hero
+): Promise<{ hero: Hero; why: string }> {
   const others = heroes.filter((each) => each.id !== teller.id);
   const way = pick(['enemy', 'riser', 'random'] as const, context.random);
   try {
@@ -587,11 +593,11 @@ async function ballHero(context: RubricContext, heroes: readonly Hero[], teller:
         : way === 'riser'
           ? await riser(context, heroes)
           : null;
-    if (found !== null && found.id !== teller.id) return found;
+    if (found !== null && found.id !== teller.id) return { hero: found, why: WAY_NAMES[way] };
   } catch {
     // The picture only needs a face: a failed read leaves the ball to a random hero.
   }
-  return pick(others, context.random);
+  return { hero: pick(others, context.random), why: WAY_NAMES.random };
 }
 
 export async function horoscope(context: RubricContext): Promise<RubricSample> {
@@ -611,10 +617,11 @@ export async function horoscope(context: RubricContext): Promise<RubricSample> {
   const round = fresh.length === 0 ? heroes : fresh;
   const teller = pick(round, context.random);
   await context.sources.tellers?.remember(fresh.length === 0 ? [teller.id] : [...used, teller.id]);
-  const ball = await ballHero(context, heroes, teller);
+  const { hero: ball, why } = await ballHero(context, heroes, teller);
   const short = (name: string) => name.replace(/^npc_dota_hero_/, '');
   return {
     picture: { html: PAGE, width: 1536, height: 768 },
+    notes: [`Гадалка: ${teller.localizedName} · в шаре: ${ball.localizedName} (${why})`],
     fortuneScene: {
       teller: { renderUrl: `${RENDERS}/${short(teller.name)}.png`, heroName: teller.localizedName },
       ball: { renderUrl: `${RENDERS}/${short(ball.name)}.png`, heroName: ball.localizedName }
