@@ -751,9 +751,14 @@ export async function runRubricSampleJob(
     );
   } catch (error) {
     onError(error);
+    // «No data» names what was missing (a tier-list look, a bracket): the owner sees which part to look at.
+    const missing =
+      error instanceof AppError && error.details?.['reason'] === 'NO_DATA'
+        ? `: ${error.message.replace(/^No data for the rubric: /, '').slice(0, 160)}`
+        : '';
     const reason =
       error instanceof AppError
-        ? `${error.details?.['reason'] ?? error.code}${error.details?.['status'] ? `, HTTP ${error.details['status']}` : ''}`
+        ? `${error.details?.['reason'] ?? error.code}${missing}${error.details?.['status'] ? `, HTTP ${error.details['status']}` : ''}`
         : 'ошибка сервера';
     await telegram
       .sendMessage(
