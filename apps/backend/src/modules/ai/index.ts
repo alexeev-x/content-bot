@@ -18,7 +18,6 @@ export {
 } from './d1-rules-repository';
 export { type AnalyticsReview, writeAnalyticsReview } from './analytics-review';
 export { gameFilesWorthPost } from './game-files-check';
-export { QUIET_BUILD_THEMES, quietBuildJoke } from './quiet-build-joke';
 export { hotfixWorthPost } from './hotfix-check';
 export { condensePatchNotes } from './patch-condense';
 export { drawHotfixPicture, drawPatchPicture, type PatchPictureResult } from './patch-picture';
@@ -43,7 +42,6 @@ export {
 } from './d1-style-lessons-repository';
 export { readDraftChain, readDrafts } from './draft-history';
 export { createD1DraftHistoryRepository, type DraftHistoryRepository } from './d1-draft-history-repository';
-export { createD1JokeRepository, type JokeRepository } from './d1-joke-repository';
 export {
   CONSOLIDATION_MAX_VIDEOS,
   CONSOLIDATION_MIN_VIDEOS,

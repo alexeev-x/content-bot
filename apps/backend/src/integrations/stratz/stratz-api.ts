@@ -44,7 +44,189 @@ const purchaseSchema = z.object({
   matchCount: count,
   winCount: count
 });
-const timeSchema = z.object({ time: z.number().int(), remainingMatchCount: count, winCount: count });
+const startSchema = z.object({
+  itemId: z.number().int(),
+  instance: z.coerce.number().int().positive().catch(1),
+  matchCount: count,
+  winCount: count
+});
+const talentSchema = z.object({ abilityId: z.number().int(), matchCount: count, winCount: count });
+const neutralSchema = z.object({
+  itemId: z.number().int(),
+  // The dotaconstants items carry a neutral tier for a few of the items only; STRATZ names its own.
+  item: z
+    .object({
+      stat: z
+        .object({ neutralItemTier: z.string().max(20).nullable().catch(null) })
+        .nullable()
+        .catch(null)
+    })
+    .nullable()
+    .catch(null),
+  matchCount: count,
+  winCount: count
+});
+const matchupSchema = z.object({
+  vs: z.array(z.object({ heroId2: z.number().int(), matchCount: count, winCount: count })).max(300)
+});
+// «Гайд на героя» sample (owner, 27.10.2026, live on STRATZ): `heroStats.guide` answers ten matches at most and leaves
+// `matchPlayer` null, but different filters give different matches, so one request with a `guide` alias per filter
+// gathers the candidates, and `match(id) { players(steamAccountId) }` aliases give each player's own details.
+const GUIDE_TARGET = 100;
+const GUIDE_MIN_NEWEST = 30;
+/** The stats bridge refuses a query over 4000 characters (bridge/stats-bridge): a read is split into requests under it. */
+const QUERY_MAX_CHARS = 3900;
+const DETAIL_BATCH = 10;
+const STRATZ_GAP_MS = 1200;
+/** Opponents whose filtered lists widen the candidates; the hero itself is skipped. */
+const GUIDE_OPPONENTS = [
+  1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 13, 14, 16, 18, 19, 20, 21, 22, 23, 25, 26, 27, 28, 29, 30, 31, 32, 34, 35, 36, 37,
+  38, 39, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51
+];
+const slot = z.number().int().nullable().catch(null);
+/** Splits aliased fields into groups whose query text stays under `limit` characters. */
+function chunked(parts: string[], limit: number): string[][] {
+  const groups: string[][] = [];
+  let size = 0;
+  for (const part of parts) {
+    const last = groups[groups.length - 1];
+    if (last === undefined || size + part.length + 1 > limit - 40) {
+      groups.push([part]);
+      size = part.length;
+    } else {
+      last.push(part);
+      size += part.length + 1;
+    }
+  }
+  return groups;
+}
+// `guide` answers a list (one HeroGuideListType) under each alias.
+const candidateSchema = z.record(
+  z.string(),
+  z
+    .array(
+      z.object({
+        guides: z
+          .array(
+            z.object({
+              matchId: z.number().int(),
+              steamAccountId: z.number().int(),
+              match: z
+                .object({
+                  startDateTime: z.number().nullable().catch(null),
+                  gameVersionId: z.number().int().nullable().catch(null)
+                })
+                .nullable()
+                .catch(null)
+            })
+          )
+          .max(50)
+          .catch([])
+      })
+    )
+    .max(5)
+    .catch([])
+);
+const detailSchema = z.record(
+  z.string(),
+  z
+    .object({
+      gameVersionId: z.number().int().nullable().catch(null),
+      durationSeconds: z.number().int().nonnegative().nullable().catch(null),
+      players: z
+        .array(
+          z.object({
+            heroId: z.number().int().nullable().catch(null),
+            isVictory: z.boolean().nullable().catch(null),
+            position: z.string().max(20).nullable().catch(null),
+            item0Id: slot,
+            item1Id: slot,
+            item2Id: slot,
+            item3Id: slot,
+            item4Id: slot,
+            item5Id: slot,
+            neutral0Id: slot,
+            abilities: z
+              .array(z.object({ abilityId: z.number().int(), time: z.number().catch(0), level: z.number().catch(0) }))
+              .max(60)
+              .nullable()
+              .catch(null),
+            stats: z
+              .object({
+                itemPurchases: z
+                  .array(z.object({ time: z.number(), itemId: z.number().int() }))
+                  .max(500)
+                  .nullable()
+                  .catch(null),
+                // The neutral slot minute by minute: every tier's item, not only the one left at the end.
+                inventoryReport: z
+                  .array(z.object({ neutral0: z.object({ itemId: z.number().int() }).nullable().catch(null) }))
+                  .max(240)
+                  .nullable()
+                  .catch(null)
+              })
+              .nullable()
+              .catch(null)
+          })
+        )
+        .max(10)
+        .catch([])
+    })
+    .nullable()
+    .catch(null)
+);
+const dayRowSchema = z.object({ day: z.number().int(), matchCount: count, winCount: count });
+/** Whole matches by id for the hero-matches base: every player's position, inventory, purchases and skill order. */
+const matchPlayersSchema = z.record(
+  z.string(),
+  z
+    .object({
+      id: z.number().int(),
+      startDateTime: z.number().int().nonnegative().nullable().catch(null),
+      durationSeconds: z.number().int().nonnegative().nullable().catch(null),
+      gameVersionId: z.number().int().nullable().catch(null),
+      didRadiantWin: z.boolean().nullable().catch(null),
+      players: z
+        .array(
+          z.object({
+            heroId: z.number().int(),
+            isRadiant: z.boolean().nullable().catch(null),
+            position: z.string().max(20).nullable().catch(null),
+            item0Id: slot,
+            item1Id: slot,
+            item2Id: slot,
+            item3Id: slot,
+            item4Id: slot,
+            item5Id: slot,
+            neutral0Id: slot,
+            abilities: z
+              .array(z.object({ abilityId: z.number().int(), level: z.number().catch(0) }))
+              .max(60)
+              .nullable()
+              .catch(null),
+            stats: z
+              .object({
+                itemPurchases: z
+                  .array(z.object({ time: z.number(), itemId: z.number().int() }))
+                  .max(300)
+                  .nullable()
+                  .catch(null)
+              })
+              .nullable()
+              .catch(null)
+          })
+        )
+        .max(10)
+        .catch([])
+    })
+    .nullable()
+    .catch(null)
+);
+/**
+ * Matches per `matchPlayers` request: six took 9–12 ms of CPU to parse on a fresh isolate (QA 28.10.2026, over the Free
+ * plan's 10 ms); four keep the reply near 120 KB.
+ */
+export const MATCH_PLAYERS_MAX = 4;
 const positionSchema = z.object({
   heroId: z.number().int(),
   position: z.string().max(20),
@@ -60,10 +242,53 @@ const averageSchema = z.object({
   deaths: z.coerce.number().catch(0)
 });
 
+/** One player's match as a guide sample row; `purchases` is null when the reply carried none. */
+export interface StratzGuideMatch {
+  victory: boolean;
+  startedAt: number | null;
+  patch: number | null;
+  /** The match's length in minutes; null when STRATZ leaves it out. */
+  minutes: number | null;
+  items: number[];
+  /** The neutral item slot at the end of the match. */
+  neutral: number | null;
+  /** Every neutral item the slot held during the match. */
+  neutralsHeld: number[];
+  purchases: { itemId: number; minute: number }[] | null;
+  abilities: { abilityId: number; time: number; level: number }[];
+}
+
+/** One player of a whole match; `position` 1–5, null when STRATZ has not set it yet. */
+export interface StratzMatchPlayer {
+  heroId: number;
+  /** Null when STRATZ leaves the side out: such a match is not kept. */
+  radiant: boolean | null;
+  position: number | null;
+  items: number[];
+  neutral: number | null;
+  /** Every purchase with its minute (negative: before the horn). */
+  purchases: { itemId: number; minute: number }[];
+  /** Ability ids in the order the points were spent. */
+  skills: number[];
+}
+
+/** A whole match from STRATZ; `startedAt` in UTC seconds. */
+export interface StratzMatch {
+  id: number;
+  startedAt: number | null;
+  patch: number | null;
+  minutes: number | null;
+  radiantWon: boolean | null;
+  players: StratzMatchPlayer[];
+}
+
 export interface StratzApi {
-  /** Every hero's matches and wins in a bracket for the last `weeks` weeks (newest first per hero). */
+  /**
+   * Every hero's matches and wins for the last `weeks` weeks (newest first per hero), in one bracket or, with null, in
+   * every bracket in one request: eight at once got STRATZ_BLOCKED on DEV (27.10.2026).
+   */
   heroWeeks(
-    bracket: number,
+    bracket: number | null,
     weeks: number,
     signal?: AbortSignal
   ): Promise<{ heroId: number; week: number; matches: number; wins: number }[]>;
@@ -72,8 +297,16 @@ export interface StratzApi {
     heroId: number,
     signal?: AbortSignal
   ): Promise<{ itemId: number; minute: number; matches: number; wins: number }[]>;
-  /** A hero's matches still going at each minute and the wins among them (Divine and Immortal). */
-  heroTimeline(heroId: number, signal?: AbortSignal): Promise<{ minute: number; remaining: number; wins: number }[]>;
+  /**
+   * A hero's matches and wins at one position on each of the newest days STRATZ has counted (Divine and Immortal).
+   * Unlike `stats`, whose sample leans to wins (Techies 61.7%, 28.10.2026), it agrees with Dota2ProTracker.
+   */
+  heroPositionDays(
+    heroId: number,
+    position: number,
+    days: number,
+    signal?: AbortSignal
+  ): Promise<{ day: number; matches: number; wins: number }[]>;
   /** Every hero's matches and wins by position 1–5 (Divine and Immortal). */
   positions(signal?: AbortSignal): Promise<{ heroId: number; position: number; matches: number; wins: number }[]>;
   /** Every hero's per-match averages this week (Divine and Immortal); STRATZ leaves goldPerMinute empty. */
@@ -82,7 +315,54 @@ export interface StratzApi {
   ): Promise<
     { heroId: number; matches: number; networth: number; heroDamage: number; kills: number; deaths: number }[]
   >;
+  /** A hero's starting buys at one position (1–5), each item with its copy number. */
+  startingItems(
+    heroId: number,
+    position: number,
+    signal?: AbortSignal
+  ): Promise<{ itemId: number; instance: number; matches: number; wins: number }[]>;
+  /** A hero's item purchases by minute at one position. */
+  positionPurchases(
+    heroId: number,
+    position: number,
+    signal?: AbortSignal
+  ): Promise<{ itemId: number; minute: number; matches: number; wins: number }[]>;
+  /** The neutral items a hero's players held at one position, each with STRATZ's own tier. */
+  neutralItems(
+    heroId: number,
+    position: number,
+    signal?: AbortSignal
+  ): Promise<{ itemId: number; tier: number | null; matches: number; wins: number }[]>;
+  /** How often each talent (by ability id) was learnt at one position. */
+  talents(
+    heroId: number,
+    position: number,
+    signal?: AbortSignal
+  ): Promise<{ abilityId: number; matches: number; wins: number }[]>;
+  /** A hero's matches and wins against every other hero. */
+  matchups(heroId: number, signal?: AbortSignal): Promise<{ heroId: number; matches: number; wins: number }[]>;
+  /**
+   * A hero's recent matches at one position: about a hundred candidates from `guide` lists under several filters, then
+   * per match the player's outcome, final inventory, abilities and, with `withPurchases`, every item purchase. Only the
+   * newest patch's players whose own position and hero match are kept. `fetched`: candidates read; `total`: found.
+   */
+  guideSample(
+    heroId: number,
+    position: number,
+    withPurchases: boolean,
+    signal?: AbortSignal
+  ): Promise<{
+    fetched: number;
+    total: number;
+    matches: StratzGuideMatch[];
+    positions: Record<string, number>;
+  }>;
+  /** Whole matches by id (at most `MATCH_PLAYERS_MAX`) in one request; a match STRATZ does not hold is left out. */
+  matchPlayers(ids: readonly number[], signal?: AbortSignal): Promise<StratzMatch[]>;
 }
+
+/** Matches per guide sample and opponents per matchup read: both bound the reply. */
+const MATCHUP_TAKE = 130;
 
 /** `bridgeUrl`: the stats bridge's origin; without it STRATZ is called directly (it works from any non-Cloudflare host). */
 export function createStratzApi(input: { token: string; bridgeUrl?: string; fetchImpl?: typeof fetch }): StratzApi {
@@ -133,9 +413,17 @@ export function createStratzApi(input: { token: string; bridgeUrl?: string; fetc
   const heroStats = (data: unknown, field: string) =>
     (data as { heroStats?: Record<string, unknown> } | undefined)?.heroStats?.[field];
   const heroId = (value: number) => Math.trunc(value);
+  const place = (position: number) => {
+    const each = Math.trunc(position);
+    if (each < 1 || each > 5) throw new StratzError('STRATZ_SHAPE');
+    return each;
+  };
+  /** The arguments every per-hero aggregate takes: the hero, Divine and Immortal, one position. */
+  const scope = (id: number, position: number) =>
+    `heroId: ${heroId(id)}, bracketBasicIds: [DIVINE_IMMORTAL], positionIds: [POSITION_${place(position)}]`;
   return {
     async heroWeeks(bracket, weeks, signal) {
-      const name = BRACKETS[bracket];
+      const name = bracket === null ? Object.values(BRACKETS).join(', ') : BRACKETS[bracket];
       if (name === undefined) throw new StratzError('STRATZ_SHAPE');
       const rows = await query(
         `{ heroStats { winWeek(take: ${Math.min(Math.max(Math.trunc(weeks), 1), 4)}, bracketIds: [${name}]) { heroId week matchCount winCount } } }`,
@@ -156,14 +444,14 @@ export function createStratzApi(input: { token: string; bridgeUrl?: string; fetc
       );
       return rows.map((row) => ({ itemId: row.itemId, minute: row.time, matches: row.matchCount, wins: row.winCount }));
     },
-    async heroTimeline(id, signal) {
+    async heroPositionDays(id, position, days, signal) {
       const rows = await query(
-        `{ heroStats { stats(heroIds: [${heroId(id)}], groupByTime: true, bracketBasicIds: [DIVINE_IMMORTAL], minTime: 0, maxTime: 75) { time remainingMatchCount winCount } } }`,
-        (data) => heroStats(data, 'stats'),
-        timeSchema,
+        `{ heroStats { winDay(take: ${Math.min(Math.max(Math.trunc(days), 1), 14)}, heroIds: [${heroId(id)}], positionIds: [POSITION_${place(position)}], bracketIds: [DIVINE, IMMORTAL]) { day matchCount winCount } } }`,
+        (data) => heroStats(data, 'winDay'),
+        dayRowSchema,
         signal
       );
-      return rows.map((row) => ({ minute: row.time, remaining: row.remainingMatchCount, wins: row.winCount }));
+      return rows.map((row) => ({ day: row.day, matches: row.matchCount, wins: row.winCount }));
     },
     async positions(signal) {
       const rows = await query(
@@ -196,6 +484,214 @@ export function createStratzApi(input: { token: string; bridgeUrl?: string; fetc
         kills: row.kills,
         deaths: row.deaths
       }));
+    },
+    async startingItems(id, position, signal) {
+      const rows = await query(
+        `{ heroStats { itemStartingPurchase(${scope(id, position)}) { itemId instance matchCount winCount } } }`,
+        (data) => heroStats(data, 'itemStartingPurchase'),
+        startSchema,
+        signal
+      );
+      return rows.map((row) => ({
+        itemId: row.itemId,
+        instance: row.instance,
+        matches: row.matchCount,
+        wins: row.winCount
+      }));
+    },
+    async positionPurchases(id, position, signal) {
+      const rows = await query(
+        `{ heroStats { itemFullPurchase(${scope(id, position)}) { itemId time matchCount winCount } } }`,
+        (data) => heroStats(data, 'itemFullPurchase'),
+        purchaseSchema,
+        signal
+      );
+      return rows.map((row) => ({ itemId: row.itemId, minute: row.time, matches: row.matchCount, wins: row.winCount }));
+    },
+    async neutralItems(id, position, signal) {
+      const rows = await query(
+        `{ heroStats { itemNeutral(${scope(id, position)}) { itemId matchCount winCount item { stat { neutralItemTier } } } } }`,
+        (data) => heroStats(data, 'itemNeutral'),
+        neutralSchema,
+        signal
+      );
+      return rows.map((row) => ({
+        itemId: row.itemId,
+        tier: Number(/TIER_(\d)/u.exec(row.item?.stat?.neutralItemTier ?? '')?.[1] ?? 0) || null,
+        matches: row.matchCount,
+        wins: row.winCount
+      }));
+    },
+    async talents(id, position, signal) {
+      const rows = await query(
+        `{ heroStats { talent(${scope(id, position)}) { abilityId matchCount winCount } } }`,
+        (data) => heroStats(data, 'talent'),
+        talentSchema,
+        signal
+      );
+      return rows.map((row) => ({ abilityId: row.abilityId, matches: row.matchCount, wins: row.winCount }));
+    },
+    async matchups(id, signal) {
+      const rows = await query(
+        `{ heroStats { heroVsHeroMatchup(heroId: ${heroId(id)}, take: ${MATCHUP_TAKE}) { advantage { vs { heroId2 matchCount winCount } } } } }`,
+        (data) => (heroStats(data, 'heroVsHeroMatchup') as { advantage?: unknown } | undefined)?.advantage,
+        matchupSchema,
+        signal
+      );
+      return rows
+        .flatMap((row) => row.vs)
+        .map((row) => ({ heroId: row.heroId2, matches: row.matchCount, wins: row.winCount }));
+    },
+    async matchPlayers(ids, signal) {
+      const wanted = [...new Set(ids.map((each) => Math.trunc(each)))].filter((each) => each > 0);
+      if (wanted.length === 0) return [];
+      if (wanted.length > MATCH_PLAYERS_MAX) throw new StratzError('STRATZ_SHAPE');
+      const fields = wanted.map(
+        (matchId, index) =>
+          `m${index}: match(id: ${matchId}) { id startDateTime durationSeconds gameVersionId didRadiantWin players { heroId isRadiant position item0Id item1Id item2Id item3Id item4Id item5Id neutral0Id abilities { abilityId level } stats { itemPurchases { time itemId } } } }`
+      );
+      const [reply] = await query(`{ ${fields.join(' ')} }`, (data) => [data], matchPlayersSchema, signal);
+      return Object.values(reply ?? {}).flatMap((match) =>
+        match === null
+          ? []
+          : [
+              {
+                id: match.id,
+                startedAt: match.startDateTime,
+                patch: match.gameVersionId,
+                minutes: match.durationSeconds === null ? null : Math.round(match.durationSeconds / 60),
+                radiantWon: match.didRadiantWin,
+                players: match.players.map((player) => ({
+                  heroId: player.heroId,
+                  radiant: player.isRadiant,
+                  position: Number(/^POSITION_([1-5])$/u.exec(player.position ?? '')?.[1] ?? 0) || null,
+                  items: [
+                    player.item0Id,
+                    player.item1Id,
+                    player.item2Id,
+                    player.item3Id,
+                    player.item4Id,
+                    player.item5Id
+                  ].filter((item): item is number => item !== null && item > 0),
+                  neutral: player.neutral0Id,
+                  purchases: (player.stats?.itemPurchases ?? []).map((each) => ({
+                    itemId: each.itemId,
+                    minute: Math.floor(each.time / 60)
+                  })),
+                  skills: [...(player.abilities ?? [])].sort((a, b) => a.level - b.level).map((each) => each.abilityId)
+                }))
+              }
+            ]
+      );
+    },
+    async guideSample(id, position, withPurchases, signal) {
+      const wanted = place(position);
+      const hero = heroId(id);
+      const field = (alias: string, filter: string) =>
+        `${alias}: guide(heroId: ${hero}, positionId: POSITION_${wanted}, take: 10${filter}) { guides { matchId steamAccountId match { startDateTime gameVersionId } } }`;
+      const fields = [
+        field('base', ''),
+        field('pro', ', isPro: true'),
+        ...GUIDE_OPPONENTS.filter((other) => other !== hero).map((other) =>
+          field(`v${other}`, `, againstHeroId: ${other}`)
+        )
+      ];
+      const lists: z.infer<typeof candidateSchema>[] = [];
+      for (const [index, part] of chunked(fields, QUERY_MAX_CHARS).entries()) {
+        if (index > 0) await new Promise((resolve) => setTimeout(resolve, STRATZ_GAP_MS));
+        lists.push(
+          ...(await query(
+            `{ heroStats { ${part.join(' ')} } }`,
+            (data) => [(data as { heroStats?: unknown } | undefined)?.heroStats],
+            candidateSchema,
+            signal
+          ))
+        );
+      }
+      const unique = new Map<string, { matchId: number; steamAccountId: number; patch: number | null; at: number }>();
+      for (const list of lists)
+        for (const each of Object.values(list))
+          for (const guide of each.flatMap((one) => one.guides))
+            unique.set(`${guide.matchId}:${guide.steamAccountId}`, {
+              matchId: guide.matchId,
+              steamAccountId: guide.steamAccountId,
+              patch: guide.match?.gameVersionId ?? null,
+              at: guide.match?.startDateTime ?? 0
+            });
+      const candidates = [...unique.values()];
+      const newest = Math.max(-1, ...candidates.map((each) => each.patch ?? -1));
+      const onNewest = candidates.filter((each) => each.patch === newest);
+      const chosen = (onNewest.length >= GUIDE_MIN_NEWEST ? onNewest : candidates)
+        .sort((a, b) => b.at - a.at)
+        .slice(0, GUIDE_TARGET);
+      const purchases = withPurchases
+        ? ' stats { itemPurchases { time itemId } inventoryReport { neutral0 { itemId } } }'
+        : ' stats { inventoryReport { neutral0 { itemId } } }';
+      const readOf = (each: { matchId: number; steamAccountId: number }, slotNumber: number) =>
+        `m${slotNumber}: match(id: ${each.matchId}) { gameVersionId durationSeconds players(steamAccountId: ${each.steamAccountId}) { heroId isVictory position item0Id item1Id item2Id item3Id item4Id item5Id neutral0Id abilities { abilityId time level }${purchases} } }`;
+      const matches: StratzGuideMatch[] = [];
+      const seen: Record<string, number> = {};
+      // One request at a time with a pause (STRATZ blocked eight at once): up to ten matches a request, fewer when the
+      // text would pass the bridge's limit.
+      for (let from = 0; from < chosen.length;) {
+        await new Promise((resolve) => setTimeout(resolve, STRATZ_GAP_MS));
+        const reads: string[] = [];
+        const batch: typeof chosen = [];
+        let size = 4;
+        while (batch.length < DETAIL_BATCH && from + batch.length < chosen.length) {
+          const next = chosen[from + batch.length];
+          if (next === undefined) break;
+          const read = readOf(next, batch.length);
+          if (batch.length > 0 && size + read.length + 1 > QUERY_MAX_CHARS) break;
+          size += read.length + 1;
+          reads.push(read);
+          batch.push(next);
+        }
+        from += batch.length;
+        const details = await query(`{ ${reads.join(' ')} }`, (data) => [data], detailSchema, signal);
+        const byAlias = details[0] ?? {};
+        batch.forEach((each, index) => {
+          const match = byAlias[`m${index}`];
+          const player = match?.players[0];
+          if (match == null || player === undefined || player.isVictory === null) return;
+          seen[player.position ?? 'нет'] = (seen[player.position ?? 'нет'] ?? 0) + 1;
+          if (player.position !== `POSITION_${wanted}` || player.heroId !== hero) return;
+          const events = player.stats?.itemPurchases;
+          matches.push({
+            victory: player.isVictory,
+            startedAt: each.at === 0 ? null : each.at,
+            patch: match.gameVersionId ?? each.patch,
+            minutes: match.durationSeconds === null ? null : match.durationSeconds / 60,
+            items: [
+              player.item0Id,
+              player.item1Id,
+              player.item2Id,
+              player.item3Id,
+              player.item4Id,
+              player.item5Id
+            ].filter((item): item is number => item !== null),
+            neutral: player.neutral0Id,
+            neutralsHeld: [
+              ...new Set(
+                (player.stats?.inventoryReport ?? []).flatMap((minute) =>
+                  minute.neutral0 === null ? [] : [minute.neutral0.itemId]
+                )
+              )
+            ],
+            purchases:
+              events == null ? null : events.map((event) => ({ itemId: event.itemId, minute: event.time / 60 })),
+            abilities: player.abilities ?? []
+          });
+        });
+      }
+      const patch = Math.max(-1, ...matches.map((each) => each.patch ?? -1));
+      const current = matches.filter((each) => each.patch === patch);
+      return {
+        fetched: chosen.length,
+        total: candidates.length,
+        matches: current.length >= GUIDE_MIN_NEWEST ? current : matches,
+        positions: seen
+      };
     }
   };
 }

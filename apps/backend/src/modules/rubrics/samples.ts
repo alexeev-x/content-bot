@@ -1,26 +1,36 @@
-import { fakeItem, filesDontLie, guessStreak, rateIt, rebus, tierListVote, workshopSet } from './content-rubrics';
-import { comboMath, didYouKnow, guessByNumbers, itemExam, whoseAbility } from './game-rubrics';
-import { nerfOrBuff, patchBroken, valveSeriously, valveTime, whoGetsNerfed, whoIsImba } from './patch-rubrics';
+import { fakeItem, filesDontLie, rateIt, rebus, workshopSet } from './content-rubrics';
 import {
-  antiBuild,
-  banOrPick,
-  carryOnFive,
+  abilityInLife,
+  confess,
+  explainDumb,
+  heroProfile,
+  itemLeaflet,
+  onLane,
+  toxicBingo,
+  toxicTranslator,
+  trashTier,
+  whatIf,
+  wouldYouRather
+} from './fun-rubrics';
+import { whoseAbility } from './game-rubrics';
+import { grandpa, nerfOrBuff, patchBroken, valveFixed, valveSeriously, valveTime, whoIsImba } from './patch-rubrics';
+import {
+  crimeNews,
   forgottenHero,
-  guessWinrate,
-  heroPeak,
+  heroGuide,
+  heroTrial,
   horoscope,
   notBuiltYet,
-  poisonForLow,
-  rankMeta,
+  recruitPicks,
   tierList,
-  weeklyRecord,
   whoBeatsWhom,
-  whoseBuild
+  whoGetsNerfed
 } from './stats-rubrics';
 import type { RubricContext, RubricSample } from './types';
 
-// The 32 rubrics of `.logs/rubrics-best.html` (owner, 25.10.2026: «мне надо все рубрики»), each built from live data
-// the way the channel would show it. The texts are drafts over real numbers; the AI writer rewrites them (app/workflows).
+// The channel's rubrics, each built from live data the way the channel would show it: 01–10 approved by the owner, the
+// rest the new list (owner, 27.10.2026: «замени текущие… пока просто общее сделай, потом каждый по одному»). The texts
+// are drafts over real numbers; the AI writer rewrites them (app/workflows).
 
 export const RUBRIC_KEYS = [
   'patch_broken',
@@ -33,28 +43,30 @@ export const RUBRIC_KEYS = [
   'valve_time',
   'rate_it',
   'who_beats_whom',
-  'guess_by_numbers',
-  'guess_winrate',
-  'ban_or_pick',
-  'rank_meta',
-  'poison_for_low',
-  'daily_record',
-  'hero_peak',
-  'anti_build',
-  'forgotten_hero',
-  'did_you_know',
-  'item_exam',
-  'tier_list',
-  'carry_on_five',
-  'combo_math',
-  'horoscope',
   'workshop_set',
+  'hero_guide',
+  'what_if',
+  'confess',
+  'explain_dumb',
+  'toxic_translator',
+  'crime_news',
+  'ability_in_life',
+  'hero_profile',
+  'item_leaflet',
+  'tier_list',
+  'recruit_picks',
+  'forgotten_hero',
+  'horoscope',
+  'hero_trial',
+  'would_you_rather',
+  'on_lane',
+  'grandpa',
+  'valve_fixed',
   'rebus',
-  'guess_streak',
-  'tier_list_vote',
-  'guess_match',
+  'toxic_bingo',
+  'trash_tier',
   'fake_item',
-  'whose_build'
+  'confessional'
 ] as const;
 export type RubricKey = (typeof RUBRIC_KEYS)[number];
 
@@ -70,28 +82,30 @@ export const RUBRIC_TITLES: Record<RubricKey, string> = {
   valve_time: 'Валв-тайм',
   rate_it: 'Оцениваем',
   who_beats_whom: 'Кто кого перебьёт?',
-  guess_by_numbers: 'Угадай героя по цифрам',
-  guess_winrate: 'Угадай винрейт',
-  ban_or_pick: 'Бан или пик?',
-  rank_meta: 'Мета по рангам',
-  poison_for_low: 'Яд для низов',
-  daily_record: 'Рекорд недели',
-  hero_peak: 'Когда герой сильнее всего',
-  anti_build: 'Антисборка',
+  workshop_set: 'Сеты из мастерской',
+  hero_guide: 'Гайд на героя',
+  what_if: 'Что если…',
+  confess: 'Признавайтесь',
+  explain_dumb: 'Объясни как дебилу',
+  toxic_translator: 'Переводчик с токсичного',
+  crime_news: 'Криминальная хроника',
+  ability_in_life: 'Способность в жизнь',
+  hero_profile: 'Анкета',
+  item_leaflet: 'Инструкция по применению',
+  tier_list: 'Тир-лист',
+  recruit_picks: 'Что брать рекруту',
   forgotten_hero: 'Забытый герой',
-  did_you_know: 'А вы знали?',
-  item_exam: 'Предметный экзамен',
-  tier_list: 'Тир-лист по-русски',
-  carry_on_five: 'Керри на пятой',
-  combo_math: 'Комбо-расчёт',
-  horoscope: 'Дота-гороскоп',
-  workshop_set: 'Оцени сет из мастерской',
+  horoscope: 'Гороскоп',
+  hero_trial: 'Суд',
+  would_you_rather: 'Что выберешь?',
+  on_lane: 'Ты на линии',
+  grandpa: 'Дед',
+  valve_fixed: 'Valve исправила',
   rebus: 'Ребус',
-  guess_streak: 'Угадай-серия',
-  tier_list_vote: 'Тир-лист голосованием',
-  guess_match: 'Угадай матч',
-  fake_item: 'Шемелис недели',
-  whose_build: 'Чья сборка?'
+  toxic_bingo: 'Токсик-бинго',
+  trash_tier: 'Тир-лист хуйни',
+  fake_item: 'Предмет, которого нет',
+  confessional: 'Исповедальня'
 };
 
 const BUILDERS: Record<RubricKey, (context: RubricContext) => Promise<RubricSample>> = {
@@ -105,29 +119,31 @@ const BUILDERS: Record<RubricKey, (context: RubricContext) => Promise<RubricSamp
   valve_time: valveTime,
   rate_it: rateIt,
   who_beats_whom: whoBeatsWhom,
-  guess_by_numbers: guessByNumbers,
-  guess_winrate: guessWinrate,
-  ban_or_pick: banOrPick,
-  rank_meta: rankMeta,
-  poison_for_low: poisonForLow,
-  daily_record: weeklyRecord,
-  hero_peak: heroPeak,
-  anti_build: antiBuild,
-  forgotten_hero: forgottenHero,
-  did_you_know: didYouKnow,
-  item_exam: itemExam,
-  tier_list: tierList,
-  carry_on_five: carryOnFive,
-  combo_math: comboMath,
-  horoscope,
   workshop_set: workshopSet,
+  hero_guide: heroGuide,
+  what_if: whatIf,
+  confess,
+  explain_dumb: explainDumb,
+  toxic_translator: toxicTranslator,
+  crime_news: crimeNews,
+  ability_in_life: abilityInLife,
+  hero_profile: heroProfile,
+  item_leaflet: itemLeaflet,
+  tier_list: tierList,
+  recruit_picks: recruitPicks,
+  forgotten_hero: forgottenHero,
+  horoscope,
+  hero_trial: heroTrial,
+  would_you_rather: wouldYouRather,
+  on_lane: onLane,
+  grandpa,
+  valve_fixed: valveFixed,
   rebus,
-  guess_streak: guessStreak,
-  tier_list_vote: tierListVote,
-  // STRATZ's live matches came back empty (25.10.2026); a source of recent high-rank matches is still to find.
-  guess_match: () => notBuiltYet('recent high-rank matches'),
+  toxic_bingo: toxicBingo,
+  trash_tier: trashTier,
   fake_item: fakeItem,
-  whose_build: whoseBuild
+  // Subscribers' confessions come through the channel's direct messages, which the bot does not read yet.
+  confessional: () => notBuiltYet('subscribers’ confessions via the channel’s direct messages')
 };
 
 export function buildRubricSample(key: RubricKey, context: RubricContext): Promise<RubricSample> {

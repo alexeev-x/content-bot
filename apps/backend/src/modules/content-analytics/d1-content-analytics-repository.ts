@@ -24,6 +24,13 @@ export const CHECKPOINT_HOURS = [1, 3, 6, 12, 24, 48, 72] as const;
 // A checkpoint is taken by the first collection within 90 minutes after it; later readings (a backfill,
 // a long outage) leave it empty rather than record a value from a different age.
 const CHECKPOINT_WINDOW_MS = 90 * 60 * 1000;
+/** The age past which a post gets no more checkpoints: the last one (72 hours) plus its window. */
+const CHECKPOINT_AGE_MS = 73 * HOUR_MS + CHECKPOINT_WINDOW_MS;
+/**
+ * Posts younger than this are rewritten on every read, changed or not: the checkpoints need `observed_at = now`, and
+ * the TikTok «gone» and «stalled» checks (alerts.ts, a week back) read `observed_at` as the last time a post was seen.
+ */
+export const ALWAYS_READ_MS = 7 * 24 * HOUR_MS;
 const CHECKPOINT_SET = CHECKPOINT_HOURS.map(
   (hours) =>
     `v${hours}h = COALESCE(v${hours}h, CASE WHEN ?1 - published_at >= ${hours * HOUR_MS} AND ?1 - published_at < ${hours * HOUR_MS + CHECKPOINT_WINDOW_MS} THEN views END)`
@@ -48,6 +55,7 @@ export interface ItemRow {
   likes: number | null;
   comments: number | null;
   shares: number | null;
+  /** When the item's numbers last changed; a post young enough for checkpoints, its last read. */
   observedAt: number;
 }
 
@@ -242,9 +250,18 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
                title = excluded.title, url = excluded.url, thumbnail_url = excluded.thumbnail_url,
                published_at = excluded.published_at, views = excluded.views, likes = excluded.likes,
                comments = excluded.comments, shares = excluded.shares, observed_at = excluded.observed_at,
-               tags = excluded.tags`
+               tags = excluded.tags
+             -- Only a changed item is rewritten (owner, 28.10.2026: every run rewrote all ~200 items, 31 000 of
+             -- production's 41 000 D1 rows written a day). A post younger than a week is always rewritten: the
+             -- checkpoint below and the TikTok watch need observed_at = now.
+             WHERE content_items.views IS NOT excluded.views OR content_items.likes IS NOT excluded.likes
+               OR content_items.comments IS NOT excluded.comments OR content_items.shares IS NOT excluded.shares
+               OR content_items.title IS NOT excluded.title OR content_items.url IS NOT excluded.url
+               OR content_items.thumbnail_url IS NOT excluded.thumbnail_url
+               OR content_items.published_at IS NOT excluded.published_at OR content_items.tags IS NOT excluded.tags
+               OR excluded.published_at > ?3 - ?4`
           )
-          .bind(json, platform, now),
+          .bind(json, platform, now, ALWAYS_READ_MS),
         db
           .prepare(
             `INSERT OR IGNORE INTO content_item_snapshots (item_id, observed_at, views, likes, comments, shares)
@@ -266,7 +283,7 @@ export function createD1ContentAnalyticsRepository(db: D1Database): ContentAnaly
             `UPDATE content_items SET ${CHECKPOINT_SET}
              WHERE platform = ?2 AND published_at > ?1 - ?3 AND observed_at = ?1`
           )
-          .bind(now, platform, 73 * HOUR_MS + CHECKPOINT_WINDOW_MS),
+          .bind(now, platform, CHECKPOINT_AGE_MS),
         db
           .prepare(
             'UPDATE content_sources SET last_success_at = ?, last_error_at = NULL, last_error_code = NULL WHERE platform = ?'

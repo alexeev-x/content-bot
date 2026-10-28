@@ -127,20 +127,9 @@ SteamTracking/GameTracking-Dota2 (SteamDB's tracker, one commit per game build),
   text with an address in it waits for the owner (`link`): GitHub's text is nobody's, and an address would go out as a
   hidden link. Off, over the daily limit or with an unclean fact check, the draft comes to the owner as any source draft.
 - Known gap: a run stopped by the platform between the claim and the queue send leaves the build `queued` with no post.
-- A build with nothing worth a post (owner, 24.10.2026: «если ничего не нашлось можно смешную добавить текст и сам
-  diff»): the newest build of a run that touches nothing a player sees, one whose diff has no changes, and one the cheap
-  check finds dull get one short post — a joke («шуточные посты всегда разные», `modules/ai/quiet-build-joke.ts`):
-  the cheap model writes three on the diff's +1 (a theme drawn at random as a fallback angle), seeing three of eight fixed tone
-  examples and three drawn from the 20 newest of the joke bank; the draft model, as critic, keeps the best, sharpens it
-  or turns all down (owner, 27.10.2026). What it keeps goes into the bank (`quiet_build_jokes`, migration 0115, one per
-  build); turned-down jokes are never kept, so the writer never copies them. A stand-in line when the critic turns all
-  down or AI cannot run; asked only once the post may go out — and the version lines as a
-  ```diff block (`- ClientVersion=<previous>` / `+ ClientVersion=<build>`), key `files-quiet:<build>`, under the
-  automatic publishing's switch and limit (`app/workflows/publish-fixed-post.ts`). A build one of whose commits had a
-  find gets none; an official patch build none either (the patch notes tell it). The post is its own queue job
-  (`game_files_quiet`, its own D1 budget), sent ten minutes late so the other commits of the build are read first; it
-  claims the build once before the joke is paid for, checks again that no commit of the build had a find, and a run
-  queues at most one (QA 24.10.2026).
+- A build with nothing worth a post (no file a player sees, no changes, or dull to the cheap check) gets no post at all
+  (owner, 28.10.2026: «такие пустые не публиковать»); the builds with finds feed the rubric «Утечка недели». The joke bank of
+  migration 0115 (`quiet_build_jokes`) is no longer read or written.
 
 ## Early signal of a Dota build from Steam (migrations 0108, 0113; owner 24.10.2026)
 
@@ -162,3 +151,22 @@ Both watches (game files and Steam) write their last run to `source_watch_checks
 or the failure's stable code. «Источники → Состояние лент» shows them beside the two feeds (`GET /api/v1/dota`
 `watches`).
 A watch whose third run in a row fails raises one content alert «Источник … не работает» with its code (`watch-down:<key>:<time>`, review 24.10.2026), sent with the next content alerts.
+
+## Hero-matches base for «Гайд на героя» (migration 0116, owner 28.10.2026)
+
+«По любому герою», with position matchups, a real win rate and room for unusual builds: no public source splits
+matchups by position (STRATZ's `heroVsHeroMatchup` has no positions, its `guide` lists only wins, Dota2ProTracker's API
+is closed), so the bot keeps its own base the way Dota2ProTracker counts from STRATZ's matches
+(`app/workflows/hero-matches.ts`, `modules/hero-matches`). Every five minutes (minutes ending in 1 or 6) the Cron queues
+two `hero_matches` jobs, only with `STRATZ_TOKEN` and `STATS_BRIDGE_URL`; production always, DEV only while the owner's
+«Фоновые задачи → База матчей» switch is on (owner, 28.10.2026: DEV lives without Cron). Every 90 minutes a run lists OpenDota's newest public
+matches of rank tier 75 and up (`/publicMatches?min_rank=75` through the bridge, 100 a page, about 1 600 a day) past the
+newest id taken; twelve hours after a match (STRATZ fills positions late; 82% of day-old matches had them, 28.10.2026)
+it is read from STRATZ with three others in one request (each job its own CPU; six took 9–12 ms to parse) (`match(id)` aliases). A match whose ten players all have a
+position becomes ten rows of `hero_match_players` (hero, position, outcome, length, the «hero:position» of allies and
+opponents, and a compact JSON of items, purchases with minutes and skill order; consumables only before the horn);
+one without is tried again six hours later, three tries at most. Claims are conditional (the listing turn, each due
+match moved ahead before it is read), so overlapping runs never read a match twice and a failed read only waits. Rows
+older than 14 days are deleted once a day (a full scan, once). The guide counts from the base when it holds at least
+150 games of the hero at its position: win rate, game-length rates and matchups from every game, builds from the newest
+150; with fewer it keeps STRATZ's sample, and the owner's note says which.

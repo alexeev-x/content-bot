@@ -7,7 +7,8 @@ import { formatAgo } from './owner-time';
 const PROBLEM_CAP = 5;
 const INCIDENT_CAP = 20;
 // A tick that is older than this means Cron is not running (it fires every minute).
-const CRON_STALE_MS = 3 * 60_000;
+/** The Cron records its run every five minutes (scheduled.ts), so seven without one is stale. */
+const CRON_STALE_MS = 7 * 60_000;
 
 const STUDIO_BUTTON_TEXT = 'Открыть студию';
 const PROBLEMS_BUTTON_TEXT = 'Разобраться';

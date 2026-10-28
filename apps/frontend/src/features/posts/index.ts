@@ -7,7 +7,7 @@ export { messageLength } from './model/message-length';
 export { PostsList } from './ui/PostsList';
 export { PostsSkeleton } from './ui/PostsSkeleton';
 export { postsCopy } from './ui/copy';
-export { formatExact } from './model/format-time';
+export { formatDayMonth, formatExact } from './model/format-time';
 export { DeletePostsDialog, deleteTargetOf } from './ui/DeletePostsDialog';
 export { LifecycleBanner } from './ui/LifecycleBanner';
 export { useRestoreActions } from './model/use-restore';

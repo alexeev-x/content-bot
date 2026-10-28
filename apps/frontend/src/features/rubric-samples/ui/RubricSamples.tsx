@@ -7,35 +7,33 @@ import styles from './RubricSamples.module.css';
 
 type Need = 'ready' | 'stratz' | 'later';
 // Rubrics the owner approved leave the list (owner, 26.10.2026: «убирай те рубрики, которые мы утвердили»):
-// 1 «Кого понерфили», 2 «Кто теперь имба?», 3 «Нерф или баф?», 4 «Чья способность?», 5 «Утечка недели».
+// 1 «Кого понерфили», 2 «Кто теперь имба?», 3 «Нерф или баф?», 4 «Чья способность?», 5 «Утечка недели»; 6–10
+// «Кого понерфят?», «Valve, ты серьёзно?», «Валв-тайм», «Оцениваем», «Кто кого перебьёт?» (27.10.2026).
 const RUBRICS: { key: RubricSampleKey; label: string; note: string; need: Need }[] = [
-  { key: 'who_gets_nerfed', label: '6. Кого понерфят?', note: 'опрос', need: 'ready' },
-  { key: 'valve_seriously', label: '7. Valve, ты серьёзно?', note: 'текст', need: 'ready' },
-  { key: 'valve_time', label: '8. Валв-тайм', note: 'текст', need: 'ready' },
-  { key: 'rate_it', label: '9. Оцениваем', note: 'картинка новинки', need: 'ready' },
-  { key: 'who_beats_whom', label: '10. Кто кого перебьёт?', note: 'картинка + опрос', need: 'stratz' },
-  { key: 'guess_by_numbers', label: '11. Угадай героя по цифрам', note: 'викторина', need: 'ready' },
-  { key: 'guess_winrate', label: '12. Угадай винрейт', note: 'картинка + викторина', need: 'stratz' },
-  { key: 'ban_or_pick', label: '13. Бан или пик?', note: 'картинка + опрос', need: 'stratz' },
-  { key: 'rank_meta', label: '14. Мета по рангам', note: 'картинка: топ-5', need: 'stratz' },
-  { key: 'poison_for_low', label: '15. Яд для низов', note: 'текст', need: 'stratz' },
-  { key: 'daily_record', label: '16. Рекорд недели', note: 'текст', need: 'stratz' },
-  { key: 'hero_peak', label: '17. Когда герой сильнее всего', note: 'текст', need: 'stratz' },
-  { key: 'anti_build', label: '18. Антисборка', note: 'картинка', need: 'stratz' },
-  { key: 'forgotten_hero', label: '19. Забытый герой', note: 'текст', need: 'stratz' },
-  { key: 'did_you_know', label: '20. А вы знали?', note: 'текст', need: 'ready' },
-  { key: 'item_exam', label: '21. Предметный экзамен', note: 'викторина, иногда с картинкой', need: 'ready' },
-  { key: 'tier_list', label: '22. Тир-лист по-русски', note: 'картинка', need: 'stratz' },
-  { key: 'carry_on_five', label: '23. Керри на пятой', note: 'текст', need: 'stratz' },
-  { key: 'combo_math', label: '24. Комбо-расчёт', note: 'картинка', need: 'ready' },
-  { key: 'horoscope', label: '25. Дота-гороскоп', note: 'текст', need: 'stratz' },
-  { key: 'workshop_set', label: '26. Оцени сет из мастерской', note: 'картинка + ссылка', need: 'ready' },
-  { key: 'rebus', label: '27. Ребус', note: 'картинка + викторина', need: 'ready' },
-  { key: 'guess_streak', label: '28. Угадай-серия', note: 'викторина (без кнопок и таблицы)', need: 'ready' },
-  { key: 'tier_list_vote', label: '29. Тир-лист голосованием', note: 'картинка + опрос', need: 'ready' },
-  { key: 'guess_match', label: '30. Угадай матч', note: 'опрос, нет источника свежих матчей', need: 'later' },
-  { key: 'fake_item', label: '31. Шемелис недели', note: 'картинка', need: 'ready' },
-  { key: 'whose_build', label: '32. Чья сборка?', note: 'картинка + викторина', need: 'stratz' }
+  { key: 'workshop_set', label: '11. Сеты из мастерской', note: 'фото и гифки сета, реакции', need: 'ready' },
+  { key: 'hero_guide', label: '12. Гайд на героя', note: 'текст: старт, кор, поздняя игра', need: 'stratz' },
+  { key: 'what_if', label: '13. Что если…', note: 'сценка, картинка ИИ', need: 'ready' },
+  { key: 'confess', label: '14. Признавайтесь', note: 'текст, реакции', need: 'ready' },
+  { key: 'explain_dumb', label: '15. Объясни как дебилу', note: 'способность через быт', need: 'ready' },
+  { key: 'toxic_translator', label: '16. Переводчик с токсичного', note: 'словарная статья', need: 'ready' },
+  { key: 'crime_news', label: '17. Криминальная хроника', note: 'рекорд недели заметкой', need: 'stratz' },
+  { key: 'ability_in_life', label: '18. Способность в жизнь', note: 'опрос', need: 'ready' },
+  { key: 'hero_profile', label: '19. Анкета', note: 'медкарта, резюме, анкета', need: 'ready' },
+  { key: 'item_leaflet', label: '20. Инструкция по применению', note: 'предмет как лекарство', need: 'ready' },
+  { key: 'tier_list', label: '21. Тир-лист', note: 'картинка', need: 'stratz' },
+  { key: 'recruit_picks', label: '22. Что брать рекруту', note: 'текст: топ-5 на Рекрутах', need: 'stratz' },
+  { key: 'forgotten_hero', label: '23. Забытый герой', note: 'текст', need: 'stratz' },
+  { key: 'horoscope', label: '24. Гороскоп', note: 'текст', need: 'stratz' },
+  { key: 'hero_trial', label: '25. Суд', note: 'опрос «Приговор»', need: 'stratz' },
+  { key: 'would_you_rather', label: '26. Что выберешь?', note: 'текст, реакции', need: 'ready' },
+  { key: 'on_lane', label: '27. Ты на линии', note: 'ситуация с решением', need: 'ready' },
+  { key: 'grandpa', label: '28. Дед', note: 'правка патча ворчанием', need: 'ready' },
+  { key: 'valve_fixed', label: '29. Valve исправила', note: 'правка патча и эскалация', need: 'ready' },
+  { key: 'rebus', label: '30. Ребус', note: 'картинка + викторина', need: 'ready' },
+  { key: 'toxic_bingo', label: '31. Токсик-бинго', note: 'бинго 3×3 текстом', need: 'ready' },
+  { key: 'trash_tier', label: '32. Тир-лист хуйни', note: 'тир-лист по теме', need: 'ready' },
+  { key: 'fake_item', label: '33. Предмет, которого нет', note: 'картинка', need: 'ready' },
+  { key: 'confessional', label: '34. Исповедальня', note: 'признания подписчиков в личке канала', need: 'later' }
 ];
 const NEED_NOTE: Record<Need, string> = { ready: '', stratz: ' · STRATZ', later: ' · пока не готово' };
 

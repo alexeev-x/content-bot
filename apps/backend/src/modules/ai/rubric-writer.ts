@@ -46,6 +46,11 @@ export async function writeRubricCaption(
     poll: string | null;
     /** The rubric's own task: how its post is built and how it ends. */
     brief: string;
+    /**
+     * Background the writer reads but need not keep number by number (Valve's announcement for «Оцениваем»): its prices
+     * and dates would otherwise all have to appear in a short post.
+     */
+    reference?: string;
     signal: AbortSignal;
   }
 ): Promise<string | null> {
@@ -67,6 +72,9 @@ export async function writeRubricCaption(
       input: [
         `Рубрика: ${input.title}`,
         `Черновик:\n${draft}`,
+        ...(input.reference === undefined
+          ? []
+          : [`Справка (факты для поста; цифры из неё переносить не обязательно):\n${input.reference}`]),
         input.poll === null ? 'Опроса нет.' : `Опрос под постом: ${input.poll}`
       ].join('\n\n'),
       // Room for a reasoning model's thinking.

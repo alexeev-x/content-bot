@@ -7,6 +7,9 @@ import { readCappedText } from '../../platform/http/read-capped-text';
 
 export const DOTACONSTANTS_TIMEOUT_MS = 15_000;
 const BASE = 'https://raw.githubusercontent.com/odota/dotaconstants/master/build';
+// The same constant OpenDota serves, from dotaconstants on GitHub: OpenDota refuses Cloudflare's addresses (DEV,
+// 27.10.2026: DOTACONSTANTS_HTTP).
+const HERO_ABILITIES_URL = 'https://raw.githubusercontent.com/odota/dotaconstants/master/build/hero_abilities.json';
 const MAX_BODY_BYTES = 800_000;
 
 export type DotaConstantsErrorCode = 'DOTACONSTANTS_FETCH' | 'DOTACONSTANTS_HTTP' | 'DOTACONSTANTS_SHAPE';
@@ -46,6 +49,8 @@ export interface ConstantsItem {
   name: string;
   cost: number;
   components: string[];
+  /** 1–5 for a neutral item, else null. */
+  neutralTier: number | null;
 }
 
 const heroSchema = z.object({
@@ -68,17 +73,24 @@ const heroSchema = z.object({
   projectile_speed: z.number().catch(0)
 });
 
+const talentLevelsSchema = z.object({
+  // Rubick and Ringmaster carry extra talents at tiers 5–7 (DEV, 27.10.2026: DOTACONSTANTS_SHAPE); only 1–4 are the tree.
+  talents: z.array(z.object({ name: z.string().max(100), level: z.number().int().min(1).max(10) })).max(24)
+});
+
 export interface DotaConstantsApi {
   heroes(signal?: AbortSignal): Promise<ConstantsHero[]>;
   items(signal?: AbortSignal): Promise<ConstantsItem[]>;
+  /** A hero's talents with the tier the game puts them at: 1–4 for levels 10, 15, 20, 25, two to a tier. */
+  talentLevels(heroName: string, signal?: AbortSignal): Promise<{ name: string; level: number }[]>;
 }
 
 export function createDotaConstantsApi(input: { fetchImpl?: typeof fetch } = {}): DotaConstantsApi {
   const fetchImpl = input.fetchImpl ?? fetch;
-  async function get(file: string, signal?: AbortSignal): Promise<Record<string, unknown>> {
+  async function getUrl(url: string, signal?: AbortSignal): Promise<Record<string, unknown>> {
     let response: Response;
     try {
-      response = await fetchImpl(`${BASE}/${file}`, {
+      response = await fetchImpl(url, {
         signal: signal ?? AbortSignal.timeout(DOTACONSTANTS_TIMEOUT_MS)
       });
     } catch {
@@ -97,6 +109,7 @@ export function createDotaConstantsApi(input: { fetchImpl?: typeof fetch } = {})
       throw new DotaConstantsError('DOTACONSTANTS_SHAPE');
     return body as Record<string, unknown>;
   }
+  const get = (file: string, signal?: AbortSignal) => getUrl(`${BASE}/${file}`, signal);
   return {
     async heroes(signal) {
       const heroes: ConstantsHero[] = [];
@@ -133,7 +146,7 @@ export function createDotaConstantsApi(input: { fetchImpl?: typeof fetch } = {})
         if (key.startsWith('recipe_')) continue;
         // Checked by hand, not with Zod: some 500 entries, and the request has 10 ms of CPU.
         if (typeof entry !== 'object' || entry === null) continue;
-        const { id, dname, cost, components } = entry as Record<string, unknown>;
+        const { id, dname, cost, components, tier } = entry as Record<string, unknown>;
         if (typeof id !== 'number' || typeof dname !== 'string' || typeof cost !== 'number') continue;
         items.push({
           id,
@@ -142,11 +155,19 @@ export function createDotaConstantsApi(input: { fetchImpl?: typeof fetch } = {})
           cost,
           components: Array.isArray(components)
             ? components.filter((part): part is string => typeof part === 'string').slice(0, 10)
-            : []
+            : [],
+          neutralTier: typeof tier === 'number' && tier >= 1 && tier <= 5 ? tier : null
         });
       }
       if (items.length < 100) throw new DotaConstantsError('DOTACONSTANTS_SHAPE');
       return items;
+    },
+    async talentLevels(heroName, signal) {
+      // OpenDota's own constants (170 KB for every hero): the GitHub copy's talent order is not a documented pairing.
+      const all = await getUrl(HERO_ABILITIES_URL, signal);
+      const parsed = talentLevelsSchema.safeParse(all[heroName]);
+      if (!parsed.success) throw new DotaConstantsError('DOTACONSTANTS_SHAPE');
+      return parsed.data.talents.filter((talent) => talent.level <= 4);
     }
   };
 }

@@ -273,7 +273,13 @@ export const postsCopy = {
       pollSettings: 'Настройки опроса',
       pollMultiple: 'несколько ответов',
       pollExplanation: 'Пояснение после ответа (необязательно)',
-      pollQuizHint: 'Верный ответ отмечается кружком у варианта в опросе'
+      pollQuizHint: 'Верный ответ отмечается кружком у варианта в опросе',
+      approvedStatus: 'Одобрен',
+      archivedStatus: 'В архиве',
+      approvedPinned: 'Готов к публикации, текст не меняется',
+      toDraft: 'В черновик',
+      archivedPinned: (date: string) => `В архиве до ${date}`,
+      restore: 'Вернуть'
     },
     overLimit: 'Лимит превышен',
     previewHeading: 'Так увидят в Telegram',

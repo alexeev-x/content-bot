@@ -54,6 +54,8 @@ type Props = {
   postSettings?: ReactNode;
   /** Page-level banners (a failed delete): shown with the editor's own, so the phone composer does not cover them. */
   notices?: ReactNode;
+  /** Phones: the archive's one-line strip under the header (its banner is in `notices` on wider screens). */
+  phonePinned?: { text: string; action?: ReactNode } | null;
   /** Tab the editor opens on; «Создать опрос» sends a new post straight to the poll form. */
   initialTab?: 'editor' | 'poll' | undefined;
 };
@@ -71,6 +73,7 @@ export function PostEditor({
   headerActions,
   postSettings,
   notices,
+  phonePinned,
   initialTab
 }: Props) {
   const rootRef = useRef<HTMLDivElement>(null);
@@ -397,6 +400,33 @@ export function PostEditor({
       {notices}
     </>
   );
+  const approvedBanner =
+    isApproved && !isArchived && !hasConflict ? (
+      <Banner
+        tone="info"
+        title={copy.approved.readOnlyTitle}
+        action={
+          <div className={styles.bannerActions}>
+            {canReturnToDraft ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                icon="edit"
+                isLoading={editor.isReturning}
+                onPress={() => void editor.returnToDraft()}
+              >
+                {postsCopy.actions.returnToDraft}
+              </Button>
+            ) : null}
+            <Button size="sm" variant="secondary" icon="plus" onPress={() => void navigate({ to: '/posts/new' })}>
+              {copy.approved.newPost}
+            </Button>
+          </div>
+        }
+      >
+        {canReturnToDraft ? copy.approved.readOnlyBody : copy.approved.readOnlyBodyNoReturn}
+      </Banner>
+    ) : null;
   const dialogs = (
     <>
       <CompareDialog
@@ -434,19 +464,57 @@ export function PostEditor({
     </>
   );
 
-  // Phones write the post as a Telegram message (owner, 20.10.2026: «на мобилке ужасно — как в телеграме»). An
-  // approved or archived post is not being written: it keeps the preview and its publications.
-  if (narrow && !showApprovedPreview && !isArchived) {
+  // Phones show every post as a Telegram message (owner, 20.10.2026: «на мобилке ужасно — как в телеграме»; 27.10.2026:
+  // an approved or archived post opens the same way). An approved one is read-only and sends to its publish step, an
+  // archived one only shows its text.
+  if (narrow) {
     const showPoll = editor.isNew ? composerTab === 'poll' : isPoll;
     const savedAt = !editor.isNew && baseline ? formatClock(baseline.updatedAt) : null;
+    const locked = editor.readOnly || hasConflict || isArchived;
+    const send = isArchived
+      ? null
+      : showApprovedPreview && baseline
+        ? {
+            isLoading: false,
+            isDisabled: waitingForPictures,
+            onPress: () => void navigate({ to: '/posts/$id/publish', params: { id: baseline.id } })
+          }
+        : { isLoading: editor.isSaving, isDisabled: !canContinue, onPress: () => void continueToPublish() };
+    const phoneNotices = (
+      <>
+        {banners}
+        {mixedNotice}
+      </>
+    );
+    const pinned = isArchived
+      ? phonePinned
+      : showApprovedPreview
+        ? {
+            text: copy.phone.approvedPinned,
+            action: canReturnToDraft ? (
+              <Button
+                size="sm"
+                variant="secondary"
+                icon="edit"
+                isLoading={editor.isReturning}
+                onPress={() => void editor.returnToDraft()}
+              >
+                {copy.phone.toDraft}
+              </Button>
+            ) : undefined
+          }
+        : null;
+    const status = isArchived ? copy.phone.archivedStatus : showApprovedPreview ? copy.phone.approvedStatus : null;
     return (
       <>
         <PhoneComposer
           rootRef={rootRef}
           kind={showPoll ? 'poll' : 'text'}
           canImprove={editor.body.trim() !== ''}
-          isReadOnly={editor.readOnly || hasConflict}
-          send={{ isLoading: editor.isSaving, isDisabled: !canContinue, onPress: () => void continueToPublish() }}
+          isReadOnly={locked}
+          send={send}
+          pinned={pinned}
+          below={showApprovedPreview ? aside : null}
           meta={
             savedAt ? (
               <>
@@ -463,7 +531,7 @@ export function PostEditor({
                   {editor.isNew ? copy.composer.newTitle : editor.title.trim() || copy.untitled}
                 </h1>
                 <span className={styles.phoneStatus}>
-                  <SaveIndicator state={editor.saveState} savedAt={baseline?.updatedAt} compact />
+                  {status ?? <SaveIndicator state={editor.saveState} savedAt={baseline?.updatedAt} compact />}
                   <OriginMark origin={baseline?.origin} />
                 </span>
               </div>
@@ -492,12 +560,7 @@ export function PostEditor({
             </>
           }
           notices={
-            conflict || notice || notices || editor.mixed ? (
-              <>
-                {banners}
-                {mixedNotice}
-              </>
-            ) : null
+            conflict || notice || notices || editor.mixed || waitingForPictures || editor.richLost ? phoneNotices : null
           }
         >
           {(tools) =>
@@ -506,7 +569,7 @@ export function PostEditor({
                 poll={editor.poll}
                 onChange={editor.setPoll}
                 issue={editor.pollIssue}
-                isReadOnly={editor.readOnly}
+                isReadOnly={editor.readOnly || isArchived}
                 showErrors={publishTried}
                 {...tools.poll}
               />
@@ -516,7 +579,7 @@ export function PostEditor({
                   postId={baseline?.id ?? null}
                   revision={baseline?.revision ?? 0}
                   media={baseline?.media ?? []}
-                  disabled={editor.readOnly || hasConflict}
+                  disabled={locked}
                   mediaWriteLock={mediaWriteLock}
                   onServerChange={editor.adoptMedia}
                   onPendingChange={setMediaPending}
@@ -536,7 +599,7 @@ export function PostEditor({
                   hasTitle={editor.hasTitle}
                   body={editor.body}
                   entities={editor.entities}
-                  isReadOnly={editor.readOnly}
+                  isReadOnly={editor.readOnly || isArchived}
                   isNew={editor.isNew}
                   length={editor.length}
                   overflow={editor.overflow}
@@ -616,32 +679,7 @@ export function PostEditor({
       </header>
 
       {banners}
-      {isApproved && !isArchived && !hasConflict ? (
-        <Banner
-          tone="info"
-          title={copy.approved.readOnlyTitle}
-          action={
-            <div className={styles.bannerActions}>
-              {canReturnToDraft ? (
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  icon="edit"
-                  isLoading={editor.isReturning}
-                  onPress={() => void editor.returnToDraft()}
-                >
-                  {postsCopy.actions.returnToDraft}
-                </Button>
-              ) : null}
-              <Button size="sm" variant="secondary" icon="plus" onPress={() => void navigate({ to: '/posts/new' })}>
-                {copy.approved.newPost}
-              </Button>
-            </div>
-          }
-        >
-          {canReturnToDraft ? copy.approved.readOnlyBody : copy.approved.readOnlyBodyNoReturn}
-        </Banner>
-      ) : null}
+      {approvedBanner}
 
       {showApprovedPreview ? side : narrow && mobilePreviewOpen ? previewPanel : composer}
       <footer className={narrow ? styles.actionBar : styles.footerBar}>

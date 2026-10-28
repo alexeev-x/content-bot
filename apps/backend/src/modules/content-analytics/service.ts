@@ -20,6 +20,7 @@ import { decodeKeysetCursor, encodeKeysetCursor } from '../../platform/paginatio
 import { AppError } from '../../shared/app-error';
 import type { ConfiguredSources } from './collectors';
 import {
+  ALWAYS_READ_MS,
   CHECKPOINT_HOURS,
   type CheckpointRow,
   type ContentAnalyticsRepository,
@@ -32,6 +33,10 @@ const MINUTE_MS = 60 * 1000;
 const DAY_MS = 24 * 60 * MINUTE_MS;
 /** Cron collects each source about once an hour. */
 export const COLLECT_INTERVAL_MS = 55 * MINUTE_MS;
+/** Posts refreshed every hour besides the young ones; the rest once a day. */
+const HOURLY_ITEMS = 20;
+/** Refreshed every hour, changed or not: the checkpoints and the TikTok watch need it (repository). */
+const YOUNG_MS = ALWAYS_READ_MS;
 /** A failed collection is retried this much sooner than the regular interval. */
 const RETRY_AFTER_FAILURE_MS = 15 * MINUTE_MS;
 /** The owner's «Обновить» collects a source again only when its last claim is at least this old. */
@@ -117,7 +122,7 @@ export async function collectContentAnalytics(deps: {
         now: finishedAt,
         day: utcDay(finishedAt),
         followers: collection.followers,
-        items: collection.items
+        items: itemsToStore(collection.items, finishedAt)
       });
     } catch (error) {
       // Our own write failed, not the source: a distinct code, and the error name for the logs.
@@ -135,6 +140,18 @@ export async function collectContentAnalytics(deps: {
     else deps.logger.warn({ ...event, status: 'partial', errorCode: collection.warning });
   }
   return { collected, failed, deferred };
+}
+
+/**
+ * What a collection stores (owner, 28.10.2026: «по факту надо раз в час… за 10–20 видео», «не тратить на аналитику
+ * слишком много»): every hour the newest twenty posts and every post younger than a week (checkpoints, TikTok watch);
+ * the whole list once a day, on the first collection of the UTC day, so older posts' counts and their daily
+ * snapshots stay a day fresh.
+ */
+export function itemsToStore<T extends { publishedAt: number }>(items: readonly T[], now: number): T[] {
+  if (utcDay(now) !== utcDay(now - COLLECT_INTERVAL_MS)) return [...items];
+  const newest = new Set([...items].sort((a, b) => b.publishedAt - a.publishedAt).slice(0, HOURLY_ITEMS));
+  return items.filter((item) => newest.has(item) || item.publishedAt > now - YOUNG_MS);
 }
 
 function toItemDto(row: ItemRow): ContentItemDto {

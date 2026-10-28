@@ -32,6 +32,8 @@ export interface ItemInfo {
   name: string;
   cost: number;
   components: string[];
+  /** 1–5 for a neutral item, else null. */
+  neutralTier: number | null;
 }
 
 export interface AbilityDetail {
@@ -44,11 +46,21 @@ export interface AbilityDetail {
   values: { heading: string; values: number[] }[];
 }
 
+/** A talent as Valve's text has it, `{s:bonus_radius}` placeholders unfilled; `bonuses` hold what it adds, by value name. */
+export interface TalentDetail {
+  id: number;
+  key: string;
+  name: string;
+  bonuses: { name: string; value: number }[];
+}
+
 export interface HeroDetail {
   id: number;
   name: string;
   localizedName: string;
   abilities: AbilityDetail[];
+  /** The eight talents: the level 10 pair first, then 15, 20 and 25. */
+  talents: TalentDetail[];
 }
 
 export interface PatchNotes {
@@ -65,6 +77,36 @@ export interface HeroBracketStat {
   wins: number;
 }
 
+/** One match of a guide sample: the player's own outcome, final inventory, buys and ability learning. */
+export interface GuideMatch {
+  victory: boolean;
+  /** Match start, UTC seconds. */
+  startedAt: number | null;
+  /** STRATZ's game version (patch) id: grows with each patch. */
+  patch: number | null;
+  /** The match's length in minutes (the late-game inventories); null or absent when unknown. */
+  minutes?: number | null;
+  /** The six inventory slots at the end of the match. */
+  items: number[];
+  /** The neutral item slot at the end of the match. */
+  neutral?: number | null;
+  /** Every neutral item the slot held during the match (STRATZ's minute-by-minute inventory); absent when unknown. */
+  neutralsHeld?: number[];
+  /** Every purchase with its minute (negative: before the horn); null when the sample does not carry them. */
+  purchases: { itemId: number; minute: number }[] | null;
+  /** Every ability point spent. */
+  abilities: { abilityId: number; time: number; level: number }[];
+}
+
+/** The matches STRATZ returned that were played at the asked position (`fetched`: every row it sent; `total`: all it holds). */
+export interface GuideSample {
+  fetched: number;
+  total: number;
+  matches: GuideMatch[];
+  /** The positions the rows came with (`POSITION_4` → count), for the owner's note when none matched. */
+  positions?: Record<string, number>;
+}
+
 export interface StatsSource {
   /** Every hero's matches and wins in the bracket over the last days. */
   heroBracketStats(bracket: number): Promise<HeroBracketStat[]>;
@@ -72,16 +114,54 @@ export interface StatsSource {
   heroLateItems(heroId: number): Promise<number[]>;
   /** A hero's item purchases by minute with the wins of those matches. */
   heroPurchases(heroId: number): Promise<{ itemId: number; minute: number; matches: number; wins: number }[]>;
-  /** A hero's matches still going at each minute and the wins among them. */
-  heroTimeline(heroId: number): Promise<{ minute: number; remaining: number; wins: number }[]>;
+  /** A hero's matches and wins at one position on each of the newest days counted. */
+  heroPositionDays(
+    heroId: number,
+    position: number,
+    days: number
+  ): Promise<{ day: number; matches: number; wins: number }[]>;
+  /** A hero's starting buys at a position (1–5). */
+  heroStartingItems(
+    heroId: number,
+    position: number
+  ): Promise<{ itemId: number; instance: number; matches: number; wins: number }[]>;
+  /** A hero's item purchases by minute at a position. */
+  heroPositionPurchases(
+    heroId: number,
+    position: number
+  ): Promise<{ itemId: number; minute: number; matches: number; wins: number }[]>;
+  /** The neutral items held at a position; `tier` is STRATZ's own (null when it names none). */
+  heroNeutralItems(
+    heroId: number,
+    position: number
+  ): Promise<{ itemId: number; tier: number | null; matches: number; wins: number }[]>;
+  heroTalents(heroId: number, position: number): Promise<{ abilityId: number; matches: number; wins: number }[]>;
+  /** A hero's matches and wins against each other hero. */
+  heroMatchups(heroId: number): Promise<{ heroId: number; matches: number; wins: number }[]>;
+  /** The hero's recent matches at one position, one row per match (the guide's sample). */
+  heroGuideSample(heroId: number, position: number, withPurchases: boolean): Promise<GuideSample>;
   /** Every hero's matches and wins by position 1–5. */
   positions(): Promise<{ heroId: number; position: number; matches: number; wins: number }[]>;
-  /** Every hero's last two weeks in a bracket, newest first. */
-  twoWeeks(bracket: number): Promise<{ heroId: number; week: number; matches: number; wins: number }[]>;
+  /** Every hero's last two weeks in a bracket (null: every bracket together), newest first. */
+  twoWeeks(bracket: number | null): Promise<{ heroId: number; week: number; matches: number; wins: number }[]>;
   /** Every hero's per-match averages this week. */
   averages(): Promise<
     { heroId: number; matches: number; networth: number; heroDamage: number; kills: number; deaths: number }[]
   >;
+}
+
+/** OpenDota's hero reads: the guide's fallback when STRATZ fails or comes back empty. Counts only, no minutes. */
+export interface FallbackStatsSource {
+  /** Item purchases by stretch of the match (item id → matches). */
+  heroItemPopularity(heroId: number): Promise<{
+    start: { itemId: number; matches: number }[];
+    early: { itemId: number; matches: number }[];
+    mid: { itemId: number; matches: number }[];
+    late: { itemId: number; matches: number }[];
+  }>;
+  heroMatchups(heroId: number): Promise<{ heroId: number; matches: number; wins: number }[]>;
+  /** Matches and wins by match length; `from` is the bin's start in seconds. */
+  heroDurations(heroId: number): Promise<{ from: number; matches: number; wins: number }[]>;
 }
 
 export interface RubricSources {
@@ -91,13 +171,38 @@ export interface RubricSources {
   patches(): Promise<{ version: string; timestamp: number }[]>;
   patchNotes(version: string): Promise<PatchNotes>;
   /** The newest Steam announcements of Dota 2 with their first picture. */
-  steamNews(): Promise<{ title: string; imageUrl: string | null; publishedAt: number }[]>;
+  steamNews(): Promise<{ title: string; text: string; imageUrl: string | null; publishedAt: number }[]>;
   /** The finds in the game's files committed since `since` (UTC ms), newest first, at most a few. */
   gameFinds(since: number): Promise<{ build: string; committedAt: number; note: string | null; text: string | null }[]>;
   /** A set rising in the Steam Workshop this week. */
-  workshopTrending(): Promise<{ title: string; previewUrl: string; url: string } | null>;
+  /** This week's trending Workshop sets, ids in trend order. */
+  workshopTrendingIds(): Promise<string[]>;
+  workshopItem(id: string): Promise<{
+    title: string;
+    previewUrl: string;
+    url: string;
+    screenshots: string[];
+    /** The description's GIFs as MP4 clips. */
+    clips: string[];
+    /** The Workshop's tags; the hero's English name is one of them. */
+    tags: string[];
+  } | null>;
+  /** A hero's talents with the tier the game puts them at (1–4: levels 10, 15, 20, 25), two to a tier. */
+  talentLevels(heroName: string): Promise<{ name: string; level: number }[]>;
   /** Null until STRATZ_TOKEN is set. */
   stats: StatsSource | null;
+  /** OpenDota through the stats bridge; null without the bridge. */
+  fallback?: FallbackStatsSource | null;
+  /** The bot's own base of high-rank matches (14 days); absent outside the Worker. */
+  heroMatches?: HeroMatchSource | null;
+}
+
+/** The bot's own high-rank matches, one row per player, the last 14 days (migration 0116). */
+export interface HeroMatchSource {
+  /** Every game of the hero at the position: outcome, length in minutes and the opponents' hero ids. */
+  games(heroId: number, position: number): Promise<{ won: boolean; minutes: number; enemies: number[] }[]>;
+  /** The newest `limit` games of the hero at the position as guide matches (purchases, skills, items). */
+  sample(heroId: number, position: number, limit: number): Promise<GuideMatch[]>;
 }
 
 export interface RubricSample {
@@ -106,10 +211,36 @@ export interface RubricSample {
   text: string;
   /** The rubric is one poll message with the picture inside it: no text post, no AI caption. */
   pictureInPoll?: boolean;
+  /** A source's own picture sent as its file, not drawn into a page (`picture` is then null). */
+  photo?: { url: string };
+  /** A source's own photos and video clips sent as one album, the caption on the first (`picture` is then null). */
+  album?: {
+    photos: string[];
+    clips: string[];
+    /** A still to open the album with when every photo turns out animated. */
+    cover?: string;
+  };
+  /** Lines for the owner's sample only: what the rubric had to leave out. */
+  notes?: string[];
+  /** More pages of the same post: the picture and these are one carousel in one rich message. */
+  slides?: { html: string; width: number; height: number }[];
+  /** Links shown as words in the caption, never a bare address (owner, 27.10.2026: «ссылки прятать в текст»). */
+  links?: { text: string; url: string }[];
+  /** A fixed last line under the AI's caption, kept word for word (a reactions verdict). */
+  footer?: string;
+  /** Background for the AI writer that the caption need not repeat number by number. */
+  reference?: string;
   /** The text is final as written (fixed captions): no AI caption. */
   ownText?: boolean;
-  /** A second post of the rubric that follows the first after a while (e.g. a riddle's answer). */
-  followUp?: { afterMinutes: number; picture: { html: string; width: number; height: number } | null; text: string };
+  /**
+   * A second post of the rubric that follows the first after a while (e.g. a riddle's answer); `afterMinutes: null`
+   * waits for the next patch, and the sample reads the latest one in its place.
+   */
+  followUp?: {
+    afterMinutes: number | null;
+    picture: { html: string; width: number; height: number } | null;
+    text: string;
+  };
   poll: {
     question: string;
     options: string[];

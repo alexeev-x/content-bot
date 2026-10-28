@@ -95,6 +95,47 @@ describe('content analytics collection', () => {
     expect(overview.recent.map((i) => i.id)).toEqual(['telegram:1', 'telegram:2']);
   });
 
+  it('stores the newest twenty and the young posts every hour, the whole list once a day, and rewrites only a change', async () => {
+    const clock = fakeClock();
+    const repo = createD1ContentAnalyticsRepository(testDb());
+    // Twenty-three posts: one young, twenty-two between ten days and a month old.
+    const posts = (views: number) => [
+      post(100, START - HOUR, views),
+      ...Array.from({ length: 22 }, (_, index) => post(index + 1, START - 10 * DAY - index * DAY, 500 + index))
+    ];
+    let views = 100;
+    const sources = telegramSource(async () => ({ followers: 836, items: posts(views) }));
+    const run = () => collectContentAnalytics({ repo, sources, clock, logger, requestId: 't' });
+    const stored = async () =>
+      (
+        await testDb()
+          .prepare("SELECT COUNT(*) AS n FROM content_items WHERE platform = 'telegram'")
+          .first<{ n: number }>()
+      )?.n ?? 0;
+    const observedAt = async (id: string) =>
+      (
+        await testDb()
+          .prepare('SELECT observed_at FROM content_items WHERE id = ?')
+          .bind(id)
+          .first<{ observed_at: number }>()
+      )?.observed_at;
+
+    // START is 08:00 UTC: an hourly run keeps the young post and the nineteen newest others.
+    await run();
+    expect(await stored()).toBe(20);
+    const firstRead = await observedAt('telegram:1');
+    // An hour later the old post's numbers are the same: its row is not rewritten; the young one's is.
+    clock.advance(HOUR);
+    views = 150;
+    await run();
+    expect(await observedAt('telegram:1')).toBe(firstRead);
+    expect(await observedAt('telegram:100')).toBe(clock.now());
+    // The first run of the next UTC day stores the whole list.
+    clock.set(Date.UTC(2027, 0, 16, 0, 10));
+    await run();
+    expect(await stored()).toBe(23);
+  });
+
   it('stores a classified failure, keeps old data and retries sooner', async () => {
     const clock = fakeClock();
     const repo = createD1ContentAnalyticsRepository(testDb());

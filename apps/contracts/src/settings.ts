@@ -54,6 +54,7 @@ export const notificationPreferencesSchema = z.object({
 export const BACKGROUND_JOBS = [
   'sources',
   'gameFiles',
+  'heroMatches',
   'contentAnalytics',
   'reports',
   'contentAlerts',
@@ -68,6 +69,8 @@ export const backgroundSettingsSchema = z.object({
   jobs: z.object({
     sources: z.boolean().default(false),
     gameFiles: z.boolean().default(false),
+    /** The «Гайд на героя» match base (owner, 28.10.2026: on DEV only when switched on for a test). */
+    heroMatches: z.boolean().default(false),
     contentAnalytics: z.boolean().default(false),
     reports: z.boolean().default(false),
     contentAlerts: z.boolean().default(false),
@@ -82,6 +85,7 @@ export const BACKGROUND_DEFAULTS: BackgroundSettings = {
   jobs: {
     sources: false,
     gameFiles: false,
+    heroMatches: false,
     contentAnalytics: false,
     reports: false,
     contentAlerts: false,

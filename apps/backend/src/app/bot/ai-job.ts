@@ -124,13 +124,8 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
   }),
   /** One run of the game-files watch (migration 0107), queued by Cron's Dota step next to the treasure watch. */
   z.object({ id: z.uuid(), kind: z.literal('game_files_watch'), chatId: z.number().int() }),
-  /** A build with nothing worth a post: its one short joke post, queued a while after the build was read. */
-  z.object({
-    id: z.uuid(),
-    kind: z.literal('game_files_quiet'),
-    chatId: z.number().int(),
-    build: z.string().regex(/^\d{1,9}$/)
-  }),
+  /** One run of the hero-matches collector (migration 0116), queued by Cron's Dota step with the watches. */
+  z.object({ id: z.uuid(), kind: z.literal('hero_matches'), chatId: z.number().int() }),
   /** One read of Steam's product info of Dota's apps (migration 0108): the early signal of an update. */
   z.object({ id: z.uuid(), kind: z.literal('steam_watch'), chatId: z.number().int() }),
   /** DEV only (owner, 25.10.2026): the rubric the owner pressed, written by the AI with pictures A and B to compare. */
@@ -219,9 +214,9 @@ export type WriterJob =
           | 'treasure_post'
           | 'game_files_watch'
           | 'steam_watch'
+          | 'hero_matches'
           | 'game_files_post'
-          | 'dispatch_now'
-          | 'game_files_quiet';
+          | 'dispatch_now';
       }
     >
   | EventWriterJob;

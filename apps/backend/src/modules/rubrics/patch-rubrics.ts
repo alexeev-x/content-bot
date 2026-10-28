@@ -1,4 +1,6 @@
 import { abilityImage, escapeHtml, heroImage, heroPortraitImage, PICTURE_SIZE, picturePage } from './picture';
+import { seriouslyPicture } from './seriously-pictures';
+import { VALVE_TIME_LOOKS, valveTimePicture } from './valve-time-pictures';
 import {
   type HeroInfo,
   noData,
@@ -75,7 +77,31 @@ async function latestPatch(context: RubricContext) {
     })
     .filter((each): each is { hero: HeroInfo; notes: number; balance: number } => each.hero !== undefined)
     .sort((a, b) => b.notes - a.notes);
-  return { version: latest.version, timestamp: latest.timestamp, changes, scored, byId };
+  return { version: latest.version, timestamp: latest.timestamp, notes, changes, scored, byId };
+}
+
+export type PatchOutcome = 'nerfed' | 'buffed' | 'changed' | 'untouched';
+
+/**
+ * What the latest patch did to each hero, «Кого понерфят?»'s answer: the sums of its buffs and nerfs in % decide, as in
+ * «Кто теперь имба?»; notes with no number read (a rework) are «changed».
+ */
+export async function patchOutcomes(
+  context: RubricContext,
+  heroIds: number[]
+): Promise<{ version: string; outcomes: Map<number, PatchOutcome> }> {
+  const patch = await latestPatch(context);
+  const sum = (heroId: number, buff: boolean) =>
+    patch.changes
+      .filter((change) => change.heroId === heroId && change.buff === buff)
+      .reduce((total, change) => total + change.size, 0);
+  const touched = new Set(patch.scored.map((each) => each.hero.id));
+  const outcome = (heroId: number): PatchOutcome => {
+    if (!touched.has(heroId)) return 'untouched';
+    const net = sum(heroId, true) - sum(heroId, false);
+    return net < 0 ? 'nerfed' : net > 0 ? 'buffed' : 'changed';
+  };
+  return { version: patch.version, outcomes: new Map(heroIds.map((heroId) => [heroId, outcome(heroId)])) };
 }
 
 // «Кого понерфили» as a patch-notes poster (owner chose it 26.10.2026 from three looks): a huge condensed title stacked
@@ -298,21 +324,6 @@ export async function whoIsImba(context: RubricContext): Promise<RubricSample> {
         context.random
       )
     )
-  };
-}
-
-export async function whoGetsNerfed(context: RubricContext): Promise<RubricSample> {
-  const patch = await latestPatch(context);
-  const options = patch.scored
-    .filter((each) => each.balance > 0)
-    .sort((a, b) => b.balance - a.balance)
-    .slice(0, 5)
-    .map((each) => each.hero.localizedName);
-  if (options.length < 2) throw noData('buffed heroes');
-  return {
-    picture: null,
-    text: `Valve уже готовит следующий патч. Этих героев в ${patch.version} подняли сильнее всех — кого порежут первым?`,
-    poll: poll('Кого понерфят первым?', options)
   };
 }
 
@@ -555,31 +566,113 @@ export async function nerfOrBuff(context: RubricContext): Promise<RubricSample> 
   };
 }
 
+// «Valve, ты серьёзно?» (owner, 27.10.2026): the three funniest micro-changes of the patch, ones absurd on their own.
+// The smallest in % alone picked Centaur's speed 300 → 295, a plain nerf that matters in the game: speed and damage
+// are left out, and a change counts when it moves its stat by at most 6%: 7.41f had nothing under 3%, its funny ones were
+// «сила 23 → 22», «интеллект 20 → 21», «прирост силы 3,3 → 3,4» (27.10.2026).
+const SERIOUS_STAT = /скорост[ьи] передвижения|урон|damage/iu;
+const MICRO_MAX = 0.06;
+const SERIOUSLY_MAX = 3;
+const SERIOUSLY_JOKES = ['Это меняет всё', 'Ждал этого три года', 'Иди нахуй, Valve'] as const;
+
 export async function valveSeriously(context: RubricContext): Promise<RubricSample> {
   const patch = await latestPatch(context);
-  const smallest = [...patch.changes].sort((a, b) => a.size - b.size)[0];
-  if (smallest === undefined) throw noData('patch numbers');
-  const hero = patch.byId.get(smallest.heroId);
+  const micro = patch.changes
+    .filter((change) => change.size > 0 && change.size <= MICRO_MAX && !SERIOUS_STAT.test(change.stat))
+    .sort((a, b) => a.size - b.size);
+  // One change a hero: three heroes read funnier than three lines of one.
+  const picked = micro
+    .filter((change, index) => micro.findIndex((other) => other.heroId === change.heroId) === index)
+    .slice(0, SERIOUSLY_MAX);
+  if (picked.length === 0) throw noData('micro-changes in the patch');
+  // No arrow: the writer retells each line in words, the rich message makes no table of it.
+  const lines = picked.map(
+    (change) =>
+      `${patch.byId.get(change.heroId)?.localizedName ?? 'Герой'}: ${change.stat.toLowerCase()} — было ${change.from}, стало ${change.to}`
+  );
+  const details = await Promise.all(
+    picked.map((change) => context.sources.heroDetail(change.heroId).catch(() => null))
+  );
+  const changes = picked.flatMap((change, index) => {
+    const hero = patch.byId.get(change.heroId);
+    if (hero === undefined) return [];
+    const ability = details[index]?.abilities.find((one) => one.id === change.abilityId)?.key ?? null;
+    return [{ hero, ability, stat: change.stat, from: change.from, to: change.to, diff: difference(change) }];
+  });
   return {
-    picture: null,
-    text: `Valve, ты серьёзно? 🤡\n${hero?.localizedName ?? 'Герой'}: ${smallest.stat.toLowerCase()} — ${smallest.from} → ${smallest.to}. Самая крошечная правка патча ${patch.version}.\n🤡 или 🔥?`,
-    poll: null
+    picture: changes.length === 0 ? null : { html: seriouslyPicture(changes), ...PICTURE_SIZE },
+    text: [`Самые крошечные правки патча ${patch.version}:`, ...lines].join('\n'),
+    poll: poll('Valve, ты серьёзно?', [...SERIOUSLY_JOKES])
   };
 }
+
+/** The difference as players read it: «+1», «−0,01», as many decimals as the values have. */
+function difference(change: Change): string {
+  const decimals = (value: string) => /[.,](\d+)/u.exec(value.split('/')[0] ?? '')?.[1]?.length ?? 0;
+  const digits = Math.max(decimals(change.from), decimals(change.to));
+  const delta = firstNumber(change.to) - firstNumber(change.from);
+  const text = Math.abs(delta).toFixed(digits).replace('.', ',');
+  return `${delta < 0 ? '−' : '+'}${text}${change.to.trim().endsWith('%') ? '%' : ''}`;
+}
+
+/**
+ * «Валв-тайм» goes out on round marks without a patch (owner, 27.10.2026): 30, 45, 60, 90 days, then every 30; a short
+ * wait is no joke. The scheduler posts it on the mark's day; the DEV sample shows the current count once past 30.
+ */
+const VALVE_TIME_MARKS = [30, 45, 60, 90] as const;
 
 export async function valveTime(context: RubricContext): Promise<RubricSample> {
   const patches = await context.sources.patches();
   const latest = [...patches].sort((a, b) => b.timestamp - a.timestamp)[0];
   if (latest === undefined) throw noData('patch list');
   const days = Math.max(0, Math.floor((context.now - latest.timestamp * 1000) / 86_400_000));
+  if (days < VALVE_TIME_MARKS[0]) throw noData('a patch came out less than 30 days ago');
   const date = new Date(latest.timestamp * 1000).toLocaleDateString('ru-RU', {
     day: 'numeric',
     month: 'long',
     timeZone: 'Europe/Moscow'
   });
+  // The board (A) and the endless loading bar (C) take turns at random (owner, 27.10.2026).
+  const look = pick(VALVE_TIME_LOOKS, context.random);
+  return {
+    picture: { html: valveTimePicture(look, { days, version: latest.version, date }), ...PICTURE_SIZE },
+    // The board carries the numbers; the caption is the joke alone (owner, 27.10.2026: the sample repeated the board).
+    text: 'Патча всё нет.',
+    reference: `${days} ${plural(days, 'день', 'дня', 'дней')} без патча; последний патч ${latest.version} вышел ${date}.`,
+    poll: null
+  };
+}
+
+// «Дед» (owner, 27.10.2026): one real change of the latest patch, grumbled about by an old man «а вот в наше время».
+export async function grandpa(context: RubricContext): Promise<RubricSample> {
+  const patch = await latestPatch(context);
+  const change = pick(patch.changes, context.random);
+  const hero = patch.byId.get(change.heroId)?.localizedName ?? 'Герой';
   return {
     picture: null,
-    text: `⏳ ${days} ${plural(days, 'день', 'дня', 'дней')} без патча. Последний — ${latest.version}, ${date}.\nГейб считает до трёх: 1… 2… Ждём.`,
+    text: `${hero} в новом патче. Дед недоволен.`,
+    // The note's numbers are background: the grumble need not repeat them all.
+    reference: `Патч ${patch.version}, ${hero}: ${change.note}`,
+    poll: null
+  };
+}
+
+// «Valve исправила» (owner, 27.10.2026): one real note of the latest patch, then what «the fix» led to; the joke is in
+// the escalation, the note itself stays true.
+export async function valveFixed(context: RubricContext): Promise<RubricSample> {
+  const patch = await latestPatch(context);
+  const notes = patch.notes.heroes.flatMap((each) =>
+    each.notes.map((note) => ({ heroId: each.heroId, note: note.note.trim() }))
+  );
+  const chosen = pick(
+    notes.filter((each) => each.note !== ''),
+    context.random
+  );
+  const hero = patch.byId.get(chosen.heroId)?.localizedName ?? 'Герой';
+  return {
+    picture: null,
+    text: `Valve исправила ${hero}.`,
+    reference: `Патч ${patch.version}, ${hero}: ${chosen.note}`,
     poll: null
   };
 }

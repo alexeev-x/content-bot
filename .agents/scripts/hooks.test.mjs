@@ -138,6 +138,18 @@ test('verify --changed runs only what the changes touch', () => {
   assert.deepEqual(names(['.husky/pre-push']), ['docs', 'agents', 'tooling-tests']);
   assert.equal(planSteps(['package.json']), STEPS);
   assert.equal(planSteps(['apps/backend/wrangler.jsonc']), STEPS);
+  // A release bump only checks formatting; the contracts' bump does not run both suites.
+  const bump = ['package.json', 'apps/contracts/package.json'];
+  assert.deepEqual(names(bump, { versionBumps: bump }), ['format']);
+  // An app's dependency checks that app and the tests named after the files importing it, not the other app.
+  const dep = names(['apps/frontend/package.json', 'apps/frontend/src/shared/ui/Button.tsx'], {
+    dependencyChanges: ['apps/frontend/package.json'],
+  });
+  assert.ok(dep.includes('frontend-tests') && !dep.includes('backend-tests') && !dep.includes('backend-typecheck'));
+  // No changed code → no tests; a migration runs only the migration test.
+  assert.ok(!names(['apps/frontend/src/app/styles.css']).includes('frontend-tests'));
+  const migration = planSteps(['apps/backend/migrations/0115_quiet_build_jokes.sql']);
+  assert.deepEqual(migration.find(([n]) => n === 'backend-tests')?.[1].slice(-1), ['migration']);
   assert.deepEqual(names([]), []);
 });
 

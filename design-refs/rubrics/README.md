@@ -1,6 +1,6 @@
 # Rubric pictures
 
-One folder per rubric, all 32, named `<number>-<rubric key>` as in «Тестирование» → «Рубрики». Each folder's README says what the
+One folder per rubric, named `<number>-<rubric key>` as in «Тестирование» → «Рубрики» (the list of 27.10.2026); a new rubric gets its folder when it is reworked. Each folder's README says what the
 rubric is, what its picture shows now and, once the owner approves it, its status.
 
 Pictures are drawn by code alone as simple HTML pages with Valve's exact images (owner, 26.10.2026: «будем делать простые

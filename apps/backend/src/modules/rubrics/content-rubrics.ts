@@ -1,6 +1,6 @@
-import { escapeHtml, heroImage, itemImage, PICTURE_SIZE, picturePage } from './picture';
+import { escapeHtml, itemImage, PICTURE_SIZE, picturePage } from './picture';
 import { LEAK_EGGS } from './leak-eggs';
-import { noData, pick, plural, poll, quiz, type RubricContext, type RubricSample, shuffled } from './types';
+import { noData, pick, plural, poll, quiz, type RubricContext, type RubricSample, shuffled, withJoke } from './types';
 
 // Rubrics over what Valve and the community put out (game files, announcements, the Workshop) and the fun ones whose
 // material will come from banks the owner approves; the samples carry a few examples of such a bank.
@@ -323,37 +323,95 @@ export async function filesDontLie(context: RubricContext): Promise<RubricSample
   };
 }
 
+// «Оцениваем» rates a novelty, so it goes out only when a fresh announcement brings one (owner, 27.10.2026): of Valve's
+// last twelve, two did (a treasure, an event with sets); patches, The International and tickets have nothing to rate.
+const NOVELTY =
+  /trove|treasure|сокровищ|arcana|аркан|persona|персон|collector|cache|set\b|сет|courier|курьер|new hero|новый герой|carnival|event/iu;
+const NOT_NOVELTY = /patch|патч|update|обновлени|international|ticket|билет|qualifier|квалификац/iu;
+const NOVELTY_FRESH_MS = 21 * 86_400_000;
+const RATE_JOKES = ['Опять за 3 тысячи?', 'Мама, купи', 'Valve, где патч?'] as const;
+
 export async function rateIt(context: RubricContext): Promise<RubricSample> {
-  const news = (await context.sources.steamNews()).filter((item) => item.imageUrl !== null);
-  const latest = news[0];
-  if (latest === undefined || latest.imageUrl === null) throw noData('announcement picture');
-  const html = picturePage(
-    `<div class="title"><b>Оцениваем</b></div><img class="shot" src="${escapeHtml(latest.imageUrl)}" alt="">`,
-    `.shot{margin-top:28px;max-width:1200px;max-height:520px;border-radius:14px;border:1px solid var(--line);box-shadow:0 14px 40px rgba(0,0,0,.6);object-fit:contain}`
+  const latest = (await context.sources.steamNews()).find(
+    (item) =>
+      item.imageUrl !== null &&
+      context.now - item.publishedAt <= NOVELTY_FRESH_MS &&
+      NOVELTY.test(item.title) &&
+      !NOT_NOVELTY.test(item.title)
   );
+  if (latest === undefined || latest.imageUrl === null) throw noData('fresh novelty announcement');
   return {
-    picture: { html, ...PICTURE_SIZE },
-    // Valve's titles are English and posts speak Russian; the AI writer will name the novelty.
-    text: 'Новинка из свежего анонса Valve. Оцениваем: 🔥 или 💩?',
-    poll: null
+    // The set's own picture and nothing else (owner, 27.10.2026: «просто картинку на сам сет и всё»), sent as Valve's
+    // file: drawn into our 1536 px page it was stretched and soft; a narrow one is made sharper by the picture law.
+    picture: null,
+    photo: { url: latest.imageUrl },
+    // The writer retells what the novelty is in Russian, names stay English (27.10.2026: the first sample said «Valve
+    // показали новинку» and never named it).
+    text: `Новинка от Valve: «${latest.title}».`,
+    // The announcement is background, not a draft: its prices and dates need not all reach the post.
+    reference: latest.text,
+    poll: poll('Оцениваем', withJoke(['10/10, беру', 'Норм, но денег не дам', 'Говно'], context.random, RATE_JOKES))
   };
 }
 
 export async function workshopSet(context: RubricContext): Promise<RubricSample> {
-  const set = await context.sources.workshopTrending();
+  // A set never repeats in the channel (owner, 27.10.2026: «чтобы сет не повторялся»): the scheduler will skip the ids
+  // already posted (docs/RUBRICS_SCHEDULER.md); the DEV sample takes one of the week's top ten at random.
+  const ids = await context.sources.workshopTrendingIds();
+  const id = pick(ids, context.random);
+  const set = id === undefined ? null : await context.sources.workshopItem(id);
+  // The hero comes from the Workshop's own tags (owner, 27.10.2026: «героя точно надо писать, мастерская это отдаёт»).
+  const heroes = set === null ? [] : await context.sources.heroes();
+  const hero = heroes.find((each) => set?.tags.some((tag) => tag.toLowerCase() === each.localizedName.toLowerCase()));
   if (set === null) throw noData('workshop');
-  const html = picturePage(
-    `<div class="title">Сет из <b>мастерской</b></div><img class="shot" src="${escapeHtml(set.previewUrl)}" alt="">
-<div class="sub">${escapeHtml(set.title)}</div>`,
-    `.shot{margin-top:28px;max-width:1000px;max-height:470px;border-radius:14px;border:1px solid var(--line);object-fit:contain}
-.sub{font-size:30px;font-weight:800;margin-top:18px}`
-  );
+  // The set's own photos from the Workshop, no picture of ours (owner, 27.10.2026: «фотографии из мастерской забирай и
+  // их скидывай»); the page hides behind words, the verdict is the channel's reactions.
   return {
-    picture: { html, ...PICTURE_SIZE },
-    text: `Свежий сет из мастерской Steam набирает популярность: «${set.title}».\nОцениваем: 🔥 или 💩?\nМастерская: ${set.url}`,
+    picture: null,
+    album: {
+      // The author's own shots, uncropped; Steam's square cover only when there are none (owner, 27.10.2026: «главную
+      // не надо, лучше забирать те, которые внутри, в их карусели, там не обрезанная»).
+      photos: (set.screenshots.length > 0 ? set.screenshots : [set.previewUrl]).slice(
+        0,
+        WORKSHOP_ALBUM_MAX - set.clips.length
+      ),
+      clips: set.clips,
+      cover: set.previewUrl
+    },
+    text:
+      hero === undefined
+        ? `Сет из мастерской Steam, который набирает популярность: «${set.title}».`
+        : `Сет из мастерской Steam на ${hero.localizedName}, который набирает популярность: «${set.title}».`,
+    links: [{ text: 'Посмотреть в мастерской', url: set.url }],
+    footer: workshopVerdict(set.title, context.random),
     poll: null
   };
 }
+
+/** Telegram's album holds ten. */
+const WORKSHOP_ALBUM_MAX = 10;
+/**
+ * The verdict by the channel's reactions, one of these at random (owner, 27.10.2026: «🔥 — имба, 💩 — пиздец и третий
+ * типа обкончай меня, Педро… тут надо шутки придумать»). Only Telegram's standard reaction emoji.
+ */
+const WORKSHOP_VERDICTS = [
+  '🔥 — имба, 💩 — пиздец, 🤤 — обкончай меня, Педро',
+  '🔥 — беру, 💩 — верните деньги, 🤡 — мой мейн заслужил лучшего',
+  '🔥 — шедевр, 💩 — рисовали ногой, 😭 — мама, купи',
+  '🔥 — в игру, 💩 — в помойку, 🗿 — закину 3к и пожалею',
+  '🔥 — кончил, 💩 — блеванул, 🤯 — я это развидеть не могу'
+] as const;
+/**
+ * A hero's own verdict, only for that hero's set (owner, 27.10.2026: «это для Пуджа-мейнера — только когда Пудж»): the
+ * Workshop title starts with the hero, «Pudge | …».
+ */
+const HERO_VERDICTS: { hero: RegExp; verdict: string }[] = [
+  { hero: /^pudge/iu, verdict: '🔥 — беру, 💩 — верните деньги, 🤡 — это для Пуджа-мейнера' }
+];
+const workshopVerdict = (title: string, random: () => number) => {
+  const own = HERO_VERDICTS.find((each) => each.hero.test(title.trim()));
+  return own !== undefined && random() < 0.5 ? own.verdict : pick(WORKSHOP_VERDICTS, random);
+};
 
 // Twemoji, an open emoji set; a rebus is pictures only, the answer is in the quiz.
 const TWEMOJI = 'https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/svg';
@@ -388,45 +446,6 @@ export async function rebus(context: RubricContext): Promise<RubricSample> {
     picture: { html, ...PICTURE_SIZE },
     text: 'Ребус: какой это герой?',
     poll: quiz('Какой это герой?', options, options.indexOf(chosen.answer), `${chosen.answer}.`)
-  };
-}
-
-export async function guessStreak(context: RubricContext): Promise<RubricSample> {
-  const heroes = await context.sources.heroes();
-  const hero = pick(heroes, context.random);
-  const others = shuffled(
-    heroes.filter((each) => each.id !== hero.id && each.attackType === hero.attackType),
-    context.random
-  ).slice(0, 3);
-  const options = shuffled([hero, ...others], context.random);
-  return {
-    picture: null,
-    text: `🔥 Угадай-серия, вопрос дня.\nУ кого из них скорость ${hero.moveSpeed} и дальность атаки ${hero.attackRange}? Держи серию до воскресенья — там топ-10 знатоков.`,
-    poll: quiz(
-      'Чьи это цифры?',
-      options.map((each) => each.localizedName),
-      options.findIndex((each) => each.id === hero.id),
-      `${hero.localizedName}.`
-    )
-  };
-}
-
-export async function tierListVote(context: RubricContext): Promise<RubricSample> {
-  const heroes = await context.sources.heroes();
-  const hero = pick(heroes, context.random);
-  const html = picturePage(
-    `<div class="title">Куда в <b>тир-листе?</b></div><img class="portrait big" src="${heroImage(hero.name)}" alt="">
-<div class="sub">${escapeHtml(hero.localizedName)}</div><div class="tiers"><span class="s">S</span><span class="a">A</span><span class="b">B</span><span class="c">C</span><span class="d">D</span></div>`,
-    `.portrait.big{width:512px;height:288px;margin-top:24px}
-.sub{font-size:36px;font-weight:800;margin-top:14px}
-.tiers{display:flex;gap:16px;margin-top:18px}
-.tiers span{width:72px;height:72px;border-radius:12px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:40px;color:#0b0e13}
-.s{background:var(--tier-s)}.a{background:var(--tier-a)}.b{background:var(--tier-b)}.c{background:var(--tier-c)}.d{background:var(--tier-d)}`
-  );
-  return {
-    picture: { html, ...PICTURE_SIZE },
-    text: `Собираем тир-лист подписчиков. Куда бы ты поставил ${hero.localizedName}? Итог — картинкой через день.`,
-    poll: poll(`${hero.localizedName}: какой тир?`, ['S', 'A', 'B', 'C', 'D'])
   };
 }
 

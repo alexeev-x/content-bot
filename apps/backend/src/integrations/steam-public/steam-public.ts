@@ -7,6 +7,38 @@ import { readCappedText } from '../../platform/http/read-capped-text';
 
 export const STEAM_PUBLIC_TIMEOUT_MS = 15_000;
 const MAX_BODY_BYTES = 1_500_000;
+const NEWS_TEXT_MAX = 1500;
+const SCREENSHOTS_MAX = 9;
+const TRENDING_MAX = 10;
+const SCREENSHOT = /'url':\s*'(https:\/\/images\.steamusercontent\.com\/ugc\/\d{1,25}\/[0-9A-F]{40}\/)/gu;
+const CLIPS_MAX = 3;
+const IMGUR_GIF = /https:\/\/i\.imgur\.com\/([A-Za-z0-9]{5,12})\.gif/gu;
+/**
+ * The animated GIFs of a Workshop item's description (owner, 27.10.2026: «там гифки есть»), as imgur's own MP4 of each:
+ * an album mixes photos and videos, never GIFs.
+ */
+export function workshopClips(page: string): string[] {
+  return [...new Set([...page.matchAll(IMGUR_GIF)].map((match) => `https://i.imgur.com/${match[1] ?? ''}.mp4`))].slice(
+    0,
+    CLIPS_MAX
+  );
+}
+/** The full-size screenshots of a Workshop item page (its `rgFullScreenshotURLs`), without the resize query. */
+export function workshopScreenshots(page: string): string[] {
+  return [...new Set([...page.matchAll(SCREENSHOT)].map((match) => match[1] ?? ''))]
+    .filter((url) => url !== '')
+    .slice(0, SCREENSHOTS_MAX);
+}
+
+/** An announcement's body as plain text: BBCode tags, image placeholders and links out, spaces folded. */
+const plainText = (contents: string) =>
+  contents
+    .replace(/\{STEAM_CLAN_(?:LOC_)?IMAGE\}\S*/giu, ' ')
+    .replace(/\[\/?[a-z0-9*]+(?:=[^\]]*)?\]/giu, ' ')
+    .replace(/https?:\/\/\S+/giu, ' ')
+    .replace(/\s+/gu, ' ')
+    .trim()
+    .slice(0, NEWS_TEXT_MAX);
 const CLAN_IMAGE = /\{STEAM_CLAN_(?:LOC_)?IMAGE\}\/(\d{1,12}\/[0-9a-f]{40}\.(?:png|jpe?g|gif|webp))/iu;
 
 export type SteamPublicErrorCode = 'STEAM_FETCH' | 'STEAM_HTTP' | 'STEAM_SHAPE';
@@ -33,14 +65,40 @@ const newsSchema = z.object({
 const detailsSchema = z.object({
   response: z.object({
     publishedfiledetails: z
-      .array(z.object({ title: z.string().max(300).optional(), preview_url: z.url().optional() }))
+      .array(
+        z.object({
+          title: z.string().max(300).optional(),
+          preview_url: z.url().optional(),
+          // The Workshop's tags hold the hero's name («Dazzle», «Enchantress») among «Wearable», «misc»…
+          tags: z
+            .array(z.object({ tag: z.string().max(80) }))
+            .max(40)
+            .optional()
+        })
+      )
       .max(5)
   })
 });
 
 export interface SteamPublicApi {
-  dotaNews(signal?: AbortSignal): Promise<{ title: string; imageUrl: string | null; publishedAt: number }[]>;
-  workshopTrending(signal?: AbortSignal): Promise<{ title: string; previewUrl: string; url: string } | null>;
+  /** Dota 2's announcements, newest first; `text` is the body without BBCode, links or images, at most 1500 chars. */
+  dotaNews(
+    signal?: AbortSignal
+  ): Promise<{ title: string; text: string; imageUrl: string | null; publishedAt: number }[]>;
+  /** This week's trending Workshop sets, the first page's ids in trend order. */
+  workshopTrendingIds(signal?: AbortSignal): Promise<string[]>;
+  /** One Workshop set: its title, cover, page, the author's full-size screenshots and the description's GIFs as MP4. */
+  workshopItem(
+    id: string,
+    signal?: AbortSignal
+  ): Promise<{
+    title: string;
+    previewUrl: string;
+    url: string;
+    screenshots: string[];
+    clips: string[];
+    tags: string[];
+  } | null>;
 }
 
 export function createSteamPublicApi(input: { fetchImpl?: typeof fetch } = {}): SteamPublicApi {
@@ -80,19 +138,23 @@ export function createSteamPublicApi(input: { fetchImpl?: typeof fetch } = {}): 
         const image = CLAN_IMAGE.exec(item.contents)?.[1];
         return {
           title: item.title,
+          text: plainText(item.contents),
           imageUrl: image === undefined ? null : `https://clan.akamai.steamstatic.com/images/${image}`,
           publishedAt: item.date * 1000
         };
       });
     },
-    async workshopTrending(signal) {
+    async workshopTrendingIds(signal) {
       const page = await text(
         'https://steamcommunity.com/workshop/browse/?appid=570&browsesort=trend&section=mtxitems&days=7',
         {},
         signal
       );
-      const id = /sharedfiles\/filedetails\/\?id=(\d{1,20})/u.exec(page)?.[1];
-      if (id === undefined) return null;
+      const ids = [...page.matchAll(/sharedfiles\/filedetails\/\?id=(\d{1,20})/gu)].map((match) => match[1] ?? '');
+      return [...new Set(ids)].filter((id) => id !== '').slice(0, TRENDING_MAX);
+    },
+    async workshopItem(id, signal) {
+      if (!/^\d{1,20}$/u.test(id)) return null;
       const form = new URLSearchParams({ itemcount: '1', 'publishedfileids[0]': id });
       const parsed = detailsSchema.safeParse(
         json(
@@ -106,10 +168,17 @@ export function createSteamPublicApi(input: { fetchImpl?: typeof fetch } = {}): 
       if (!parsed.success) throw new SteamPublicError('STEAM_SHAPE');
       const item = parsed.data.response.publishedfiledetails[0];
       if (item?.title === undefined || item.preview_url === undefined) return null;
+      const url = `https://steamcommunity.com/sharedfiles/filedetails/?id=${id}`;
+      // The item page lists the author's screenshots and the GIFs of the description; a page that fails leaves the
+      // cover alone.
+      const itemPage = await text(url, {}, signal).catch(() => '');
       return {
         title: item.title,
         previewUrl: item.preview_url,
-        url: `https://steamcommunity.com/sharedfiles/filedetails/?id=${id}`
+        url,
+        screenshots: workshopScreenshots(itemPage),
+        clips: workshopClips(itemPage),
+        tags: (item.tags ?? []).map((each) => each.tag)
       };
     }
   };

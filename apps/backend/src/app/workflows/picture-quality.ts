@@ -54,16 +54,22 @@ function u16le(bytes: Uint8Array, at: number): number {
 export type SourcePicture = { bytes: Uint8Array; contentType: string; fileName: string };
 
 /**
- * The improver one media job uses: a picture narrower than QUALITY_MIN_WIDTH comes back sharper as a JPEG; a good one,
- * an animation, one of an unknown format or any failure keeps the original (a post never waits for a lost picture).
+ * The improver one media job uses: a picture narrower than `minWidth` (QUALITY_MIN_WIDTH unless a post shows it larger)
+ * comes back sharper as a JPEG; a good one, an animation, one of an unknown format or any failure keeps the original (a
+ * post never waits for a lost picture).
  */
-export function pictureImproverFor(container: Container, requestId: string, onError: (error: unknown) => void) {
+export function pictureImproverFor(
+  container: Container,
+  requestId: string,
+  onError: (error: unknown) => void,
+  minWidth = QUALITY_MIN_WIDTH
+) {
   const started = container.clock.now();
   return async (file: SourcePicture): Promise<SourcePicture> => {
     if (file.contentType === 'image/gif') return file;
     const size = pictureSize(file.bytes);
     // A truncated header reads as 0 wide: unknown, so never a paid improvement (QA 23.10.2026).
-    if (size === null || size.width === 0 || size.width >= QUALITY_MIN_WIDTH) return file;
+    if (size === null || size.width === 0 || size.width >= minWidth) return file;
     if (container.clock.now() - started > IMPROVE_BUDGET_MS) return file;
     try {
       const { timezone } = await getOwnerOperationsSettings({
