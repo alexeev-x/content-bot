@@ -367,8 +367,8 @@ white-space:nowrap;color:#f1ebe0;align-self:flex-start}
 font-size:32px;line-height:1;text-transform:uppercase;color:#0b0c0e}
 .grid.rows{left:532px;top:50px;width:926px;height:668px;display:grid;grid-template-columns:repeat(5,166px);column-gap:24px;row-gap:6px}
 .bg{margin:-6px;border-radius:14px;background:var(--red)}
-.band{margin:0 -6px;border-radius:8px;background:#ffffff;display:flex;align-items:center;justify-content:center;
-font-family:Oswald,sans-serif;font-weight:700;font-size:30px;line-height:1;letter-spacing:.06em;text-transform:uppercase;color:#0b0c0e}
+.band{margin:0 -6px;background:#101216;display:flex;align-items:center;justify-content:center;
+font-family:Oswald,sans-serif;font-weight:700;font-size:30px;line-height:1;letter-spacing:.06em;text-transform:uppercase;color:#ffffff}
 .tile{flex:1 1 0;min-height:0;border-radius:8px;overflow:hidden;background:#0b0c0e;display:flex;flex-direction:column;position:relative}
 .tile img{flex:1 1 0;min-height:0;width:100%;object-fit:cover;object-position:50% 30%;display:block}
 .num{height:38px;flex:none;display:flex;align-items:center;justify-content:center;font-family:Oswald,sans-serif;font-weight:700;
