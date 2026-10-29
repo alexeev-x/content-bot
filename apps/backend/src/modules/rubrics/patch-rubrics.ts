@@ -573,7 +573,24 @@ export async function nerfOrBuff(context: RubricContext): Promise<RubricSample> 
 const SERIOUS_STAT = /скорост[ьи] передвижения|урон|damage/iu;
 const MICRO_MAX = 0.06;
 const SERIOUSLY_MAX = 3;
-const SERIOUSLY_JOKES = ['Это меняет всё', 'Ждал этого три года', 'Иди нахуй, Valve'] as const;
+// The poll's three answers, one set per post (owner, 29.10.2026: the same three every time got old).
+const SERIOUSLY_SETS: readonly (readonly [string, string, string])[] = [
+  ['Это меняет всё', 'Ждал этого три года', 'Иди нахуй, Valve'],
+  ['Наконец-то', 'Кто, блять, это просил?', 'Valve, вы ебанутые'],
+  ['Гениально', 'Я нихуя не понял', 'Удаляю доту'],
+  ['Именно этого не хватало', 'Похуй, всё равно солью', 'Верните как было, суки'],
+  ['Красиво', 'Зачем?', 'Сначала почините матчмейкинг, пидорасы'],
+  ['Шедевр', 'Это шутка?', 'Габен, проспись'],
+  ['Жду в катке', 'Ничего не понял, но уже злюсь', 'Пиздец, а не патч'],
+  ['Великий день', 'Минус одна причина жить', 'Valve, что вы курите и где взять'],
+  ['Правильно', 'Херня', 'Я уже ливнул'],
+  ['Беру', 'Смешно', 'Верните мне десять лет жизни'],
+  ['Ура', 'И что?', 'Valve, вы там живы вообще?'],
+  ['Топ', 'Опять, блять', 'Сколько можно издеваться'],
+  ['Лучший патч', 'Худший патч', 'Мне похуй, я на Пудже'],
+  ['Баланс', 'Пизданс', 'Вальв, не надо'],
+  ['Обожаю', 'Терплю', 'Ненавижу, сука']
+];
 
 export async function valveSeriously(context: RubricContext): Promise<RubricSample> {
   const patch = await latestPatch(context);
@@ -602,7 +619,7 @@ export async function valveSeriously(context: RubricContext): Promise<RubricSamp
   return {
     picture: changes.length === 0 ? null : { html: seriouslyPicture(changes), ...PICTURE_SIZE },
     text: [`Самые крошечные правки патча ${patch.version}:`, ...lines].join('\n'),
-    poll: poll('Valve, ты серьёзно?', [...SERIOUSLY_JOKES])
+    poll: poll('Valve, ты серьёзно?', [...pick(SERIOUSLY_SETS, context.random)])
   };
 }
 
