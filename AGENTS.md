@@ -53,10 +53,9 @@ Search with `rg`; read only needed lines. `npm run verify` prints failures; open
 - Publishing safety: D1 owns state and dedup. Cron ticks may overlap or repeat, so every claim is conditional. An unconfirmed Telegram send becomes `unknown` for manual reconciliation, never retried automatically.
 - Secrets only in Worker secrets, never Git, logs or frontend. Local tokens only in the root `.env`: never look elsewhere, ask or paste; scripts use the local Worker. Tests use a separate bot/channel. Placeholders; Gitleaks exceptions by path+pattern, never commit SHA.
 - The server re-validates every input with Zod and re-checks the session token and the owner's Telegram ID. Client validation is UX only.
-- Design exists only as code (tokens, primitives, browser screenshots); never Figma (owner 03.10.2026).
+- Design exists only as code (tokens, primitives, browser screenshots); never Figma.
 - Agents never deploy, run `--remote` D1 commands or change secrets; the owner does.
-- No paid AI providers, render APIs or paid cloud tiers without an explicit owner decision.
-- AI trials (owner 29.10.2026, iron rule; one key serves production): debug prompts on the cheapest model (`gpt-6-luna`), then judge 3–5 posts on the production model; name «≈ N calls ≈ $X» before a run, ≈ $1 cap per rubric, stop at the first 429.
+- No paid AI providers, render APIs or paid cloud tiers without an explicit owner decision. AI trials: `docs/ai/README.md` «Trials».
 - Tests only where a bug would cost real damage (skill `testing`). Sync docs/setup when behavior/config changes.
 
 ## TypeScript style (all packages)
@@ -64,7 +63,7 @@ Search with `rg`; read only needed lines. `npm run verify` prints failures; open
 - Errors use stable `code`s, are never swallowed, and logs omit secrets, `initData`, sign-in payloads and raw payloads. Store UTC; convert timezones in the UI.
 - Comments explain why. New dependencies need a reason; prefer platform APIs.
 
-## Git (owner decision 14.10.2026)
+## Git
 - Agents commit without asking (green checks) to `develop` or `feat/…`/`fix/…`/`chore/…` from it; the owner pushes unless told (29.10.2026: few pushes a day, limited Actions minutes). Pushing `develop` deploys `dev`.
 - `main` is forbidden for agents: no checkout-and-commit, merge, push or PR merge into it. Releases are the owner's `develop → main` PR.
 - Never force-push or rewrite pushed history. Commit only the task's files, conventionally.
