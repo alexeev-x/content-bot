@@ -24,7 +24,12 @@ Each rubric's approved look and text: `design-refs/rubrics/<NN>-<key>/README.md`
 6. **Budgets.** Browser Rendering's free 10 minutes a day (one screenshot per 10 s), 50 subrequests and 50 D1 queries
    per invocation, the AI queue's rate limit: render and write at draft time, never inside the Cron tick that sends.
 7. **Background work.** DEV runs with the background work off; turning a rubric trigger on there is an owner choice.
-8. **The DEV sample page goes** once every rubric is approved and the scheduler makes the same posts (code, tests and
+8. **Two kinds of rules, both to design with the owner** (owner, 29.10.2026: «пока не думаем про эти правила, но мы
+   вернёмся к ним»). *Between rubrics*: which rubric goes when (the release plan below). *Inside a rubric*: what it
+   picks for its next post — e.g. a hero does not come back until every hero of its pool has had his turn
+   (22 «Что брать рекруту» today picks at random among this week's bank heroes), a look or a bank line in turn. Each
+   rubric gets its own rule when wired; the history in item 3 is what they read.
+9. **The DEV sample page goes** once every rubric is approved and the scheduler makes the same posts (code, tests and
    docs removed, not hidden).
 
 ## Per approved rubric
