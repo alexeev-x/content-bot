@@ -193,6 +193,7 @@ had mostly not parsed (7% kept).
   of read matches failing to parse, the day's STRATZ budget past 70%.
 - **Consumers**: «Гайд на героя» in «Тестирование» reads 14 days of the `immortal` band without the followed players'
   rows (`app/lab/rubric-samples.ts`); with fewer than 150 games it keeps STRATZ's sample.
-- **Release** (owner): create the production database, add `STATS_DB` (`migrations_dir: migrations-stats`) and the
-  `workflows` entry to `env.production`, apply `migrations-stats` remotely, deploy. The old tables of migration 0116 in
-  the main database stay until a later migration drops them.
+- **Production**: database `content-stats-prod` (created by the owner 29.10.2026) and the Workflow
+  `content-stats-snapshot-prod` are declared in `env.production`; its migrations are applied by the owner
+  (`npx wrangler d1 migrations apply content-stats-prod --remote --env production`) before the release. The old tables
+  of migration 0116 in the main database stay until a later migration drops them.

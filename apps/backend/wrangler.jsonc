@@ -113,7 +113,18 @@
           "database_name": "content-db-prod",
           "database_id": "18d701c9-ba51-4668-b811-618ad3867670",
           "migrations_dir": "migrations"
+        },
+        // Hero statistics (owner, 29.10.2026; docs/backend/sources.md): created by the owner, migrations applied by
+        // the owner (`wrangler d1 migrations apply content-stats-prod --remote --env production`).
+        {
+          "binding": "STATS_DB",
+          "database_name": "content-stats-prod",
+          "database_id": "8d12ced1-b2d8-41ed-b502-af89d37381cc",
+          "migrations_dir": "migrations-stats"
         }
+      ],
+      "workflows": [
+        { "name": "content-stats-snapshot-prod", "binding": "STATS_SNAPSHOT", "class_name": "StatsSnapshotWorkflow" }
       ],
       "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "content-r2-prod" }],
       "queues": {
