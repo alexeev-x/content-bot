@@ -47,16 +47,14 @@ Search with `rg`; read only needed lines. `npm run verify` prints failures; open
 - Don't edit instructions, skills, hooks or settings mid-task unless that is the task (it breaks the prompt cache).
 
 ## Non-negotiables
-- Modular monolith: one Worker, one D1, one Cron (plus one Queue only where the architecture says so). No microservices, generic repositories, event bus, service locator or DI container; `apps/backend/src/app/container.ts` wires adapters by hand.
+- Modular monolith: one Worker, one D1, one Cron (plus one Queue; stats DB + Workflow: DECISIONS 29.10.2026). No microservices, generic repositories, event bus, service locator or DI container; `apps/backend/src/app/container.ts` wires adapters by hand.
 - Modules never import each other; only `app/` (routes, bot, Cron, workflows, `container.ts`) connects them via each module's `index.ts` and consumer-owned ports. No cycles; domain never imports infrastructure.
 - No mutable module-level state holding user, request or job data. Bound payload sizes, batches, concurrency and timeouts.
-- Publishing safety: D1 owns state and dedup. Cron ticks may overlap or repeat, so every claim is conditional. A Telegram send that may have happened but is unconfirmed becomes `unknown` and needs manual reconciliation; it is never retried automatically.
-- Secrets only in Worker secrets; never Git, logs or frontend. Tests use separate bot/channel.
-- Every local token lives only in the root `.env`, filled by the owner. Agents never look for tokens elsewhere (`.dev.vars` included), never ask where one is and never ask to paste it. Local probes and scripts get it only through the local Worker (`npm run dev` merges the root `.env`), never by reading env files.
-- Use placeholders; Gitleaks exceptions: path+pattern, never commit SHA.
+- Publishing safety: D1 owns state and dedup. Cron ticks may overlap or repeat, so every claim is conditional. An unconfirmed Telegram send becomes `unknown` for manual reconciliation, never retried automatically.
+- Secrets only in Worker secrets, never Git, logs or frontend. Local tokens only in the root `.env`: never look elsewhere, ask or paste; scripts use the local Worker. Tests use a separate bot/channel. Placeholders; Gitleaks exceptions by path+pattern, never commit SHA.
 - The server re-validates every input with Zod and re-checks the session token and the owner's Telegram ID. Client validation is UX only.
-- Design exists only as code: tokens, primitives and browser screenshots. Figma is excluded (owner decision 03.10.2026); never propose it.
-- Agents never deploy, run `--remote` D1 commands, or change secrets. The owner runs these.
+- Design exists only as code (tokens, primitives, browser screenshots); never Figma (owner 03.10.2026).
+- Agents never deploy, run `--remote` D1 commands or change secrets; the owner does.
 - No paid AI providers, render APIs or paid cloud tiers without an explicit owner decision.
 - Tests only where a bug would cost real damage (skill `testing`). Sync docs/setup when behavior/config changes.
 
@@ -66,16 +64,15 @@ Search with `rg`; read only needed lines. `npm run verify` prints failures; open
 - Comments explain why. New dependencies need a reason; prefer platform APIs.
 
 ## Git (owner decision 14.10.2026)
-- Agents commit and push to `develop` or to their own branches from it (`feat/…`, `fix/…`, `chore/…`). Pushing `develop` deploys Worker `dev`.
-- Commit without asking once the task's checks are green; never push and never ask about pushing — the owner pushes `develop` themselves when needed (owner decision 29.10.2026). Push only if the owner says so for that push or for the whole session. Why: work is developed and checked locally and goes to `develop` only a couple of pushes a day, because from 1.11.2026 the repository is private and GitHub Actions minutes are limited.
+- Agents commit without asking (green checks) to `develop` or `feat/…`/`fix/…`/`chore/…` from it; the owner pushes unless told (29.10.2026: few pushes a day, limited Actions minutes). Pushing `develop` deploys `dev`.
 - `main` is forbidden for agents: no checkout-and-commit, merge, push or PR merge into it. Releases are the owner's `develop → main` PR.
-- Never force-push or rewrite pushed history. Commit only the task's files, after its checks are green; conventional commit messages.
+- Never force-push or rewrite pushed history. Commit only the task's files, conventionally.
 - Migrations: a push to `develop` applies pending migrations to DEV D1 in CI before the deploy, so they must stay expand-only (skill `d1-migration`). Production migrations stay a manual owner run.
 - A contract change updates `contracts`, the backend, the frontend and the contract tests in the same commit.
 
 ## Done means verified
 Run `npm run verify:changed` (full `npm run verify` for R2/R3, see skill `orchestrate`) and report actual results.
 
-Main session's final message: short Russian summary of what was done and check results; the commit hash(es) and whether they were pushed; if a migration was added, its number (CI applies it to DEV; production is manual).
+Main session's final message: short Russian summary, check results, commit hashes and push state, a new migration's number (CI applies it to DEV; production is manual).
 
-Subagents report ≤ 20 lines: `state` (DONE|BLOCKED|FAILED|NOT_VERIFIED), changed paths, checks with the last relevant output lines, risks. Claims need fresh evidence; `not_run` is never success. Missing critical input → `BLOCKED` naming it. After two failed attempts on the same error, stop and report. Stay inside your assigned paths.
+Subagents report ≤ 20 lines: `state` (DONE|BLOCKED|FAILED|NOT_VERIFIED), changed paths, checks with last output lines, risks. Claims need fresh evidence; `not_run` is never success. Missing critical input → `BLOCKED` naming it. After two failed attempts on the same error, stop and report. Stay inside your assigned paths.
