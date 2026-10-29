@@ -10,6 +10,9 @@ export default defineConfig(async () => {
     plugins: [
       cloudflareTest({
         wrangler: { configPath: './wrangler.jsonc' },
+        // Tests never reach Cloudflare: the remote browser binding of local runs would need an API token CI lacks
+        // (PR #30's CI failed on it, 29.10.2026).
+        remoteBindings: false,
         miniflare: { bindings: { TEST_MIGRATIONS: migrations, TEST_STATS_MIGRATIONS: statsMigrations } }
       })
     ],
