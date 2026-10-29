@@ -19,7 +19,6 @@
 {"w":["Аганим","усилок"],"m":"Aghanim's Scepter","s":"item"}
 {"w":["шард"],"m":"Aghanim's Shard","s":"item"}
 {"w":["арканы"],"m":"Arcane Boots","s":"item"}
-{"w":["аквила"],"m":"Ring of Aquila","s":"item"}
 {"w":["армлет"],"m":"Armlet","s":"item"}
 {"w":["бабочка","фляй"],"m":"Butterfly","s":"item"}
 {"w":["базилка"],"m":"Ring of Basilius","s":"item"}
@@ -51,7 +50,6 @@
 {"w":["мидас"],"m":"Hand of Midas","s":"item"}
 {"w":["МКБ"],"m":"Monkey King Bar","s":"item"}
 {"w":["МоМ"],"m":"Mask of Madness","s":"item"}
-{"w":["некро"],"m":"Necronomicon","s":"item"}
 {"w":["пайп","трубка"],"m":"Pipe of Insight","s":"item"}
 {"w":["палочка","ванд","стик"],"m":"Magic Wand / Stick","s":"item"}
 {"w":["ПТ","треды"],"m":"Power Treads","s":"item"}
@@ -91,65 +89,65 @@
 {"w":["ВГ","Vanguard"],"m":"предмет Vanguard","s":"item"}
 {"w":["кримзон","Crimson Guard"],"m":"предмет Crimson Guard","s":"item"}
 {"w":["линза","Aether Lens"],"m":"предмет Aether Lens","s":"item"}
-{"w":["нулик","Nullifier"],"m":"предмет Nullifier","s":"item"}
+{"w":["Nullifier","нулифаер"],"m":"предмет Nullifier","s":"item"}
 {"w":["метеор","Meteor Hammer"],"m":"предмет Meteor Hammer","s":"item"}
 {"w":["грейвсы","Guardian Greaves"],"m":"предмет Guardian Greaves","s":"item"}
 {"w":["ДЛ","Dragon Lance"],"m":"предмет Dragon Lance","s":"item"}
 {"w":["пика","Hurricane Pike"],"m":"предмет Hurricane Pike","s":"item"}
 {"w":["сабля","Echo Sabre"],"m":"предмет Echo Sabre","s":"item"}
 {"w":["баннер","Roshan Banner"],"m":"предмет Roshan Banner","s":"item"}
-{"w":["Abaddon","аба"],"m":"прозвище героя Abaddon","s":"hero"}
+{"w":["Abaddon","аба"],"m":"прозвище героя Abaddon; о герое — «он»","s":"hero"}
 {"w":["Alchemist","алх","алч"],"m":"прозвище героя Alchemist","s":"hero"}
-{"w":["Anti-Mage","АМ"],"m":"прозвище героя Anti-Mage","s":"hero"}
+{"w":["Anti-Mage","АМ","магина"],"m":"прозвище героя Anti-Mage","s":"hero"}
 {"w":["Arc Warden","арк"],"m":"прозвище героя Arc Warden","s":"hero"}
 {"w":["Batrider","бэт"],"m":"прозвище героя Batrider","s":"hero"}
 {"w":["Beastmaster","БМ","бист"],"m":"прозвище героя Beastmaster","s":"hero"}
-{"w":["Bloodseeker","БС"],"m":"прозвище героя Bloodseeker","s":"hero"}
+{"w":["Bloodseeker","БС","сикер"],"m":"прозвище героя Bloodseeker","s":"hero"}
 {"w":["Bounty Hunter","БХ","баунти"],"m":"прозвище героя Bounty Hunter","s":"hero"}
 {"w":["Brewmaster","брю"],"m":"прозвище героя Brewmaster","s":"hero"}
 {"w":["Bristleback","брист","еж","осёл"],"m":"прозвище героя Bristleback","s":"hero"}
-{"w":["Broodmother","брудка","паук"],"m":"прозвище героя Broodmother","s":"hero"}
+{"w":["Broodmother","брудка","паук"],"m":"прозвище героя Broodmother; о герое — «она»","s":"hero"}
 {"w":["Centaur","кент"],"m":"прозвище героя Centaur","s":"hero"}
-{"w":["Chaos Knight","ЦК","чаос"],"m":"прозвище героя Chaos Knight","s":"hero"}
+{"w":["Chaos Knight","ЦК","чаос","конь"],"m":"прозвище героя Chaos Knight","s":"hero"}
 {"w":["Clinkz","боник"],"m":"прозвище героя Clinkz","s":"hero"}
 {"w":["Clockwerk","клок"],"m":"прозвище героя Clockwerk","s":"hero"}
-{"w":["Crystal Maiden","ЦМ","кристалка","мадлен"],"m":"прозвище героя Crystal Maiden","s":"hero"}
+{"w":["Crystal Maiden","ЦМ","кристалка","мадлен"],"m":"прозвище героя Crystal Maiden; о герое — «она»","s":"hero"}
 {"w":["Dark Seer","сир","ДС"],"m":"прозвище героя Dark Seer","s":"hero"}
 {"w":["Dark Willow","вилка"],"m":"прозвище героя Dark Willow","s":"hero"}
-{"w":["Dawnbreaker","ДБ"],"m":"прозвище героя Dawnbreaker","s":"hero"}
-{"w":["Death Prophet","ДП"],"m":"прозвище героя Death Prophet","s":"hero"}
+{"w":["Dawnbreaker","ДБ"],"m":"прозвище героя Dawnbreaker; о герое — «она»","s":"hero"}
+{"w":["Death Prophet","ДП"],"m":"прозвище героя Death Prophet; о герое — «она»","s":"hero"}
 {"w":["Dragon Knight","ДК"],"m":"прозвище героя Dragon Knight","s":"hero"}
-{"w":["Drow Ranger","дровка","дроу","тракса"],"m":"прозвище героя Drow Ranger","s":"hero"}
+{"w":["Drow Ranger","дровка","дроу","тракса"],"m":"прозвище героя Drow Ranger; о герое — «она»","s":"hero"}
 {"w":["Elder Titan","титан"],"m":"прозвище героя Elder Titan","s":"hero"}
 {"w":["Ember Spirit","эмбер"],"m":"прозвище героя Ember Spirit","s":"hero"}
 {"w":["Enchantress","энча","коза","овца"],"m":"прозвище героя Enchantress","s":"hero"}
 {"w":["Faceless Void","войд"],"m":"прозвище героя Faceless Void","s":"hero"}
 {"w":["Grimstroke","грим"],"m":"прозвище героя Grimstroke","s":"hero"}
-{"w":["Gyrocopter","гиро"],"m":"прозвище героя Gyrocopter","s":"hero"}
+{"w":["Gyrocopter","гиро","вертолёт"],"m":"прозвище героя Gyrocopter","s":"hero"}
 {"w":["Hoodwink","белка"],"m":"прозвище героя Hoodwink","s":"hero"}
 {"w":["Huskar","хуск"],"m":"прозвище героя Huskar","s":"hero"}
-{"w":["Invoker","вокер","колдун"],"m":"прозвище героя Invoker","s":"hero"}
+{"w":["Invoker","вокер","колдун","инвок"],"m":"прозвище героя Invoker","s":"hero"}
 {"w":["Io","шар","висп"],"m":"прозвище героя Io","s":"hero"}
 {"w":["Jakiro","джак","ТХД"],"m":"прозвище героя Jakiro","s":"hero"}
-{"w":["Juggernaut","джаггер"],"m":"прозвище героя Juggernaut","s":"hero"}
+{"w":["Juggernaut","джаггер","джага"],"m":"прозвище героя Juggernaut","s":"hero"}
 {"w":["Keeper of the Light","котл","Гендальф"],"m":"прозвище героя Keeper of the Light","s":"hero"}
 {"w":["Legion Commander","легионка","лега"],"m":"прозвище героя Legion Commander","s":"hero"}
-{"w":["Leshrac","леший"],"m":"прозвище героя Leshrac","s":"hero"}
-{"w":["Lifestealer","найкс","гуля"],"m":"прозвище героя Lifestealer","s":"hero"}
+{"w":["Leshrac","леший","лешрак"],"m":"прозвище героя Leshrac","s":"hero"}
+{"w":["Lifestealer","найкс","гуля"],"m":"прозвище героя Lifestealer; о герое — «он»","s":"hero"}
 {"w":["Lycan","волк"],"m":"прозвище героя Lycan","s":"hero"}
 {"w":["Medusa","дуза"],"m":"прозвище героя Medusa","s":"hero"}
 {"w":["Mirana","потма"],"m":"прозвище героя Mirana","s":"hero"}
-{"w":["Monkey King","обезьяна","МК"],"m":"прозвище героя Monkey King","s":"hero"}
+{"w":["Monkey King","обезьяна","МК"],"m":"прозвище героя Monkey King; о герое — «он»","s":"hero"}
 {"w":["Morphling","морф"],"m":"прозвище героя Morphling","s":"hero"}
-{"w":["Nature's Prophet","фурион","фура"],"m":"прозвище героя Nature's Prophet","s":"hero"}
+{"w":["Nature's Prophet","фурион","фура"],"m":"прозвище героя Nature's Prophet; о герое — «он»","s":"hero"}
 {"w":["Necrophos","некр"],"m":"прозвище героя Necrophos","s":"hero"}
-{"w":["Night Stalker","НС","баланар"],"m":"прозвище героя Night Stalker","s":"hero"}
-{"w":["Nyx Assassin","никс","жук"],"m":"прозвище героя Nyx Assassin","s":"hero"}
+{"w":["Night Stalker","НС","баланар","сталкер"],"m":"прозвище героя Night Stalker","s":"hero"}
+{"w":["Nyx Assassin","никс"],"m":"прозвище героя Nyx Assassin","s":"hero"}
 {"w":["Outworld Destroyer","ОД"],"m":"прозвище героя Outworld Destroyer","s":"hero"}
 {"w":["Pangolier","панго"],"m":"прозвище героя Pangolier","s":"hero"}
-{"w":["Phantom Assassin","ПА","фантомка","мортра"],"m":"прозвище героя Phantom Assassin","s":"hero"}
+{"w":["Phantom Assassin","ПА","фантомка","мортра"],"m":"прозвище героя Phantom Assassin; о герое — «она»","s":"hero"}
 {"w":["Phantom Lancer","ПЛ","фантом"],"m":"прозвище героя Phantom Lancer","s":"hero"}
-{"w":["Primal Beast","бист","ПБ"],"m":"прозвище героя Primal Beast","s":"hero"}
+{"w":["Primal Beast","ПБ"],"m":"прозвище героя Primal Beast","s":"hero"}
 {"w":["Queen of Pain","квопа","акаша"],"m":"прозвище героя Queen of Pain","s":"hero"}
 {"w":["Rubick","рубик","рубен"],"m":"прозвище героя Rubick","s":"hero"}
 {"w":["Sand King","СК","скорпион"],"m":"прозвище героя Sand King","s":"hero"}
@@ -157,38 +155,37 @@
 {"w":["Shadow Fiend","СФ","невермор","финд","уголь"],"m":"прозвище героя Shadow Fiend","s":"hero"}
 {"w":["Shadow Shaman","шаман"],"m":"прозвище героя Shadow Shaman","s":"hero"}
 {"w":["Skywrath Mage","скай","петух"],"m":"прозвище героя Skywrath Mage","s":"hero"}
-{"w":["Slardar","селёдка"],"m":"прозвище героя Slardar","s":"hero"}
-{"w":["Slark","рыба"],"m":"прозвище героя Slark","s":"hero"}
+{"w":["Slardar","селёдка"],"m":"прозвище героя Slardar; о герое — «он»","s":"hero"}
+{"w":["Slark","рыба"],"m":"прозвище героя Slark; о герое — «он»","s":"hero"}
 {"w":["Snapfire","снэпка","бабка"],"m":"прозвище героя Snapfire","s":"hero"}
 {"w":["Sniper","дед"],"m":"прозвище героя Sniper","s":"hero"}
-{"w":["Spirit Breaker","баратрум","бара"],"m":"прозвище героя Spirit Breaker","s":"hero"}
+{"w":["Spirit Breaker","баратрум","бара"],"m":"прозвище героя Spirit Breaker; о герое — «он»","s":"hero"}
 {"w":["Storm Spirit","шторм"],"m":"прозвище героя Storm Spirit","s":"hero"}
 {"w":["Techies","течис","минер"],"m":"прозвище героя Techies","s":"hero"}
 {"w":["TA","Templar Assassin","ланая"],"m":"прозвище героя TA","s":"hero"}
-{"w":["Terrorblade","ТБ"],"m":"прозвище героя Terrorblade","s":"hero"}
+{"w":["Terrorblade","ТБ","террор"],"m":"прозвище героя Terrorblade","s":"hero"}
 {"w":["Tidehunter","тайд"],"m":"прозвище героя Tidehunter","s":"hero"}
 {"w":["Timbersaw","тимбер"],"m":"прозвище героя Timbersaw","s":"hero"}
 {"w":["Tiny","тиник","камень"],"m":"прозвище героя Tiny","s":"hero"}
 {"w":["Treant","трент","дерево"],"m":"прозвище героя Treant","s":"hero"}
-{"w":["Tusk","таск","тусик"],"m":"прозвище героя Tusk","s":"hero"}
+{"w":["Tusk","таск","тусик","морж"],"m":"прозвище героя Tusk","s":"hero"}
 {"w":["Underlord","питлорд"],"m":"прозвище героя Underlord","s":"hero"}
 {"w":["Undying","зомби"],"m":"прозвище героя Undying","s":"hero"}
-{"w":["Ursa","медведь"],"m":"прозвище героя Ursa","s":"hero"}
-{"w":["Vengeful Spirit","венга","ВС"],"m":"прозвище героя Vengeful Spirit","s":"hero"}
+{"w":["Ursa","медведь","урса"],"m":"прозвище героя Ursa; о герое — «он»","s":"hero"}
+{"w":["Vengeful Spirit","венга","ВС"],"m":"прозвище героя Vengeful Spirit; о герое — «она»","s":"hero"}
 {"w":["Venomancer","веник","веном","гидра"],"m":"прозвище героя Venomancer","s":"hero"}
-{"w":["Warlock","бабка"],"m":"прозвище героя Warlock","s":"hero"}
+{"w":["Warlock","варлок"],"m":"прозвище героя Warlock","s":"hero"}
 {"w":["Weaver","жук"],"m":"прозвище героя Weaver","s":"hero"}
-{"w":["Windranger","ВР"],"m":"прозвище героя Windranger","s":"hero"}
+{"w":["Windranger","ВР"],"m":"прозвище героя Windranger; о герое — «она»","s":"hero"}
 {"w":["Winter Wyvern","виверна"],"m":"прозвище героя Winter Wyvern","s":"hero"}
 {"w":["Witch Doctor","ВД","доктор"],"m":"прозвище героя Witch Doctor","s":"hero"}
-{"w":["Wraith King","ВК","скелет"],"m":"прозвище героя Wraith King","s":"hero"}
+{"w":["Wraith King","ВК","скелет","папич","леорик"],"m":"прозвище героя Wraith King","s":"hero"}
 {"w":["Pudge","пудж"],"m":"прозвище героя Pudge","s":"hero"}
 {"w":["Riki","рики","рикимару"],"m":"прозвище героя Riki","s":"hero"}
 {"w":["Lina","лина"],"m":"прозвище героя Lina","s":"hero"}
 {"w":["Doom","дум"],"m":"прозвище героя Doom","s":"hero"}
 {"w":["Lich","лич"],"m":"прозвище героя Lich","s":"hero"}
 {"w":["Earthshaker","шейкер"],"m":"прозвище героя Earthshaker","s":"hero"}
-{"w":["Techies","вечный раздражитель комьюнити"],"m":"прозвище героя Techies","s":"hero"}
 {"w":["«Течис","либо имба, либо бесполезен»"],"m":"прозвище героя «Течис","s":"hero"}
 {"w":["Pudge"],"m":"«пудж в лесу» (патч 7.30), комьюнити бурно обсуждало","s":"hero","t":"классика"}
 {"w":["Magnus"],"m":"«маршрутка до Грозного»: игра против Магнуса как поездка в маршрутке (по описанию в обзоре рофлов патча)","s":"hero","t":"классика"}
@@ -290,3 +287,218 @@
 {"w":["suicide Pudge"],"m":"самоубийство Пуджа, чтобы враг не получил награду","s":"feed"}
 {"w":["пассивная агрессия: «gg» в минуту 5"],"m":"пассивная агрессия: «gg» в минуту 5","s":"feed"}
 {"w":["пуш лайн"],"m":"тоже вид руина, если без смысла»","s":"feed"}
+{"w":["Axe","акс"],"m":"прозвище героя Axe","s":"hero"}
+{"w":["Ancient Apparition","АА"],"m":"прозвище героя Ancient Apparition","s":"hero"}
+{"w":["Bane","бейн"],"m":"прозвище героя Bane","s":"hero"}
+{"w":["Chen","чен"],"m":"прозвище героя Chen","s":"hero"}
+{"w":["Dazzle","даззл"],"m":"прозвище героя Dazzle","s":"hero"}
+{"w":["Disruptor","диз"],"m":"прозвище героя Disruptor","s":"hero"}
+{"w":["Earth Spirit","эртспирит"],"m":"прозвище героя Earth Spirit","s":"hero"}
+{"w":["Enigma","энигма"],"m":"прозвище героя Enigma","s":"hero"}
+{"w":["Kunkka","кунка"],"m":"прозвище героя Kunkka","s":"hero"}
+{"w":["Lion","лион"],"m":"прозвище героя Lion","s":"hero"}
+{"w":["Lone Druid","друид","ЛД"],"m":"прозвище героя Lone Druid","s":"hero"}
+{"w":["Luna","луна"],"m":"прозвище героя Luna; о герое — «она»","s":"hero"}
+{"w":["Marci","марси"],"m":"прозвище героя Marci; о герое — «она»","s":"hero"}
+{"w":["Mars","марс"],"m":"прозвище героя Mars","s":"hero"}
+{"w":["Meepo","мипо"],"m":"прозвище героя Meepo","s":"hero"}
+{"w":["Muerta","муэрта"],"m":"прозвище героя Muerta; о герое — «она»","s":"hero"}
+{"w":["Naga Siren","нага"],"m":"прозвище героя Naga Siren; о герое — «она»","s":"hero"}
+{"w":["Ogre Magi","огр"],"m":"прозвище героя Ogre Magi","s":"hero"}
+{"w":["Omniknight","омник"],"m":"прозвище героя Omniknight","s":"hero"}
+{"w":["Oracle","оракл"],"m":"прозвище героя Oracle","s":"hero"}
+{"w":["Phoenix","феникс"],"m":"прозвище героя Phoenix","s":"hero"}
+{"w":["Puck","пак"],"m":"прозвище героя Puck","s":"hero"}
+{"w":["Pugna","пугна"],"m":"прозвище героя Pugna","s":"hero"}
+{"w":["Razor","разор"],"m":"прозвище героя Razor","s":"hero"}
+{"w":["Silencer","сайленсер"],"m":"прозвище героя Silencer","s":"hero"}
+{"w":["Spectre","спектра"],"m":"прозвище героя Spectre; о герое — «она»","s":"hero"}
+{"w":["Tinker","тинкер"],"m":"прозвище героя Tinker","s":"hero"}
+{"w":["Viper","вайпер"],"m":"прозвище героя Viper","s":"hero"}
+{"w":["Visage","визаж"],"m":"прозвище героя Visage","s":"hero"}
+{"w":["Void Spirit","войд спирит"],"m":"прозвище героя Void Spirit","s":"hero"}
+{"w":["Zeus","зевс"],"m":"прозвище героя Zeus","s":"hero"}
+{"w":["Aeon Disk","аеон"],"m":"предмет Aeon Disk","s":"item"}
+{"w":["Lotus Orb","лотус"],"m":"предмет Lotus Orb","s":"item"}
+{"w":["Glimmer Cape","глиммер"],"m":"предмет Glimmer Cape","s":"item"}
+{"w":["Solar Crest","медалька"],"m":"предмет Solar Crest","s":"item"}
+{"w":["Spirit Vessel","вессел"],"m":"предмет Spirit Vessel","s":"item"}
+{"w":["Octarine Core","октарин"],"m":"предмет Octarine Core","s":"item"}
+{"w":["Dagon","дагон"],"m":"предмет Dagon","s":"item"}
+{"w":["Gleipnir","глейпнир"],"m":"предмет Gleipnir","s":"item"}
+{"w":["Khanda","канда"],"m":"предмет Khanda","s":"item"}
+{"w":["Parasma","паразма"],"m":"предмет Parasma","s":"item"}
+{"w":["Harpoon","гарпун"],"m":"предмет Harpoon","s":"item"}
+{"w":["Disperser","дисперсер"],"m":"предмет Disperser","s":"item"}
+{"w":["Bloodthorn","бладторн"],"m":"предмет Bloodthorn","s":"item"}
+{"w":["Satanic","сатаник"],"m":"предмет Satanic","s":"item"}
+{"w":["Kaya","кая"],"m":"предмет Kaya","s":"item"}
+{"w":["Holy Locket","локет"],"m":"предмет Holy Locket","s":"item"}
+{"w":["Pavise","павис"],"m":"предмет Pavise","s":"item"}
+{"w":["Veil of Discord","дискорд"],"m":"предмет Veil of Discord","s":"item"}
+{"w":["Bracer","брасер"],"m":"предмет Bracer","s":"item"}
+{"w":["Wraith Band","банд"],"m":"предмет Wraith Band","s":"item"}
+{"w":["Ghost Scepter","гост"],"m":"предмет Ghost Scepter","s":"item"}
+{"w":["Bloodstone","бладстоун"],"m":"предмет Bloodstone","s":"item"}
+{"w":["Null Talisman","нулик"],"m":"предмет Null Talisman","s":"item"}
+{"w":["Tango","танго"],"m":"предмет Tango","s":"item"}
+{"w":["Enchanted Mango","манго"],"m":"предмет Enchanted Mango","s":"item"}
+{"w":["Blood Grenade","граната"],"m":"предмет Blood Grenade","s":"item"}
+{"w":["Aegis of the Immortal","аегис","эгида"],"m":"предмет Aegis of the Immortal","s":"item"}
+{"w":["Cheese","сыр"],"m":"предмет Cheese","s":"item"}
+{"w":["Moon Shard","мун шард"],"m":"предмет Moon Shard","s":"item"}
+{"w":["Falcon Blade","фалкон"],"m":"предмет Falcon Blade","s":"item"}
+{"w":["Shallow Grave"],"m":"способность Dazzle; игроки говорят: крест","s":"ability"}
+{"w":["Shadow Wave"],"m":"способность Dazzle; игроки говорят: волна, хил","s":"ability"}
+{"w":["Black Hole"],"m":"способность Enigma; игроки говорят: блэкхол (блекхол), дыра","s":"ability"}
+{"w":["Demonic Conversion"],"m":"способность Enigma; игроки говорят: эйдолоны, мелкие","s":"ability"}
+{"w":["Chronosphere"],"m":"способность Faceless Void; игроки говорят: хрона, чрона, купол","s":"ability"}
+{"w":["Time Walk"],"m":"способность Faceless Void; игроки говорят: таймволк","s":"ability"}
+{"w":["Ravage"],"m":"способность Tidehunter; игроки говорят: равага","s":"ability"}
+{"w":["Anchor Smash"],"m":"способность Tidehunter; игроки говорят: якорь","s":"ability"}
+{"w":["Reincarnation"],"m":"способность Wraith King; игроки говорят: реинкарнация, реинка, вторая жизнь","s":"ability"}
+{"w":["Meat Hook"],"m":"способность Pudge; игроки говорят: хук","s":"ability"}
+{"w":["Rot"],"m":"способность Pudge; игроки говорят: рот, вонь","s":"ability"}
+{"w":["Dismember"],"m":"способность Pudge; игроки говорят: ульта, жуёт","s":"ability"}
+{"w":["Reverse Polarity"],"m":"способность Magnus; игроки говорят: РП","s":"ability"}
+{"w":["Skewer"],"m":"способность Magnus; игроки говорят: скьюер","s":"ability"}
+{"w":["Empower"],"m":"способность Magnus; игроки говорят: эмповер","s":"ability"}
+{"w":["Echo Slam"],"m":"способность Earthshaker; игроки говорят: эхо, эхослэм","s":"ability"}
+{"w":["Fissure"],"m":"способность Earthshaker; игроки говорят: фиса, фишур","s":"ability"}
+{"w":["Enchant Totem"],"m":"способность Earthshaker; игроки говорят: тотем","s":"ability"}
+{"w":["Berserker's Call"],"m":"способность Axe; игроки говорят: колл, крик","s":"ability"}
+{"w":["Counter Helix"],"m":"способность Axe; игроки говорят: крутилка, хеликс","s":"ability"}
+{"w":["Blade Fury"],"m":"способность Juggernaut; игроки говорят: крутилка, вертушка","s":"ability"}
+{"w":["Healing Ward"],"m":"способность Juggernaut; игроки говорят: вард, хилвард","s":"ability"}
+{"w":["Omnislash"],"m":"способность Juggernaut; игроки говорят: омнислэш, слэш","s":"ability"}
+{"w":["Mana Void"],"m":"способность Anti-Mage; игроки говорят: мана войд","s":"ability"}
+{"w":["Sun Strike"],"m":"способность Invoker; игроки говорят: санстрайк, санька","s":"ability"}
+{"w":["Cold Snap"],"m":"способность Invoker; игроки говорят: колдснеп","s":"ability"}
+{"w":["Ghost Walk"],"m":"способность Invoker; игроки говорят: гостволк, инвиз","s":"ability"}
+{"w":["Chaos Meteor"],"m":"способность Invoker; игроки говорят: метеор","s":"ability"}
+{"w":["Deafening Blast"],"m":"способность Invoker; игроки говорят: бласт","s":"ability"}
+{"w":["Forge Spirit"],"m":"способность Invoker; игроки говорят: форджи","s":"ability"}
+{"w":["Ice Wall"],"m":"способность Invoker; игроки говорят: стена, айсвол","s":"ability"}
+{"w":["E.M.P."],"m":"способность Invoker; игроки говорят: емп","s":"ability"}
+{"w":["Shadowraze"],"m":"способность Shadow Fiend; игроки говорят: койлы, рейзы","s":"ability"}
+{"w":["Requiem of Souls"],"m":"способность Shadow Fiend; игроки говорят: реквием","s":"ability"}
+{"w":["Finger of Death"],"m":"способность Lion; игроки говорят: палец, фингер","s":"ability"}
+{"w":["Hex"],"m":"способность Lion; игроки говорят: хекс, лягушка","s":"ability"}
+{"w":["Earth Spike"],"m":"способность Lion; игроки говорят: импейл","s":"ability"}
+{"w":["Laguna Blade"],"m":"способность Lina; игроки говорят: лагуна","s":"ability"}
+{"w":["Mass Serpent Ward"],"m":"способность Shadow Shaman; игроки говорят: змеи, варды","s":"ability"}
+{"w":["Shackles"],"m":"способность Shadow Shaman; игроки говорят: шаклы","s":"ability"}
+{"w":["Reaper's Scythe"],"m":"способность Necrophos; игроки говорят: коса","s":"ability"}
+{"w":["Supernova"],"m":"способность Phoenix; игроки говорят: яйцо","s":"ability"}
+{"w":["Icarus Dive"],"m":"способность Phoenix; игроки говорят: дайв","s":"ability"}
+{"w":["X Marks the Spot"],"m":"способность Kunkka; игроки говорят: крестик, икс","s":"ability"}
+{"w":["Ghostship"],"m":"способность Kunkka; игроки говорят: корабль","s":"ability"}
+{"w":["Torrent"],"m":"способность Kunkka; игроки говорят: торрент","s":"ability"}
+{"w":["Tidebringer"],"m":"способность Kunkka; игроки говорят: сплеш","s":"ability"}
+{"w":["Hookshot"],"m":"способность Clockwerk; игроки говорят: хук","s":"ability"}
+{"w":["Power Cogs"],"m":"способность Clockwerk; игроки говорят: шестерёнки, коги","s":"ability"}
+{"w":["Rocket Flare"],"m":"способность Clockwerk; игроки говорят: ракета","s":"ability"}
+{"w":["Timber Chain"],"m":"способность Timbersaw; игроки говорят: цепь","s":"ability"}
+{"w":["Chakram"],"m":"способность Timbersaw; игроки говорят: пила","s":"ability"}
+{"w":["Viscous Nasal Goo"],"m":"способность Bristleback; игроки говорят: сопли","s":"ability"}
+{"w":["Quill Spray"],"m":"способность Bristleback; игроки говорят: иглы","s":"ability"}
+{"w":["Primal Roar"],"m":"способность Beastmaster; игроки говорят: рык","s":"ability"}
+{"w":["Spirit Bear"],"m":"способность Lone Druid; игроки говорят: мишка, медведь","s":"ability"}
+{"w":["Nightmare"],"m":"способность Bane; игроки говорят: сон","s":"ability"}
+{"w":["Fiend's Grip"],"m":"способность Bane; игроки говорят: грип","s":"ability"}
+{"w":["Doom"],"m":"способность Doom; игроки говорят: дум (задумить)","s":"ability"}
+{"w":["Devour"],"m":"способность Doom; игроки говорят: съесть крипа","s":"ability"}
+{"w":["Elder Dragon Form"],"m":"способность Dragon Knight; игроки говорят: дракон, форма","s":"ability"}
+{"w":["Exorcism"],"m":"способность Death Prophet; игроки говорят: духи","s":"ability"}
+{"w":["Global Silence"],"m":"способность Silencer; игроки говорят: глобал, глобальное сало","s":"ability"}
+{"w":["Glaives of Wisdom"],"m":"способность Silencer; игроки говорят: глефы","s":"ability"}
+{"w":["Chaos Bolt"],"m":"способность Chaos Knight; игроки говорят: болт","s":"ability"}
+{"w":["Hoof Stomp"],"m":"способность Centaur; игроки говорят: стомп","s":"ability"}
+{"w":["Echo Stomp"],"m":"способность Elder Titan; игроки говорят: стомп","s":"ability"}
+{"w":["Charge of Darkness"],"m":"способность Spirit Breaker; игроки говорят: чардж, разгон","s":"ability"}
+{"w":["Ball Lightning"],"m":"способность Storm Spirit; игроки говорят: болл, шар","s":"ability"}
+{"w":["Electric Vortex"],"m":"способность Storm Spirit; игроки говорят: вортекс, притяжка","s":"ability"}
+{"w":["Dream Coil"],"m":"способность Puck; игроки говорят: койл","s":"ability"}
+{"w":["Illusory Orb"],"m":"способность Puck; игроки говорят: орба","s":"ability"}
+{"w":["Phase Shift"],"m":"способность Puck; игроки говорят: фаза","s":"ability"}
+{"w":["Tether"],"m":"способность Io; игроки говорят: тетер","s":"ability"}
+{"w":["Relocate"],"m":"способность Io; игроки говорят: релокейт","s":"ability"}
+{"w":["Infest"],"m":"способность Lifestealer; игроки говорят: инфест, залез в крипа","s":"ability"}
+{"w":["Rage"],"m":"способность Lifestealer; игроки говорят: рейдж","s":"ability"}
+{"w":["Enrage"],"m":"способность Ursa; игроки говорят: рейдж","s":"ability"}
+{"w":["Fury Swipes"],"m":"способность Ursa; игроки говорят: свайпы","s":"ability"}
+{"w":["Bloodlust"],"m":"способность Ogre Magi; игроки говорят: бладласт","s":"ability"}
+{"w":["Multicast"],"m":"способность Ogre Magi; игроки говорят: мультикаст","s":"ability"}
+{"w":["Guardian Angel"],"m":"способность Omniknight; игроки говорят: ангел","s":"ability"}
+{"w":["Astral Imprisonment"],"m":"способность Outworld Destroyer; игроки говорят: астрал","s":"ability"}
+{"w":["Arcane Orb"],"m":"способность Outworld Destroyer; игроки говорят: орба","s":"ability"}
+{"w":["Coup de Grace"],"m":"способность Phantom Assassin; игроки говорят: криты","s":"ability"}
+{"w":["Stifling Dagger"],"m":"способность Phantom Assassin; игроки говорят: кинжал","s":"ability"}
+{"w":["Doppelganger"],"m":"способность Phantom Lancer; игроки говорят: доппель","s":"ability"}
+{"w":["Poof"],"m":"способность Meepo; игроки говорят: пуф","s":"ability"}
+{"w":["Earthbind"],"m":"способность Meepo; игроки говорят: сетка","s":"ability"}
+{"w":["Song of the Siren"],"m":"способность Naga Siren; игроки говорят: песня, сонг","s":"ability"}
+{"w":["Ensnare"],"m":"способность Naga Siren; игроки говорят: сетка","s":"ability"}
+{"w":["Sprout"],"m":"способность Nature's Prophet; игроки говорят: клетка, деревья","s":"ability"}
+{"w":["Teleportation"],"m":"способность Nature's Prophet; игроки говорят: тп","s":"ability"}
+{"w":["Spiked Carapace"],"m":"способность Nyx Assassin; игроки говорят: карапас, панцирь","s":"ability"}
+{"w":["Impale"],"m":"способность Nyx Assassin; игроки говорят: импейл","s":"ability"}
+{"w":["Static Link"],"m":"способность Razor; игроки говорят: линк","s":"ability"}
+{"w":["Smoke Screen"],"m":"способность Riki; игроки говорят: смок","s":"ability"}
+{"w":["Spell Steal"],"m":"способность Rubick; игроки говорят: украл, спеллстил","s":"ability"}
+{"w":["Telekinesis"],"m":"способность Rubick; игроки говорят: подкинуть, телекинез","s":"ability"}
+{"w":["Dark Pact"],"m":"способность Slark; игроки говорят: пакт","s":"ability"}
+{"w":["Pounce"],"m":"способность Slark; игроки говорят: прыжок","s":"ability"}
+{"w":["Firesnap Cookie"],"m":"способность Snapfire; игроки говорят: печенька","s":"ability"}
+{"w":["Metamorphosis"],"m":"способность Terrorblade; игроки говорят: мета, форма","s":"ability"}
+{"w":["Sunder"],"m":"способность Terrorblade; игроки говорят: сандер","s":"ability"}
+{"w":["Heat-Seeking Missile"],"m":"способность Tinker; игроки говорят: ракеты","s":"ability"}
+{"w":["March of the Machines"],"m":"способность Tinker; игроки говорят: марч, роботы","s":"ability"}
+{"w":["Rearm"],"m":"способность Tinker; игроки говорят: реарм","s":"ability"}
+{"w":["Toss"],"m":"способность Tiny; игроки говорят: тосс, кинуть","s":"ability"}
+{"w":["Overgrowth"],"m":"способность Treant; игроки говорят: корни","s":"ability"}
+{"w":["Battle Trance"],"m":"способность Troll Warlord; игроки говорят: транс","s":"ability"}
+{"w":["Whirling Axes"],"m":"способность Troll Warlord; игроки говорят: топоры","s":"ability"}
+{"w":["Snowball"],"m":"способность Tusk; игроки говорят: снежок","s":"ability"}
+{"w":["Walrus Punch"],"m":"способность Tusk; игроки говорят: панч","s":"ability"}
+{"w":["Fiend's Gate"],"m":"способность Underlord; игроки говорят: портал","s":"ability"}
+{"w":["Pit of Malice"],"m":"способность Underlord; игроки говорят: яма","s":"ability"}
+{"w":["Tombstone"],"m":"способность Undying; игроки говорят: могила, томб","s":"ability"}
+{"w":["Flesh Golem"],"m":"способность Undying; игроки говорят: голем, форма","s":"ability"}
+{"w":["Nether Swap"],"m":"способность Vengeful Spirit; игроки говорят: свап","s":"ability"}
+{"w":["Plague Ward"],"m":"способность Venomancer; игроки говорят: варды","s":"ability"}
+{"w":["Summon Familiars"],"m":"способность Visage; игроки говорят: птички","s":"ability"}
+{"w":["Chaotic Offering"],"m":"способность Warlock; игроки говорят: голем, инфернал","s":"ability"}
+{"w":["Fatal Bonds"],"m":"способность Warlock; игроки говорят: связка","s":"ability"}
+{"w":["The Swarm"],"m":"способность Weaver; игроки говорят: жуки","s":"ability"}
+{"w":["Time Lapse"],"m":"способность Weaver; игроки говорят: лапс, откат","s":"ability"}
+{"w":["Shackleshot"],"m":"способность Windranger; игроки говорят: шаклы","s":"ability"}
+{"w":["Winter's Curse"],"m":"способность Winter Wyvern; игроки говорят: курс","s":"ability"}
+{"w":["Death Ward"],"m":"способность Witch Doctor; игроки говорят: вард","s":"ability"}
+{"w":["Kinetic Field"],"m":"способность Disruptor; игроки говорят: поле","s":"ability"}
+{"w":["Glimpse"],"m":"способность Disruptor; игроки говорят: глимпс","s":"ability"}
+{"w":["Flak Cannon"],"m":"способность Gyrocopter; игроки говорят: флак","s":"ability"}
+{"w":["Burning Spear"],"m":"способность Huskar; игроки говорят: копья","s":"ability"}
+{"w":["Life Break"],"m":"способность Huskar; игроки говорят: прыжок","s":"ability"}
+{"w":["Searing Chains"],"m":"способность Ember Spirit; игроки говорят: цепи","s":"ability"}
+{"w":["Sleight of Fist"],"m":"способность Ember Spirit; игроки говорят: слайт","s":"ability"}
+{"w":["Fire Remnant"],"m":"способность Ember Spirit; игроки говорят: ремнанты","s":"ability"}
+{"w":["Stone Remnant"],"m":"способность Earth Spirit; игроки говорят: камни","s":"ability"}
+{"w":["Boulder Smash"],"m":"способность Earth Spirit; игроки говорят: пинок","s":"ability"}
+{"w":["Ice Path"],"m":"способность Jakiro; игроки говорят: айспас","s":"ability"}
+{"w":["Overwhelming Odds"],"m":"способность Legion Commander; игроки говорят: одсы","s":"ability"}
+{"w":["Pulse Nova"],"m":"способность Leshrac; игроки говорят: нова","s":"ability"}
+{"w":["Sacred Arrow"],"m":"способность Mirana; игроки говорят: стрела","s":"ability"}
+{"w":["Moonlight Shadow"],"m":"способность Mirana; игроки говорят: инвиз","s":"ability"}
+{"w":["Sonic Wave"],"m":"способность Queen of Pain; игроки говорят: волна","s":"ability"}
+{"w":["Scream of Pain"],"m":"способность Queen of Pain; игроки говорят: крик","s":"ability"}
+{"w":["Primal Split"],"m":"способность Brewmaster; игроки говорят: сплит","s":"ability"}
+{"w":["Track"],"m":"способность Bounty Hunter; игроки говорят: трек","s":"ability"}
+{"w":["Rupture"],"m":"способность Bloodseeker; игроки говорят: рапчур","s":"ability"}
+{"w":["Great Cleave"],"m":"способность Sven; игроки говорят: клив","s":"ability"}
+{"w":["God's Strength"],"m":"способность Sven; игроки говорят: ГС","s":"ability"}
+{"w":["Nether Ward"],"m":"способность Pugna; игроки говорят: вард","s":"ability"}
+{"w":["Life Drain"],"m":"способность Pugna; игроки говорят: дрейн","s":"ability"}
+{"w":["Aphotic Shield"],"m":"способность Abaddon; игроки говорят: щит","s":"ability"}
+{"w":["Mist Coil"],"m":"способность Abaddon; игроки говорят: койл","s":"ability"}
+{"w":["Unstable Concoction"],"m":"способность Alchemist; игроки говорят: банка, колба","s":"ability"}
