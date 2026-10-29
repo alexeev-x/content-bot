@@ -27,7 +27,6 @@ import type { Logger } from '../../platform/logging/logger';
 import { getOwnerOperationsSettings } from '../../modules/settings';
 import { AppError } from '../../shared/app-error';
 import type { Container } from '../container';
-import { HERO_MATCHES_KEEP_MS } from '../workflows/hero-matches';
 import { pictureImproverFor, type SourcePicture } from '../workflows/picture-quality';
 
 // DEV only (owner, 25.10.2026): one rubric's post from live data — the picture rendered by the browser from Valve's
@@ -188,17 +187,39 @@ async function fillBareFinds(container: Container, finds: GameFind[]): Promise<G
   return finds.map((find) => ({ ...find, text: filled.get(find.sha) ?? find.text }));
 }
 
-/** The bot's own match base as the guide reads it: the last 14 days of one hero at one position. */
-function heroMatchSource(container: Container): HeroMatchSource {
-  const since = () => container.clock.now() - HERO_MATCHES_KEEP_MS;
+/** The guide's window and band in the statistics base (owner, 29.10.2026): 14 days of Immortal games. */
+const GUIDE_DAYS_MS = 14 * 86_400_000;
+const GUIDE_BAND = 'immortal';
+const GUIDE_GAMES_MAX = 20_000;
+
+/**
+ * The statistics base as the guide reads it (`modules/hero-stats`): one hero at one position over the last 14 days,
+ * without the followed players' own rows (they win more than their lobby, so their games would flatter the hero).
+ * Null where the base is not bound (DEV never runs it): the guide then keeps STRATZ's sample.
+ */
+function heroMatchSource(container: Container): HeroMatchSource | null {
+  const repo = container.heroStats;
+  if (repo === null) return null;
+  const fair = async (heroId: number, position: number, limit: number) =>
+    (await repo.rows(heroId, position, container.clock.now() - GUIDE_DAYS_MS, GUIDE_BAND, limit)).filter(
+      (row) => !row.tracked
+    );
   return {
-    games: (heroId, position) => container.heroMatches.games(heroId, position, since()),
+    async games(heroId, position) {
+      return (await fair(heroId, position, GUIDE_GAMES_MAX)).map((row) => ({
+        won: row.won,
+        minutes: row.minutes,
+        enemies: row.enemies
+          .split(',')
+          .map((slot) => Number(slot.split(':')[0]))
+          .filter((hero) => Number.isInteger(hero) && hero > 0)
+      }));
+    },
     async sample(heroId, position, limit) {
-      const rows = await container.heroMatches.sample(heroId, position, since(), limit);
-      return rows.map((row) => ({
+      return (await fair(heroId, position, limit * 2)).slice(0, limit).map((row) => ({
         victory: row.won,
         startedAt: Math.floor(row.startedAt / 1000),
-        patch: row.detail.v,
+        patch: row.patch,
         minutes: row.minutes,
         items: row.detail.i,
         neutral: row.detail.n,

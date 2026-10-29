@@ -27,7 +27,7 @@ import {
 import { runSeriesPublishStep } from './workflows/autopublish-series';
 import { runTreasureWatch } from './workflows/treasure-watch';
 import { gameFilesExternalId, prepareGameFilesPost, runGameFilesWatch } from './workflows/game-files';
-import { runHeroMatches } from './workflows/hero-matches';
+import { runHeroStats } from './workflows/hero-stats';
 import type { LabQueue } from './lab';
 import { runSteamWatch } from './workflows/steam-watch';
 import { getOwnerOperationsSettings } from '../modules/settings';
@@ -471,7 +471,16 @@ async function runAiQueueMessages(
       continue;
     }
     if (job.kind === 'hero_matches') {
-      await runHeroMatches(container, job, requestId, onError);
+      // The hero statistics collector (app/workflows/hero-stats.ts); never throws, so the message is always acked.
+      const repo = container.heroStats;
+      const stratz = container.statsMatches;
+      if (repo !== null && stratz !== null)
+        await runHeroStats({
+          repo,
+          stratz,
+          now: () => container.clock.now(),
+          log: (fields) => container.logger.info({ requestId, ...fields })
+        });
       message.ack();
       continue;
     }

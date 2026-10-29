@@ -152,21 +152,47 @@ or the failure's stable code. «Источники → Состояние лен
 `watches`).
 A watch whose third run in a row fails raises one content alert «Источник … не работает» with its code (`watch-down:<key>:<time>`, review 24.10.2026), sent with the next content alerts.
 
-## Hero-matches base for «Гайд на героя» (migration 0116, owner 28.10.2026)
+## Hero statistics base (owner 29.10.2026; plan `.logs/handoff/hero-matches-plan.md`)
 
-«По любому герою», with position matchups, a real win rate and room for unusual builds: no public source splits
-matchups by position (STRATZ's `heroVsHeroMatchup` has no positions, its `guide` lists only wins, Dota2ProTracker's API
-is closed), so the bot keeps its own base the way Dota2ProTracker counts from STRATZ's matches
-(`app/workflows/hero-matches.ts`, `modules/hero-matches`). Every five minutes (minutes ending in 1 or 6) the Cron queues
-two `hero_matches` jobs, only with `STRATZ_TOKEN` and `STATS_BRIDGE_URL`; production always, DEV only while the owner's
-«Фоновые задачи → База матчей» switch is on (owner, 28.10.2026: DEV lives without Cron). Every 90 minutes a run lists OpenDota's newest public
-matches of rank tier 75 and up (`/publicMatches?min_rank=75` through the bridge, 100 a page, about 1 600 a day) past the
-newest id taken; twelve hours after a match (STRATZ fills positions late; 82% of day-old matches had them, 28.10.2026)
-it is read from STRATZ with three others in one request (each job its own CPU; six took 9–12 ms to parse) (`match(id)` aliases). A match whose ten players all have a
-position becomes ten rows of `hero_match_players` (hero, position, outcome, length, the «hero:position» of allies and
-opponents, and a compact JSON of items, purchases with minutes and skill order; consumables only before the horn);
-one without is tried again six hours later, three tries at most. Claims are conditional (the listing turn, each due
-match moved ahead before it is read), so overlapping runs never read a match twice and a failed read only waits. Rows
-older than 14 days are deleted once a day (a full scan, once). The guide counts from the base when it holds at least
-150 games of the hero at its position: win rate, game-length rates and matchups from every game, builds from the newest
-150; with fewer it keeps STRATZ's sample, and the owner's note says which.
+Win rates, builds with item timings, skill orders and matchups **by position** at the level of Dota2ProTracker, which
+is only a benchmark (its terms forbid automated access and reuse of its data). Research and measurements:
+`.logs/research/hero-matches/` (SUMMARY, p0-results). It replaced the 28.10 base, whose OpenDota public match ids STRATZ
+had mostly not parsed (7% kept).
+
+- **Where it runs**: its own D1 database `STATS_DB` (`migrations-stats/`, so long scans never block publishing claims)
+  and the Workflow `STATS_SNAPSHOT`. Bound in local runs and, once the owner creates the database, on production;
+  **never on DEV** (owner 29.10.2026). Code: `integrations/stratz/stratz-matches.ts`, `modules/hero-stats`,
+  `app/workflows/hero-stats.ts` (collector and alerts), `app/workflows/hero-stats-snapshot.ts` (nightly Workflow).
+- **Whom it follows**: the regional season leaderboards (Europe, Americas, SE Asia, China; ≈ 7000+ MMR), re-read every
+  day one page of 1 000 per run; an account off the boards for a week is dropped.
+- **Collector** (Cron, minutes ending in 1 and 6, two queued runs each in its own invocation): the accounts due
+  (twenty per STRATZ request) list their parsed ranked All Pick matches of the **last 72 hours** (a rolling window: STRATZ
+  parses out of order, so a watermark would lose matches; already kept or queued ones are skipped without a write); queued
+  matches are read ten per request as `match(id)` aliases (`matches(ids)` is admin-only) and kept only when `keepMatch`
+  passes: parsed, ranked All Pick, Divine or Immortal bracket, an outcome, at least 12 minutes, ten players with five
+  **distinct** positions a side, no abandon. A dropped match or one out of its three tries stays a marker until 4 days
+  after its start, so a relisting never queues it again. An account with matches is scanned again in 6 hours, one without
+  in 12, a failed one in a day.
+- **Rows**: `stats_matches` (one per match: patch, bracket, leaderboard players, lane outcomes, draft) and
+  `stats_players` (one per player: hero, position, won, minutes, lane outcome, K/D/A, GPM/XPM, damage, net worth @10/@20,
+  allies and opponents as «hero:position», compact JSON of items, purchases with minutes, skill order and neutral).
+  `tracked` marks followed accounts: they win more than their lobby (+2.4 pp in the probe), so every win rate skips their
+  own rows.
+- **Budgets** (all conditional counters in `stats_budget`): STRATZ ≤ 750 an hour and 7 500 a day (half its limits), reads
+  ≤ 6 000 matches a day. A 403 pauses the collector 30 minutes, a 429 what STRATZ asked.
+- **Self-cleaning** (once a day): rows older than **8 weeks**, markers, old counters, health older than 90 days, per-day
+  counts older than 400 days, accounts off the leaderboards.
+- **Nightly snapshots** (from 03:00 UTC, one Workflow instance a day, id `stats-YYYY-MM-DD`; a step per hero, retried
+  alone): per patch × hero × position × band (`all` Divine+, `immortal`, `top` = at least 4 leaderboard players, to be
+  calibrated against Dota2ProTracker) × span (8 days, 14 days, patch): win rate with its Wilson interval, win rate by
+  game length, lane outcome, medians, items (share, median minute, p25–p75, buyers' win rate and the effect of buying by
+  the median minute among games that lasted that long), starting sets, the modal first-ten skill order, neutrals, and
+  allies/opponents by hero and position with the difference from what both base rates expect (log-odds). Replaced in
+  place; `stats_days` keeps matches and wins per day for trends.
+- **Alerts** (hourly, one of a kind a day): nothing kept for 2 hours, STRATZ refusing the address or token, more than 2%
+  of read matches failing to parse, the day's STRATZ budget past 70%.
+- **Consumers**: «Гайд на героя» in «Тестирование» reads 14 days of the `immortal` band without the followed players'
+  rows (`app/lab/rubric-samples.ts`); with fewer than 150 games it keeps STRATZ's sample.
+- **Release** (owner): create the production database, add `STATS_DB` (`migrations_dir: migrations-stats`) and the
+  `workflows` entry to `env.production`, apply `migrations-stats` remotely, deploy. The old tables of migration 0116 in
+  the main database stay until a later migration drops them.

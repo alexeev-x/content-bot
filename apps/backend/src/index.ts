@@ -6,6 +6,9 @@ import { createLabQueue, labCron, mountLab } from './app/lab';
 import { mountLocalSignIn } from './app/local-sign-in-route';
 import { handleScheduled } from './app/scheduled';
 
+// The nightly hero statistics (wrangler.jsonc `workflows`): the runtime finds the class by this export.
+export { StatsSnapshotWorkflow } from './app/workflows/hero-stats-snapshot';
+
 // True only under `vite serve` (apps/frontend/vite.config.ts). A build gets the literal `false`, so the bundler
 // drops the local sign-in module; `wrangler dev` and tests have no constant at all.
 declare const __LOCAL_SIGN_IN__: boolean | undefined;

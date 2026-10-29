@@ -23,7 +23,20 @@
       // environments: env.dev and env.production declare their own databases below.
       "database_id": "00000000-0000-0000-0000-000000000000",
       "migrations_dir": "migrations"
+    },
+    // Hero statistics (owner, 29.10.2026): their own database, so long scans never block publishing claims. Local and
+    // tests only here; production declares its own once the owner creates it; DEV never runs statistics.
+    {
+      "binding": "STATS_DB",
+      "database_name": "content-stats",
+      "database_id": "00000000-0000-0000-0000-000000000001",
+      "migrations_dir": "migrations-stats"
     }
+  ],
+  // The nightly statistics: one step per hero, retried on its own; the instance id is the date, so a second Cron tick
+  // cannot start the same night twice.
+  "workflows": [
+    { "name": "content-stats-snapshot", "binding": "STATS_SNAPSHOT", "class_name": "StatsSnapshotWorkflow" }
   ],
   "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "content-r2-test" }],
   // Local runs draw rubric pictures on Cloudflare's real browser (remote binding: the code stays local, the database
