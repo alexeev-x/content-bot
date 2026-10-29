@@ -82,6 +82,28 @@ describe('readSteamAppInfo', () => {
     ]);
   });
 
+  it('tries a slow or dropped read once more in the same run', async () => {
+    const manager = fakeManager();
+    let calls = 0;
+    const flaky = (async (...args: Parameters<typeof fetch>) => {
+      calls += 1;
+      if (calls === 1) throw new TypeError('network');
+      return directory(...args);
+    }) as typeof fetch;
+    const apps = await readSteamAppInfo([570], { fetchImpl: flaky, openSocket: async () => manager.socket });
+    expect(calls).toBe(2);
+    expect(apps[0]?.appId).toBe(570);
+  });
+
+  it('names the step and Steam’s status when the server list fails twice', async () => {
+    const down = (async () => new Response('Service Unavailable', { status: 503 })) as unknown as typeof fetch;
+    await expect(readSteamAppInfo([570], { fetchImpl: down })).rejects.toMatchObject({
+      code: 'STEAM_CM_DIRECTORY',
+      status: 503,
+      detail: expect.stringContaining('дважды подряд; список серверов')
+    });
+  });
+
   it('fails with a code when the logon is refused', async () => {
     const manager = fakeManager(5);
     await expect(

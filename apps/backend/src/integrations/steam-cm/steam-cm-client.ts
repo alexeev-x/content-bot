@@ -1,3 +1,5 @@
+import { readErrorDetail } from '../../platform/error-detail';
+
 // Steam's own product info service (PICS), read the way a Steam client reads it (owner, 24.10.2026: «как люди делают»):
 // an anonymous logon to a Steam connection manager over a WebSocket, one product info request, then the socket closes.
 // Only the few protobuf fields this needs are written and read here; no Steam library runs in a Worker. A Worker reaches
@@ -23,8 +25,13 @@ const MESSAGE_MAX_BYTES = 2_000_000;
 export type SteamCmErrorCode =
   'STEAM_CM_DIRECTORY' | 'STEAM_CM_CONNECT' | 'STEAM_CM_LOGON' | 'STEAM_CM_TIMEOUT' | 'STEAM_CM_SHAPE';
 
+/** `detail` says which step failed and how (owner: every failure in full detail); `status` is Steam's HTTP status. */
 export class SteamCmError extends Error {
-  constructor(readonly code: SteamCmErrorCode) {
+  constructor(
+    readonly code: SteamCmErrorCode,
+    readonly detail?: string,
+    readonly status?: number
+  ) {
     super(code);
     this.name = 'SteamCmError';
   }
@@ -221,11 +228,31 @@ async function workerSocket(url: string, fetchImpl: typeof fetch, signal: AbortS
 
 /** The connection managers a Worker can reach: WebSocket ones on port 443. */
 async function connectionManagers(fetchImpl: typeof fetch, signal: AbortSignal): Promise<string[]> {
+  let response: Response;
+  try {
+    response = await fetchImpl(DIRECTORY, { signal });
+  } catch {
+    throw new SteamCmError(
+      'STEAM_CM_DIRECTORY',
+      signal.aborted ? 'список серверов: Steam не ответил вовремя' : 'список серверов: сетевая ошибка'
+    );
+  }
+  if (!response.ok) {
+    const said = await readErrorDetail(response);
+    throw new SteamCmError(
+      'STEAM_CM_DIRECTORY',
+      `список серверов${said === undefined ? '' : `: ${said}`}`,
+      response.status
+    );
+  }
   let body: unknown;
   try {
-    body = await (await fetchImpl(DIRECTORY, { signal })).json();
+    body = await response.json();
   } catch {
-    throw new SteamCmError('STEAM_CM_DIRECTORY');
+    throw new SteamCmError(
+      'STEAM_CM_DIRECTORY',
+      signal.aborted ? 'список серверов: ответ не дочитан вовремя' : 'список серверов: ответ не JSON'
+    );
   }
   const list = (body as { response?: { serverlist?: { endpoint?: unknown; type?: unknown }[] } }).response?.serverlist;
   const hosts = (Array.isArray(list) ? list : [])
@@ -233,12 +260,35 @@ async function connectionManagers(fetchImpl: typeof fetch, signal: AbortSignal):
     .map((server) => String(server.endpoint))
     .filter((endpoint) => /^[a-z0-9.-]{1,100}:443$/u.test(endpoint))
     .map((endpoint) => endpoint.slice(0, -':443'.length));
-  if (hosts.length === 0) throw new SteamCmError('STEAM_CM_DIRECTORY');
+  if (hosts.length === 0) {
+    const total = Array.isArray(list) ? list.length : 0;
+    throw new SteamCmError('STEAM_CM_DIRECTORY', `список серверов: из ${total} нет WebSocket на порту 443`);
+  }
   return hosts;
 }
 
-/** The current info of `appIds`, read anonymously; throws a SteamCmError with a code. */
+/** Codes worth one more try in the same run: Steam or the network was slow or dropped, not a refusal. */
+const RETRIED: readonly SteamCmErrorCode[] = ['STEAM_CM_DIRECTORY', 'STEAM_CM_CONNECT', 'STEAM_CM_TIMEOUT'];
+
+/**
+ * The current info of `appIds`, read anonymously; throws a SteamCmError with a code. A slow or dropped read is tried
+ * once more with a fresh deadline and another random manager (owner 29.10.2026: single timeouts in production).
+ */
 export async function readSteamAppInfo(appIds: readonly number[], deps: SteamCmDeps = {}): Promise<SteamAppInfo[]> {
+  try {
+    return await readOnce(appIds, deps);
+  } catch (error) {
+    if (!(error instanceof SteamCmError) || !RETRIED.includes(error.code)) throw error;
+    try {
+      return await readOnce(appIds, deps);
+    } catch (again) {
+      if (!(again instanceof SteamCmError)) throw again;
+      throw new SteamCmError(again.code, `дважды подряд; ${again.detail ?? again.code}`, again.status);
+    }
+  }
+}
+
+async function readOnce(appIds: readonly number[], deps: SteamCmDeps): Promise<SteamAppInfo[]> {
   const fetchImpl = deps.fetchImpl ?? fetch;
   const timeoutMs = deps.timeoutMs ?? STEAM_CM_TIMEOUT_MS;
   // One deadline for the directory, the connection and the exchange (QA 24.10.2026: a manager that never answers the
@@ -254,12 +304,19 @@ export async function readSteamAppInfo(appIds: readonly number[], deps: SteamCmD
     socket = await (deps.openSocket ?? ((target, abort) => workerSocket(target, fetchImpl, abort)))(url, signal);
   } catch (error) {
     if (error instanceof SteamCmError) throw error;
-    throw new SteamCmError(signal.aborted ? 'STEAM_CM_TIMEOUT' : 'STEAM_CM_CONNECT');
+    throw new SteamCmError(
+      signal.aborted ? 'STEAM_CM_TIMEOUT' : 'STEAM_CM_CONNECT',
+      signal.aborted ? `подключение к ${host}: нет ответа за ${timeoutMs / 1000} с` : `подключение к ${host}: отказ`
+    );
   }
   try {
     return await new Promise<SteamAppInfo[]>((resolve, reject) => {
       const left = Math.max(1, timeoutMs - (Date.now() - started));
-      const timer = setTimeout(() => reject(new SteamCmError('STEAM_CM_TIMEOUT')), left);
+      let stage = 'вход';
+      const timer = setTimeout(
+        () => reject(new SteamCmError('STEAM_CM_TIMEOUT', `${stage} на ${host}: нет ответа за ${timeoutMs / 1000} с`)),
+        left
+      );
       let steamId = ANON_STEAMID;
       let session = 0n;
       const header = () => [...pbFixed64(1, steamId), ...pbVarint(2, session)];
@@ -269,7 +326,9 @@ export async function readSteamAppInfo(appIds: readonly number[], deps: SteamCmD
             for (const part of parts) {
               if (part.emsg === EMSG.ClientLogOnResponse) {
                 const result = numberOf(decodeProtobuf(part.body), 1);
-                if (result !== 1n) throw new SteamCmError('STEAM_CM_LOGON');
+                if (result !== 1n)
+                  throw new SteamCmError('STEAM_CM_LOGON', `вход отклонён, результат ${String(result)}`);
+                stage = 'запрос сборки';
                 session = numberOf(part.header, 2) ?? 0n;
                 steamId = numberOf(part.header, 1) ?? steamId;
                 const apps = appIds.flatMap((appId) => pbBytes(2, pbVarint(1, appId)));

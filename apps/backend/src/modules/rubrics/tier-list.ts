@@ -1,7 +1,7 @@
 import { escapeHtml, heroPortraitImage, PICTURE_SIZE, picturePage, rankMedalImage } from './picture';
 import { needStats, noData, pick, type RubricContext, type RubricSample, type StatsSource } from './types';
 
-// «Тир-лист» (owner, 28.10.2026): one 2:1 picture and no caption («тут текст не нужен вообще»). The title on the left
+// «Тир-лист» (owner, 28.10.2026): one 2:1 picture; the caption is only a reactions vote (29.10.2026). The title on the left
 // says what the picture shows; five role columns with four heroes each stand on the right. Eight looks, picked at random;
 // a look STRATZ cannot fill is skipped with an owner's note «Нет данных», and the next one is tried.
 
@@ -10,15 +10,17 @@ const POSITIONS = [1, 2, 3, 4, 5] as const;
 const PER_ROLE = 4;
 
 /** Ranks of «Лучшие» and «Худшие» in turn (owner): Рекрут … Легенда; the Divine side only appears in «Рекруты и Божества». */
-const ROTATION: { bracket: number; on: string }[] = [
-  { bracket: 1, on: 'Рекрутах' },
-  { bracket: 2, on: 'Стражах' },
-  { bracket: 3, on: 'Рыцарях' },
+const ROTATION: { bracket: number; on: string; name: string }[] = [
+  { bracket: 1, on: 'Рекрутах', name: 'Рекруты' },
+  { bracket: 2, on: 'Стражах', name: 'Стражи' },
+  { bracket: 3, on: 'Рыцарях', name: 'Рыцари' },
   // «на Героях» read as «heroes on heroes»: the rank is named as a rank.
-  { bracket: 4, on: 'ранге Герой' },
-  { bracket: 5, on: 'Легендах' }
+  { bracket: 4, on: 'ранге Герой', name: 'Герои' },
+  { bracket: 5, on: 'Легендах', name: 'Легенды' }
 ];
 const RECRUIT = 1;
+/** Under the picture (owner, 29.10.2026): a reactions vote — a bare tier list draws few reactions in other channels. */
+const VOTE = 'Согласен — 👍 / Хуйня — 🤡';
 
 /** Matches a hero needs at a position in the stretch counted before its rate says anything (the card: 300 a week). */
 const MIN_WEEK_MATCHES = 300;
@@ -249,12 +251,14 @@ function mainRole(rows: { heroId: number; position: number; matches: number }[])
   return new Map([...top].map(([heroId, each]) => [heroId, each.position]));
 }
 
-async function ranksLook(ctx: Ctx): Promise<Look> {
-  // Рекруты: each hero only under the role that holds most of his games there, and a quarter of them at least (DEV,
+async function ranksLook(ctx: Ctx, random: () => number): Promise<Look> {
+  // The low side is the rank of the turn, not always Рекруты: their half repeated «Лучшие на Рекрутах» (owner,
+  // 29.10.2026). Each hero only under the role that holds most of his games there, and a quarter of them at least (DEV,
   // 28.10.2026: Bristleback on mid and offlane, Troll on carry and four).
-  const recruitRows: Map<number, { matches: number; wins: number }>[] = [];
-  for (const position of POSITIONS) recruitRows.push(await weekRows(ctx, RECRUIT, position));
-  const recruitOwn = ownRole(recruitRows);
+  const lowRows: Map<number, { matches: number; wins: number }>[] = [];
+  const rank = pick(ROTATION, random);
+  for (const position of POSITIONS) lowRows.push(await weekRows(ctx, rank.bracket, position));
+  const lowOwn = ownRole(lowRows);
   // Божества: the same rule over STRATZ's positions.
   const divine = await ctx.stats.positions();
   const divineHome = mainRole(divine);
@@ -262,8 +266,8 @@ async function ranksLook(ctx: Ctx): Promise<Look> {
   for (const row of divine) divineTotals.set(row.heroId, (divineTotals.get(row.heroId) ?? 0) + row.matches);
   const columns: Column[] = POSITIONS.map((position, index) => {
     const low = best(
-      [...(recruitRows[index] ?? new Map()).entries()]
-        .filter(([heroId, each]) => each.matches >= MIN_WEEK_MATCHES && recruitOwn(heroId, index))
+      [...(lowRows[index] ?? new Map()).entries()]
+        .filter(([heroId, each]) => each.matches >= MIN_WEEK_MATCHES && lowOwn(heroId, index))
         .map(([heroId, each]) => ({ heroId, value: rate(each.matches, each.wins) })),
       PER_ROLE / 2
     );
@@ -279,12 +283,12 @@ async function ranksLook(ctx: Ctx): Promise<Look> {
         .map((each) => ({ heroId: each.heroId, value: rate(each.matches, each.wins) })),
       PER_ROLE / 2
     );
-    return [{ group: 'Рекруты' }, ...tilesOf(ctx, low, pct), { group: 'Божества' }, ...tilesOf(ctx, high, pct)];
+    return [{ group: rank.name }, ...tilesOf(ctx, low, pct), { group: 'Божества' }, ...tilesOf(ctx, high, pct)];
   });
   for (const [index, column] of columns.entries()) {
-    if (column.length < PER_ROLE + 2) throw noData(`Рекруты и Божества: ${ROLES[index]}`);
+    if (column.length < PER_ROLE + 2) throw noData(`${rank.name} и Божества: ${ROLES[index]}`);
   }
-  return { title: '<b>Лучшие</b><br>герои:<br>Рекруты<br>и Божества', columns };
+  return { title: `<b>Лучшие</b><br>герои:<br>${rank.name}<br>и Божества`, columns };
 }
 
 async function lengthLook(ctx: Ctx): Promise<Look> {
@@ -331,13 +335,18 @@ async function lengthLook(ctx: Ctx): Promise<Look> {
       both.filter((heroId) => (longRates.get(heroId) ?? 0) >= 50).map((heroId) => ({ heroId, value: gap(heroId) })),
       PER_ROLE / 2
     );
-    const short = early.map((each) => ({ heroId: each.heroId, value: shortRates.get(each.heroId) ?? 0 }));
-    const long = late.map((each) => ({ heroId: each.heroId, value: longRates.get(each.heroId) ?? 0 }));
+    // The tile shows the gain over the hero's own rate in all games: short games run 63–72% for everyone (one side was
+    // stomped) and read as «imba» (owner, 29.10.2026).
+    const allRates = new Map(scored(at(position, 0)).map((each) => [each.heroId, each.value]));
+    const gain = (rates: Map<number, number>, heroId: number) =>
+      (rates.get(heroId) ?? 0) - (allRates.get(heroId) ?? rates.get(heroId) ?? 0);
+    const short = early.map((each) => ({ heroId: each.heroId, value: gain(shortRates, each.heroId) }));
+    const long = late.map((each) => ({ heroId: each.heroId, value: gain(longRates, each.heroId) }));
     return [
       { group: 'Быстрые игры: до 30 минут' },
-      ...tilesOf(ctx, short, pct),
+      ...tilesOf(ctx, short, delta, true),
       { group: 'Затяжные игры: после 35 минут' },
-      ...tilesOf(ctx, long, pct)
+      ...tilesOf(ctx, long, delta, true)
     ];
   });
   for (const [index, column] of columns.entries()) {
@@ -437,7 +446,7 @@ const buildLook = (name: LookName, ctx: Ctx, random: () => number): Promise<Look
     case 'swing':
       return swingLook(ctx);
     case 'ranks':
-      return ranksLook(ctx);
+      return ranksLook(ctx, random);
     case 'length':
       return lengthLook(ctx);
   }
@@ -462,7 +471,7 @@ export async function tierList(context: RubricContext): Promise<RubricSample> {
     turn === undefined ? pick(LOOKS, context.random) : (LOOKS[turn % LOOKS.length] ?? pick(LOOKS, context.random));
   try {
     const look = await buildLook(name, ctx, context.random);
-    return { picture: { html: lookPage(look), ...PICTURE_SIZE }, text: '', ownText: true, poll: null };
+    return { picture: { html: lookPage(look), ...PICTURE_SIZE }, text: VOTE, ownText: true, poll: null };
   } catch (error) {
     const code = codeOf(error);
     if (code === 'STRATZ_TOKEN' || code === 'STRATZ_BLOCKED' || code === 'STRATZ_RATE') throw error;
