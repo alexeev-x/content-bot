@@ -111,7 +111,7 @@
 {"w":["Chaos Knight","ЦК","хаос","чаос","конь"],"m":"прозвище героя Chaos Knight","s":"hero"}
 {"w":["Clinkz","Клинз","боник"],"m":"прозвище героя Clinkz","s":"hero"}
 {"w":["Clockwerk","Клок"],"m":"прозвище героя Clockwerk","s":"hero"}
-{"w":["Crystal Maiden","Цмка","кристалка","ЦМ","мадлен"],"m":"прозвище героя Crystal Maiden; о герое — «она»","s":"hero"}
+{"w":["Crystal Maiden","Цмка","кристалка","ЦМ"],"m":"прозвище героя Crystal Maiden; о герое — «она»","s":"hero"}
 {"w":["Dark Seer","Дарк сир","сир","ДС"],"m":"прозвище героя Dark Seer","s":"hero"}
 {"w":["Dark Willow","Вилка"],"m":"прозвище героя Dark Willow","s":"hero"}
 {"w":["Dawnbreaker","ДБ","даунбрейкер"],"m":"прозвище героя Dawnbreaker; о герое — «она»","s":"hero"}
@@ -120,7 +120,7 @@
 {"w":["Drow Ranger","Дровка","дроу","тракса"],"m":"прозвище героя Drow Ranger; о герое — «она»","s":"hero"}
 {"w":["Elder Titan","Титан"],"m":"прозвище героя Elder Titan","s":"hero"}
 {"w":["Ember Spirit","Эмбер"],"m":"прозвище героя Ember Spirit","s":"hero"}
-{"w":["Enchantress","Энча","коза","овца"],"m":"прозвище героя Enchantress","s":"hero"}
+{"w":["Enchantress","Энча","коза"],"m":"прозвище героя Enchantress","s":"hero"}
 {"w":["Faceless Void","Войд"],"m":"прозвище героя Faceless Void","s":"hero"}
 {"w":["Grimstroke","Грим"],"m":"прозвище героя Grimstroke","s":"hero"}
 {"w":["Gyrocopter","Гирокоптер","гиро","вертолёт"],"m":"прозвище героя Gyrocopter","s":"hero"}
@@ -152,7 +152,7 @@
 {"w":["Rubick","Рубик","рубен"],"m":"прозвище героя Rubick","s":"hero"}
 {"w":["Sand King","СК","сенд кинг","скорпион"],"m":"прозвище героя Sand King","s":"hero"}
 {"w":["Shadow Demon","Шадоу демон","ШД"],"m":"прозвище героя Shadow Demon","s":"hero"}
-{"w":["Shadow Fiend","СФ","невермор","финд","уголь"],"m":"прозвище героя Shadow Fiend","s":"hero"}
+{"w":["Shadow Fiend","СФ","невермор","финд","уголёк"],"m":"прозвище героя Shadow Fiend","s":"hero"}
 {"w":["Shadow Shaman","Шаман"],"m":"прозвище героя Shadow Shaman","s":"hero"}
 {"w":["Skywrath Mage","Скаймаг","скай","петух"],"m":"прозвище героя Skywrath Mage","s":"hero"}
 {"w":["Slardar","Селёдка"],"m":"прозвище героя Slardar; о герое — «он»","s":"hero"}
@@ -349,7 +349,7 @@
 {"w":["Shallow Grave"],"m":"способность Dazzle; игроки говорят: крест","s":"ability"}
 {"w":["Shadow Wave"],"m":"способность Dazzle; игроки говорят: волна, хил","s":"ability"}
 {"w":["Black Hole"],"m":"способность Enigma; игроки говорят: блэкхол (блекхол), дыра","s":"ability"}
-{"w":["Demonic Conversion"],"m":"способность Enigma; игроки говорят: эйдолоны, мелкие","s":"ability"}
+{"w":["Demonic Summoning"],"m":"способность Enigma; игроки говорят: эйдолоны, мелкие","s":"ability"}
 {"w":["Chronosphere"],"m":"способность Faceless Void; игроки говорят: хрона, чрона, купол","s":"ability"}
 {"w":["Time Walk"],"m":"способность Faceless Void; игроки говорят: таймволк","s":"ability"}
 {"w":["Ravage"],"m":"способность Tidehunter; игроки говорят: равага","s":"ability"}
@@ -393,11 +393,11 @@
 {"w":["Ghostship"],"m":"способность Kunkka; игроки говорят: корабль","s":"ability"}
 {"w":["Torrent"],"m":"способность Kunkka; игроки говорят: торрент","s":"ability"}
 {"w":["Tidebringer"],"m":"способность Kunkka; игроки говорят: сплеш","s":"ability"}
-{"w":["Hookshot"],"m":"способность Clockwerk; игроки говорят: хук","s":"ability"}
+{"w":["Hookshot"],"m":"способность Clockwerk; игроки говорят: хукшот","s":"ability"}
 {"w":["Power Cogs"],"m":"способность Clockwerk; игроки говорят: шестерёнки, коги","s":"ability"}
 {"w":["Rocket Flare"],"m":"способность Clockwerk; игроки говорят: ракета","s":"ability"}
 {"w":["Timber Chain"],"m":"способность Timbersaw; игроки говорят: цепь","s":"ability"}
-{"w":["Chakram"],"m":"способность Timbersaw; игроки говорят: пила","s":"ability"}
+{"w":["Chakram"],"m":"способность Timbersaw; игроки говорят: чакрам","s":"ability"}
 {"w":["Viscous Nasal Goo"],"m":"способность Bristleback; игроки говорят: сопли","s":"ability"}
 {"w":["Quill Spray"],"m":"способность Bristleback; игроки говорят: иглы","s":"ability"}
 {"w":["Primal Roar"],"m":"способность Beastmaster; игроки говорят: рык","s":"ability"}
@@ -419,7 +419,7 @@
 {"w":["Dream Coil"],"m":"способность Puck; игроки говорят: койл","s":"ability"}
 {"w":["Illusory Orb"],"m":"способность Puck; игроки говорят: орба","s":"ability"}
 {"w":["Phase Shift"],"m":"способность Puck; игроки говорят: фаза","s":"ability"}
-{"w":["Tether"],"m":"способность Io; игроки говорят: тетер","s":"ability"}
+{"w":["Tether"],"m":"способность Io; игроки говорят: тезер","s":"ability"}
 {"w":["Relocate"],"m":"способность Io; игроки говорят: релокейт","s":"ability"}
 {"w":["Infest"],"m":"способность Lifestealer; игроки говорят: инфест, залез в крипа","s":"ability"}
 {"w":["Rage"],"m":"способность Lifestealer; игроки говорят: рейдж","s":"ability"}
@@ -442,15 +442,14 @@
 {"w":["Spiked Carapace"],"m":"способность Nyx Assassin; игроки говорят: карапас, панцирь","s":"ability"}
 {"w":["Impale"],"m":"способность Nyx Assassin; игроки говорят: импейл","s":"ability"}
 {"w":["Static Link"],"m":"способность Razor; игроки говорят: линк","s":"ability"}
-{"w":["Smoke Screen"],"m":"способность Riki; игроки говорят: смок","s":"ability"}
+{"w":["Smoke Screen"],"m":"способность Riki; игроки говорят: дымка Рики (не путать со Смоком)","s":"ability"}
 {"w":["Spell Steal"],"m":"способность Rubick; игроки говорят: украл, спеллстил","s":"ability"}
 {"w":["Telekinesis"],"m":"способность Rubick; игроки говорят: подкинуть, телекинез","s":"ability"}
 {"w":["Dark Pact"],"m":"способность Slark; игроки говорят: пакт","s":"ability"}
 {"w":["Pounce"],"m":"способность Slark; игроки говорят: прыжок","s":"ability"}
 {"w":["Firesnap Cookie"],"m":"способность Snapfire; игроки говорят: печенька","s":"ability"}
-{"w":["Metamorphosis"],"m":"способность Terrorblade; игроки говорят: мета, форма","s":"ability"}
+{"w":["Metamorphosis"],"m":"способность Terrorblade; игроки говорят: форма, метаморфоза","s":"ability"}
 {"w":["Sunder"],"m":"способность Terrorblade; игроки говорят: сандер","s":"ability"}
-{"w":["Heat-Seeking Missile"],"m":"способность Tinker; игроки говорят: ракеты","s":"ability"}
 {"w":["March of the Machines"],"m":"способность Tinker; игроки говорят: марч, роботы","s":"ability"}
 {"w":["Rearm"],"m":"способность Tinker; игроки говорят: реарм","s":"ability"}
 {"w":["Toss"],"m":"способность Tiny; игроки говорят: тосс, кинуть","s":"ability"}
@@ -471,7 +470,7 @@
 {"w":["The Swarm"],"m":"способность Weaver; игроки говорят: жуки","s":"ability"}
 {"w":["Time Lapse"],"m":"способность Weaver; игроки говорят: лапс, откат","s":"ability"}
 {"w":["Shackleshot"],"m":"способность Windranger; игроки говорят: шаклы","s":"ability"}
-{"w":["Winter's Curse"],"m":"способность Winter Wyvern; игроки говорят: курс","s":"ability"}
+{"w":["Winter's Curse"],"m":"способность Winter Wyvern; игроки говорят: курса, проклятие","s":"ability"}
 {"w":["Death Ward"],"m":"способность Witch Doctor; игроки говорят: вард","s":"ability"}
 {"w":["Kinetic Field"],"m":"способность Disruptor; игроки говорят: поле","s":"ability"}
 {"w":["Glimpse"],"m":"способность Disruptor; игроки говорят: глимпс","s":"ability"}
