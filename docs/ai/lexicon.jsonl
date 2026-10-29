@@ -68,7 +68,7 @@
 {"w":["эзериал","е-блейд"],"m":"Ethereal Blade","s":"item"}
 {"w":["эбиссал"],"m":"Abyssal Blade","s":"item"}
 {"w":["тапок","Boots of Speed"],"m":"предмет Boots of Speed","s":"item"}
-{"w":["фласка","Healing Salve"],"m":"предмет Healing Salve","s":"item"}
+{"w":["Healing Salve","Фласка"],"m":"предмет Healing Salve","s":"item"}
 {"w":["кларетка","Clarity"],"m":"предмет Clarity","s":"item"}
 {"w":["ветка","Iron Branch"],"m":"предмет Iron Branch","s":"item"}
 {"w":["гантеля","Gauntlet"],"m":"предмет Gauntlet","s":"item"}
@@ -77,11 +77,11 @@
 {"w":["форс","Force Staff"],"m":"предмет Force Staff","s":"item"}
 {"w":["смок","Smoke of Deceit"],"m":"предмет Smoke of Deceit","s":"item"}
 {"w":["ТП","Town Portal Scroll"],"m":"предмет Town Portal Scroll","s":"item"}
-{"w":["сильвер","Silver Edge"],"m":"предмет Silver Edge","s":"item"}
+{"w":["Silver Edge","Сильвер"],"m":"предмет Silver Edge","s":"item"}
 {"w":["ВБ","Witch Blade"],"m":"предмет Witch Blade","s":"item"}
 {"w":["атос","Rod of Atos"],"m":"предмет Rod of Atos","s":"item"}
 {"w":["молнии","Maelstrom/Mjollnir"],"m":"предмет Maelstrom/Mjollnir","s":"item"}
-{"w":["топор","Quelling Blade"],"m":"предмет Quelling Blade","s":"item"}
+{"w":["Quelling Blade","Топор"],"m":"предмет Quelling Blade","s":"item"}
 {"w":["фейрик","Faerie Fire"],"m":"предмет Faerie Fire","s":"item"}
 {"w":["капли","Infused Raindrops"],"m":"предмет Infused Raindrops","s":"item"}
 {"w":["скади","Eye of Skadi"],"m":"предмет Eye of Skadi","s":"item"}
@@ -90,11 +90,11 @@
 {"w":["кримзон","Crimson Guard"],"m":"предмет Crimson Guard","s":"item"}
 {"w":["линза","Aether Lens"],"m":"предмет Aether Lens","s":"item"}
 {"w":["Nullifier","нулифаер"],"m":"предмет Nullifier","s":"item"}
-{"w":["метеор","Meteor Hammer"],"m":"предмет Meteor Hammer","s":"item"}
-{"w":["грейвсы","Guardian Greaves"],"m":"предмет Guardian Greaves","s":"item"}
+{"w":["Meteor Hammer","Метеор"],"m":"предмет Meteor Hammer","s":"item"}
+{"w":["Guardian Greaves","Гривсы","грейвсы"],"m":"предмет Guardian Greaves","s":"item"}
 {"w":["ДЛ","Dragon Lance"],"m":"предмет Dragon Lance","s":"item"}
 {"w":["пика","Hurricane Pike"],"m":"предмет Hurricane Pike","s":"item"}
-{"w":["сабля","Echo Sabre"],"m":"предмет Echo Sabre","s":"item"}
+{"w":["Echo Sabre","Сабля"],"m":"предмет Echo Sabre","s":"item"}
 {"w":["баннер","Roshan Banner"],"m":"предмет Roshan Banner","s":"item"}
 {"w":["Abaddon","Абадон","аба"],"m":"прозвище героя Abaddon; о герое — «он»","s":"hero"}
 {"w":["Alchemist","Алхимик","алх","алч"],"m":"прозвище героя Alchemist","s":"hero"}
@@ -326,15 +326,15 @@
 {"w":["Gleipnir","глейпнир"],"m":"предмет Gleipnir","s":"item"}
 {"w":["Khanda","канда"],"m":"предмет Khanda","s":"item"}
 {"w":["Parasma","паразма"],"m":"предмет Parasma","s":"item"}
-{"w":["Harpoon","гарпун"],"m":"предмет Harpoon","s":"item"}
+{"w":["Harpoon","Гарпун"],"m":"предмет Harpoon","s":"item"}
 {"w":["Disperser","дисперсер"],"m":"предмет Disperser","s":"item"}
-{"w":["Bloodthorn","бладторн"],"m":"предмет Bloodthorn","s":"item"}
+{"w":["Bloodthorn","Блудторн","бладторн"],"m":"предмет Bloodthorn","s":"item"}
 {"w":["Satanic","сатаник"],"m":"предмет Satanic","s":"item"}
 {"w":["Kaya","кая"],"m":"предмет Kaya","s":"item"}
-{"w":["Holy Locket","локет"],"m":"предмет Holy Locket","s":"item"}
+{"w":["Holy Locket","Холи локет","локет"],"m":"предмет Holy Locket","s":"item"}
 {"w":["Pavise","павис"],"m":"предмет Pavise","s":"item"}
 {"w":["Veil of Discord","дискорд"],"m":"предмет Veil of Discord","s":"item"}
-{"w":["Bracer","брасер"],"m":"предмет Bracer","s":"item"}
+{"w":["Bracer","Брейсер","брасер"],"m":"предмет Bracer","s":"item"}
 {"w":["Wraith Band","банд"],"m":"предмет Wraith Band","s":"item"}
 {"w":["Ghost Scepter","гост"],"m":"предмет Ghost Scepter","s":"item"}
 {"w":["Bloodstone","бладстоун"],"m":"предмет Bloodstone","s":"item"}
@@ -344,7 +344,7 @@
 {"w":["Blood Grenade","граната"],"m":"предмет Blood Grenade","s":"item"}
 {"w":["Aegis of the Immortal","аегис","эгида"],"m":"предмет Aegis of the Immortal","s":"item"}
 {"w":["Cheese","сыр"],"m":"предмет Cheese","s":"item"}
-{"w":["Moon Shard","мун шард"],"m":"предмет Moon Shard","s":"item"}
+{"w":["Moon Shard","Муншард","мун шард"],"m":"предмет Moon Shard","s":"item"}
 {"w":["Falcon Blade","фалкон"],"m":"предмет Falcon Blade","s":"item"}
 {"w":["Shallow Grave"],"m":"способность Dazzle; игроки говорят: крест","s":"ability"}
 {"w":["Shadow Wave"],"m":"способность Dazzle; игроки говорят: волна, хил","s":"ability"}
@@ -506,3 +506,17 @@
 {"w":["Kez","Кез"],"m":"прозвище героя Kez","s":"hero"}
 {"w":["Ring Master","Ринг мастер"],"m":"прозвище героя Ring Master","s":"hero"}
 {"w":["Largo","Ларго"],"m":"прозвище героя Largo","s":"hero"}
+{"w":["Magic Wand","Стики"],"m":"предмет Magic Wand","s":"item"}
+{"w":["Power Treads","ПТ"],"m":"предмет Power Treads","s":"item"}
+{"w":["Arcane Boots","Арканы"],"m":"предмет Arcane Boots","s":"item"}
+{"w":["Boots of Travel","Тревела"],"m":"предмет Boots of Travel","s":"item"}
+{"w":["Vladmir's Offering","Владимир"],"m":"предмет Vladmir's Offering","s":"item"}
+{"w":["Assault Cuirass","Кираса"],"m":"предмет Assault Cuirass","s":"item"}
+{"w":["Heart of Tarrasque","Тараска"],"m":"предмет Heart of Tarrasque","s":"item"}
+{"w":["Blade Mail","БМ"],"m":"предмет Blade Mail","s":"item"}
+{"w":["Sange and Yasha","СиЯ"],"m":"предмет Sange and Yasha","s":"item"}
+{"w":["Heaven's Halberd","Алебарда"],"m":"предмет Heaven's Halberd","s":"item"}
+{"w":["Shadow Blade","Лотар"],"m":"предмет Shadow Blade","s":"item"}
+{"w":["Crystalys","Кристалис"],"m":"предмет Crystalys","s":"item"}
+{"w":["Drum of Endurance","Барабаны"],"m":"предмет Drum of Endurance","s":"item"}
+{"w":["Boots of Bearing","Бутсы беринга"],"m":"предмет Boots of Bearing","s":"item"}
