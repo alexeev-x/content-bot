@@ -180,6 +180,21 @@ had mostly not parsed (7% kept).
   own rows.
 - **Budgets** (all conditional counters in `stats_budget`): STRATZ ≤ 750 an hour and 7 500 a day (half its limits), reads
   ≤ 6 000 matches a day. A 403 pauses the collector 30 minutes, a 429 what STRATZ asked.
+- **STRATZ rules learned the hard way** (29.10.2026; break one and production stalls):
+  - **One token, at most 2 IP addresses per 15 minutes** (403 «You cannot use more than 2 IP Addresses every 15
+    minutes»). Production already uses the bridge's address, so **no local STRATZ calls while production collects**: a
+    local probe made the first production run pause. Probe only with the owner's go, briefly, then wait 15 minutes.
+  - **The stats bridge takes queries up to 4 000 characters** (`bridge/stats-bridge/main.js`, 60 a minute): whole
+    matches go as one fragment (`...M`) plus ten aliases, match lists without spaces; the client refuses a longer
+    query itself (`QUERY_MAX_CHARS`, tested).
+  - `matches(ids: […])` is admin-only («User is not an admin»): read `match(id)` aliases, ten per request.
+    `smurfFlag` is admin-only too; players' `seasonLeaderboardRank` is always null (the leaderboard query has it).
+  - Purchases miss Aghanim's Shard, Blessing and Moon Shard (2 of 60 players): they come from `matchPlayerBuffEvent`.
+  - `abilities.level` is the ability's own level: the skill order is sorted by `time`.
+  - Random public matches are mostly unparsed even a day later; leaderboard players' ranked matches are ≈ 60% parsed.
+    Top players' Immortal Draft games may not be listed at all (Valve hides them since March 2025).
+- **Reading production logs**: Workers Logs are on (7 days on Workers Paid); an agent reads them live with
+  `npx wrangler tail --env production` (allowed by the owner).
 - **Self-cleaning** (once a day): rows older than **8 weeks**, markers, old counters, health older than 90 days, per-day
   counts older than 400 days, accounts off the leaderboards.
 - **Nightly snapshots** (from 03:00 UTC, one Workflow instance a day, id `stats-YYYY-MM-DD`; a step per hero, retried

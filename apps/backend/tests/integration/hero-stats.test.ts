@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { StratzError } from '../../src/integrations/stratz/stratz-api';
 import {
   createStratzMatches,
+  QUERY_MAX_CHARS,
   type StratzFullMatch,
   type StratzMatchesApi
 } from '../../src/integrations/stratz/stratz-matches';
@@ -318,5 +319,25 @@ describe('createStratzMatches', () => {
       { itemId: 214, second: 420 },
       { itemId: 609, second: 1020 }
     ]);
+  });
+});
+
+describe('the stats bridge limit', () => {
+  it('twenty accounts and ten matches fit one bridge query (≤ QUERY_MAX_CHARS)', async () => {
+    const sent: string[] = [];
+    const api = createStratzMatches({
+      token: 'test-token',
+      bridgeUrl: 'https://bridge.example',
+      fetchImpl: async (_url, init) => {
+        sent.push((JSON.parse(String(init?.body)) as { query: string }).query);
+        return new Response(JSON.stringify({ data: {} }), { status: 200 });
+      }
+    });
+    const ids = Array.from({ length: 20 }, (_, index) => 1_234_567_890 + index);
+    await api.playerMatches(ids, 1_800_000_000);
+    await api.readMatches(ids.slice(0, 10).map((id) => id * 7));
+    await api.leaderboard('SE_ASIA', 9000).catch(() => []);
+    expect(sent).toHaveLength(3);
+    for (const query of sent) expect(query.length).toBeLessThanOrEqual(QUERY_MAX_CHARS);
   });
 });

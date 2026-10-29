@@ -15,6 +15,8 @@ export const LIST_ACCOUNTS_MAX = 20;
 export const READ_MATCHES_MAX = 10;
 /** Leaderboard rows per request. */
 export const LEADERBOARD_PAGE = 1000;
+/** The stats bridge's limit on a GraphQL query's length; the queries above are built to stay under it. */
+export const QUERY_MAX_CHARS = 4000;
 export const LEADERBOARD_DIVISIONS = ['EUROPE', 'AMERICAS', 'SE_ASIA', 'CHINA'] as const;
 export type LeaderboardDivision = (typeof LEADERBOARD_DIVISIONS)[number];
 
@@ -109,7 +111,12 @@ const nullableText = z.string().max(40).nullable().catch(null);
 
 const leaderboardSchema = z.object({
   leaderboard: z.object({
-    season: z.object({ players: z.array(z.object({ steamAccountId: int, rank: int })).max(LEADERBOARD_PAGE) })
+    // A row without an account or a place is skipped, never the whole page.
+    season: z.object({
+      players: z
+        .array(z.object({ steamAccountId: int.nullable().catch(null), rank: int.nullable().catch(null) }))
+        .max(LEADERBOARD_PAGE)
+    })
   })
 });
 
@@ -293,6 +300,9 @@ export function createStratzMatches(input: {
     text: string,
     signal?: AbortSignal
   ): Promise<{ data: Record<string, unknown> | null; errors: { alias: string | null; message: string }[] }> {
+    // The stats bridge refuses longer queries (bridge/stats-bridge/main.js): fail here, with the reason, not there.
+    if (text.length > QUERY_MAX_CHARS)
+      throw new StratzError('STRATZ_SHAPE', null, `запрос ${text.length} символов, мост берёт до ${QUERY_MAX_CHARS}`);
     let response: Response;
     try {
       response = await fetchImpl(endpoint, {
@@ -353,10 +363,9 @@ export function createStratzMatches(input: {
       );
       const parsed = leaderboardSchema.safeParse(data);
       if (!parsed.success) throw new StratzError('STRATZ_SHAPE', null, 'лидерборд: неожиданный ответ');
-      return parsed.data.leaderboard.season.players.map((each) => ({
-        accountId: each.steamAccountId,
-        rank: each.rank
-      }));
+      return parsed.data.leaderboard.season.players.flatMap((each) =>
+        each.steamAccountId === null || each.rank === null ? [] : [{ accountId: each.steamAccountId, rank: each.rank }]
+      );
     },
     async playerMatches(accountIds, since, signal) {
       const wanted = ids(accountIds, LIST_ACCOUNTS_MAX);
@@ -364,10 +373,10 @@ export function createStratzMatches(input: {
       if (wanted.length === 0) return { found, failed: [] };
       const from = Math.max(0, Math.trunc(since));
       const { data } = await post(
-        `{ ${wanted
+        `{${wanted
           .map(
             (id, index) =>
-              `a${index}: player(steamAccountId: ${id}) { steamAccountId matches(request: { isParsed: true, lobbyTypeIds: [7], gameModeIds: [22], startDateTime: ${from}, take: 100 }) { id startDateTime } }`
+              `a${index}:player(steamAccountId:${id}){steamAccountId matches(request:{isParsed:true,lobbyTypeIds:[7],gameModeIds:[22],startDateTime:${from},take:100}){id startDateTime}}`
           )
           .join(' ')} }`,
         signal
@@ -390,7 +399,7 @@ export function createStratzMatches(input: {
       const wanted = ids(matchIds, READ_MATCHES_MAX);
       if (wanted.length === 0) return { matches: [], missing: [], invalid: [] };
       const { data } = await post(
-        `{ ${wanted.map((id, index) => `m${index}: match(id: ${id}) { ${MATCH_FIELDS} }`).join(' ')} }`,
+        `query{${wanted.map((id, index) => `m${index}:match(id:${id}){...M}`).join(' ')}}fragment M on MatchType{${MATCH_FIELDS}}`,
         signal
       );
       const matches: StratzFullMatch[] = [];
