@@ -56,6 +56,7 @@ Search with `rg`; read only needed lines. `npm run verify` prints failures; open
 - Design exists only as code (tokens, primitives, browser screenshots); never Figma (owner 03.10.2026).
 - Agents never deploy, run `--remote` D1 commands or change secrets; the owner does.
 - No paid AI providers, render APIs or paid cloud tiers without an explicit owner decision.
+- AI trials (owner 29.10.2026, iron rule; one key serves production): debug prompts on the cheapest model (`gpt-6-luna`), then judge 3–5 posts on the production model; name «≈ N calls ≈ $X» before a run, ≈ $1 cap per rubric, stop at the first 429.
 - Tests only where a bug would cost real damage (skill `testing`). Sync docs/setup when behavior/config changes.
 
 ## TypeScript style (all packages)
