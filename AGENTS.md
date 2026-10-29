@@ -51,7 +51,8 @@ Search with `rg`; read only needed lines. `npm run verify` prints failures; open
 - Modules never import each other; only `app/` (routes, bot, Cron, workflows, `container.ts`) connects them via each module's `index.ts` and consumer-owned ports. No cycles; domain never imports infrastructure.
 - No mutable module-level state holding user, request or job data. Bound payload sizes, batches, concurrency and timeouts.
 - Publishing safety: D1 owns state and dedup. Cron ticks may overlap or repeat, so every claim is conditional. A Telegram send that may have happened but is unconfirmed becomes `unknown` and needs manual reconciliation; it is never retried automatically.
-- Secrets only in Worker secrets; never Git, logs or frontend. Tests use separate bot/channel. Use placeholders; Gitleaks exceptions: path+pattern, never commit SHA.
+- Secrets only in Worker secrets; never Git, logs or frontend. Tests use separate bot/channel.
+- Every local token lives only in the root `.env`, filled by the owner. Agents never look for tokens elsewhere (`.dev.vars` included), never ask where one is and never ask to paste it. Local probes and scripts get it only through the local Worker (`npm run dev` merges the root `.env`), never by reading env files. Use placeholders; Gitleaks exceptions: path+pattern, never commit SHA.
 - The server re-validates every input with Zod and re-checks the session token and the owner's Telegram ID. Client validation is UX only.
 - Design exists only as code: tokens, primitives and browser screenshots. Figma is excluded (owner decision 03.10.2026); never propose it.
 - Agents never deploy, run `--remote` D1 commands, or change secrets. The owner runs these.
