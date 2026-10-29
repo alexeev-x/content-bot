@@ -96,96 +96,96 @@
 {"w":["пика","Hurricane Pike"],"m":"предмет Hurricane Pike","s":"item"}
 {"w":["сабля","Echo Sabre"],"m":"предмет Echo Sabre","s":"item"}
 {"w":["баннер","Roshan Banner"],"m":"предмет Roshan Banner","s":"item"}
-{"w":["Abaddon","аба"],"m":"прозвище героя Abaddon; о герое — «он»","s":"hero"}
-{"w":["Alchemist","алх","алч"],"m":"прозвище героя Alchemist","s":"hero"}
-{"w":["Anti-Mage","антимаг","АМ","магина"],"m":"прозвище героя Anti-Mage","s":"hero"}
-{"w":["Arc Warden","арк"],"m":"прозвище героя Arc Warden","s":"hero"}
-{"w":["Batrider","бэт"],"m":"прозвище героя Batrider","s":"hero"}
-{"w":["Beastmaster","бистмастер","БМ","бист"],"m":"прозвище героя Beastmaster","s":"hero"}
-{"w":["Bloodseeker","сикер","БС"],"m":"прозвище героя Bloodseeker","s":"hero"}
-{"w":["Bounty Hunter","баунти","БХ"],"m":"прозвище героя Bounty Hunter","s":"hero"}
-{"w":["Brewmaster","брю"],"m":"прозвище героя Brewmaster","s":"hero"}
-{"w":["Bristleback","брист","еж","осёл"],"m":"прозвище героя Bristleback","s":"hero"}
-{"w":["Broodmother","брудка","паук"],"m":"прозвище героя Broodmother; о герое — «она»","s":"hero"}
-{"w":["Centaur Warrunner","кентавр"],"m":"прозвище героя Centaur Warrunner","s":"hero"}
-{"w":["Chaos Knight","хаос","ЦК","чаос","конь"],"m":"прозвище героя Chaos Knight","s":"hero"}
-{"w":["Clinkz","боник"],"m":"прозвище героя Clinkz","s":"hero"}
-{"w":["Clockwerk","клок"],"m":"прозвище героя Clockwerk","s":"hero"}
-{"w":["Crystal Maiden","кристалка","ЦМ","мадлен"],"m":"прозвище героя Crystal Maiden; о герое — «она»","s":"hero"}
-{"w":["Dark Seer","сир","ДС"],"m":"прозвище героя Dark Seer","s":"hero"}
-{"w":["Dark Willow","вилка"],"m":"прозвище героя Dark Willow","s":"hero"}
-{"w":["Dawnbreaker","даунбрейкер","ДБ"],"m":"прозвище героя Dawnbreaker; о герое — «она»","s":"hero"}
-{"w":["Death Prophet","профетка","ДП"],"m":"прозвище героя Death Prophet; о герое — «она»","s":"hero"}
-{"w":["Dragon Knight","драгон","ДК"],"m":"прозвище героя Dragon Knight","s":"hero"}
-{"w":["Drow Ranger","дровка","дроу","тракса"],"m":"прозвище героя Drow Ranger; о герое — «она»","s":"hero"}
-{"w":["Elder Titan","титан"],"m":"прозвище героя Elder Titan","s":"hero"}
-{"w":["Ember Spirit","эмбер"],"m":"прозвище героя Ember Spirit","s":"hero"}
-{"w":["Enchantress","энча","коза","овца"],"m":"прозвище героя Enchantress","s":"hero"}
-{"w":["Faceless Void","войд"],"m":"прозвище героя Faceless Void","s":"hero"}
-{"w":["Grimstroke","грим"],"m":"прозвище героя Grimstroke","s":"hero"}
-{"w":["Gyrocopter","гиро","вертолёт"],"m":"прозвище героя Gyrocopter","s":"hero"}
-{"w":["Hoodwink","белка"],"m":"прозвище героя Hoodwink","s":"hero"}
-{"w":["Huskar","хуск"],"m":"прозвище героя Huskar","s":"hero"}
-{"w":["Invoker","вокер","колдун","инвок"],"m":"прозвище героя Invoker","s":"hero"}
-{"w":["Io","шар","висп"],"m":"прозвище героя Io","s":"hero"}
-{"w":["Jakiro","джак","ТХД"],"m":"прозвище героя Jakiro","s":"hero"}
-{"w":["Juggernaut","джаггер","джага"],"m":"прозвище героя Juggernaut","s":"hero"}
-{"w":["Keeper of the Light","котл","Гендальф"],"m":"прозвище героя Keeper of the Light","s":"hero"}
-{"w":["Legion Commander","легионка","лега"],"m":"прозвище героя Legion Commander","s":"hero"}
-{"w":["Leshrac","леший","лешрак"],"m":"прозвище героя Leshrac","s":"hero"}
-{"w":["Lifestealer","найкс","гуля"],"m":"прозвище героя Lifestealer; о герое — «он»","s":"hero"}
-{"w":["Lycan","волк"],"m":"прозвище героя Lycan","s":"hero"}
-{"w":["Medusa","дуза"],"m":"прозвище героя Medusa","s":"hero"}
-{"w":["Mirana","потма"],"m":"прозвище героя Mirana","s":"hero"}
-{"w":["Monkey King","обезьяна","МК"],"m":"прозвище героя Monkey King; о герое — «он»","s":"hero"}
-{"w":["Morphling","морф"],"m":"прозвище героя Morphling","s":"hero"}
-{"w":["Nature's Prophet","фурион","фура"],"m":"прозвище героя Nature's Prophet; о герое — «он»","s":"hero"}
-{"w":["Necrophos","некр"],"m":"прозвище героя Necrophos","s":"hero"}
-{"w":["Night Stalker","сталкер","НС","баланар"],"m":"прозвище героя Night Stalker","s":"hero"}
-{"w":["Nyx Assassin","никс"],"m":"прозвище героя Nyx Assassin","s":"hero"}
-{"w":["Outworld Devourer","аутворлд","ОД"],"m":"прозвище героя Outworld Devourer","s":"hero"}
-{"w":["Pangolier","панго"],"m":"прозвище героя Pangolier","s":"hero"}
-{"w":["Phantom Assassin","фантомка","ПА","мортра"],"m":"прозвище героя Phantom Assassin; о герое — «она»","s":"hero"}
+{"w":["Abaddon","Абадон","аба"],"m":"прозвище героя Abaddon; о герое — «он»","s":"hero"}
+{"w":["Alchemist","Алхимик","алх","алч"],"m":"прозвище героя Alchemist","s":"hero"}
+{"w":["Anti-Mage","Антимаг","АМ","магина"],"m":"прозвище героя Anti-Mage","s":"hero"}
+{"w":["Arc Warden","Арк Варден","арк"],"m":"прозвище героя Arc Warden","s":"hero"}
+{"w":["Batrider","Бэтрайдер","бэт"],"m":"прозвище героя Batrider","s":"hero"}
+{"w":["Beastmaster","Бистмастер","БМ","бист"],"m":"прозвище героя Beastmaster","s":"hero"}
+{"w":["Bloodseeker","Сикер","БС"],"m":"прозвище героя Bloodseeker","s":"hero"}
+{"w":["Bounty Hunter","БХ","баунти"],"m":"прозвище героя Bounty Hunter","s":"hero"}
+{"w":["Brewmaster","Брюмастер","брю"],"m":"прозвище героя Brewmaster","s":"hero"}
+{"w":["Bristleback","Бристалбэк","брист","еж","осёл"],"m":"прозвище героя Bristleback","s":"hero"}
+{"w":["Broodmother","Бруда","брудка","паук"],"m":"прозвище героя Broodmother; о герое — «она»","s":"hero"}
+{"w":["Centaur Warrunner","Кентавр"],"m":"прозвище героя Centaur Warrunner","s":"hero"}
+{"w":["Chaos Knight","ЦК","хаос","чаос","конь"],"m":"прозвище героя Chaos Knight","s":"hero"}
+{"w":["Clinkz","Клинз","боник"],"m":"прозвище героя Clinkz","s":"hero"}
+{"w":["Clockwerk","Клок"],"m":"прозвище героя Clockwerk","s":"hero"}
+{"w":["Crystal Maiden","Цмка","кристалка","ЦМ","мадлен"],"m":"прозвище героя Crystal Maiden; о герое — «она»","s":"hero"}
+{"w":["Dark Seer","Дарк сир","сир","ДС"],"m":"прозвище героя Dark Seer","s":"hero"}
+{"w":["Dark Willow","Вилка"],"m":"прозвище героя Dark Willow","s":"hero"}
+{"w":["Dawnbreaker","ДБ","даунбрейкер"],"m":"прозвище героя Dawnbreaker; о герое — «она»","s":"hero"}
+{"w":["Death Prophet","ДП","профетка"],"m":"прозвище героя Death Prophet; о герое — «она»","s":"hero"}
+{"w":["Dragon Knight","ДК","драгон"],"m":"прозвище героя Dragon Knight","s":"hero"}
+{"w":["Drow Ranger","Дровка","дроу","тракса"],"m":"прозвище героя Drow Ranger; о герое — «она»","s":"hero"}
+{"w":["Elder Titan","Титан"],"m":"прозвище героя Elder Titan","s":"hero"}
+{"w":["Ember Spirit","Эмбер"],"m":"прозвище героя Ember Spirit","s":"hero"}
+{"w":["Enchantress","Энча","коза","овца"],"m":"прозвище героя Enchantress","s":"hero"}
+{"w":["Faceless Void","Войд"],"m":"прозвище героя Faceless Void","s":"hero"}
+{"w":["Grimstroke","Грим"],"m":"прозвище героя Grimstroke","s":"hero"}
+{"w":["Gyrocopter","Гирокоптер","гиро","вертолёт"],"m":"прозвище героя Gyrocopter","s":"hero"}
+{"w":["Hoodwink","Белка"],"m":"прозвище героя Hoodwink","s":"hero"}
+{"w":["Huskar","Хускар","хуск"],"m":"прозвище героя Huskar","s":"hero"}
+{"w":["Invoker","Инвокер","вокер","колдун","инвок"],"m":"прозвище героя Invoker","s":"hero"}
+{"w":["Io","Висп","шар"],"m":"прозвище героя Io","s":"hero"}
+{"w":["Jakiro","Джакиро","джак","ТХД"],"m":"прозвище героя Jakiro","s":"hero"}
+{"w":["Juggernaut","Джаггер","джага"],"m":"прозвище героя Juggernaut","s":"hero"}
+{"w":["Keeper of the Light","Котл","Гендальф"],"m":"прозвище героя Keeper of the Light","s":"hero"}
+{"w":["Legion Commander","Легионка","лега"],"m":"прозвище героя Legion Commander","s":"hero"}
+{"w":["Leshrac","Леший","лешрак"],"m":"прозвище героя Leshrac","s":"hero"}
+{"w":["Lifestealer","Гуля","найкс"],"m":"прозвище героя Lifestealer; о герое — «он»","s":"hero"}
+{"w":["Lycan","Люкан","волк"],"m":"прозвище героя Lycan","s":"hero"}
+{"w":["Medusa","Дуза"],"m":"прозвище героя Medusa","s":"hero"}
+{"w":["Mirana","Мирана","потма"],"m":"прозвище героя Mirana","s":"hero"}
+{"w":["Monkey King","Обезьяна","МК"],"m":"прозвище героя Monkey King; о герое — «он»","s":"hero"}
+{"w":["Morphling","Морф"],"m":"прозвище героя Morphling","s":"hero"}
+{"w":["Nature's Prophet","Фурион","фура"],"m":"прозвище героя Nature's Prophet; о герое — «он»","s":"hero"}
+{"w":["Necrophos","Некр"],"m":"прозвище героя Necrophos","s":"hero"}
+{"w":["Night Stalker","Сталкер","НС","баланар"],"m":"прозвище героя Night Stalker","s":"hero"}
+{"w":["Nyx Assassin","Никс"],"m":"прозвище героя Nyx Assassin","s":"hero"}
+{"w":["Outworld Devourer","ОД","аутворлд"],"m":"прозвище героя Outworld Devourer","s":"hero"}
+{"w":["Pangolier","Панго"],"m":"прозвище героя Pangolier","s":"hero"}
+{"w":["Phantom Assassin","Фантомка","ПА","мортра"],"m":"прозвище героя Phantom Assassin; о герое — «она»","s":"hero"}
 {"w":["Phantom Lancer","ПЛ","лансер","фантом"],"m":"прозвище героя Phantom Lancer","s":"hero"}
-{"w":["Primal Beast","праймал","ПБ"],"m":"прозвище героя Primal Beast","s":"hero"}
-{"w":["Queen of Pain","квопа","акаша"],"m":"прозвище героя Queen of Pain","s":"hero"}
-{"w":["Rubick","рубик","рубен"],"m":"прозвище героя Rubick","s":"hero"}
-{"w":["Sand King","сенд кинг","СК","скорпион"],"m":"прозвище героя Sand King","s":"hero"}
-{"w":["Shadow Demon","шадоу демон","ШД"],"m":"прозвище героя Shadow Demon","s":"hero"}
-{"w":["Shadow Fiend","невермор","СФ","финд","уголь"],"m":"прозвище героя Shadow Fiend","s":"hero"}
-{"w":["Shadow Shaman","шаман"],"m":"прозвище героя Shadow Shaman","s":"hero"}
-{"w":["Skywrath Mage","скай","петух"],"m":"прозвище героя Skywrath Mage","s":"hero"}
-{"w":["Slardar","селёдка"],"m":"прозвище героя Slardar; о герое — «он»","s":"hero"}
-{"w":["Slark","рыба"],"m":"прозвище героя Slark; о герое — «он»","s":"hero"}
-{"w":["Snapfire","снэпка","бабка"],"m":"прозвище героя Snapfire","s":"hero"}
-{"w":["Sniper","дед"],"m":"прозвище героя Sniper","s":"hero"}
-{"w":["Spirit Breaker","баратрум","бара"],"m":"прозвище героя Spirit Breaker; о герое — «он»","s":"hero"}
-{"w":["Storm Spirit","шторм"],"m":"прозвище героя Storm Spirit","s":"hero"}
-{"w":["Techies","течис","минер"],"m":"прозвище героя Techies","s":"hero"}
-{"w":["Templar Assassin","темпларка","ТА","ланая"],"m":"прозвище героя Templar Assassin; о герое — «она»","s":"hero"}
-{"w":["Terrorblade","террор","ТБ"],"m":"прозвище героя Terrorblade","s":"hero"}
-{"w":["Tidehunter","тайд"],"m":"прозвище героя Tidehunter","s":"hero"}
-{"w":["Timbersaw","тимбер"],"m":"прозвище героя Timbersaw","s":"hero"}
-{"w":["Tiny","тиник","камень"],"m":"прозвище героя Tiny","s":"hero"}
-{"w":["Treant Protector","трент","дерево"],"m":"прозвище героя Treant Protector","s":"hero"}
-{"w":["Tusk","таск","тусик","морж"],"m":"прозвище героя Tusk","s":"hero"}
-{"w":["Underlord","питлорд"],"m":"прозвище героя Underlord","s":"hero"}
-{"w":["Undying","зомби"],"m":"прозвище героя Undying","s":"hero"}
-{"w":["Ursa","урса","медведь"],"m":"прозвище героя Ursa; о герое — «он»","s":"hero"}
-{"w":["Vengeful Spirit","венга","ВС"],"m":"прозвище героя Vengeful Spirit; о герое — «она»","s":"hero"}
-{"w":["Venomancer","веник","веном","гидра"],"m":"прозвище героя Venomancer","s":"hero"}
-{"w":["Warlock","варлок"],"m":"прозвище героя Warlock","s":"hero"}
-{"w":["Weaver","жук"],"m":"прозвище героя Weaver","s":"hero"}
-{"w":["Windranger","ветрогонка","ВР"],"m":"прозвище героя Windranger; о герое — «она»","s":"hero"}
-{"w":["Winter Wyvern","виверна"],"m":"прозвище героя Winter Wyvern","s":"hero"}
-{"w":["Witch Doctor","доктор","ВД"],"m":"прозвище героя Witch Doctor","s":"hero"}
-{"w":["Wraith King","скелет","ВК","папич","леорик"],"m":"прозвище героя Wraith King","s":"hero"}
-{"w":["Pudge","пудж"],"m":"прозвище героя Pudge","s":"hero"}
-{"w":["Riki","рики","рикимару"],"m":"прозвище героя Riki","s":"hero"}
-{"w":["Lina","лина"],"m":"прозвище героя Lina","s":"hero"}
-{"w":["Doom","дум"],"m":"прозвище героя Doom","s":"hero"}
-{"w":["Lich","лич"],"m":"прозвище героя Lich","s":"hero"}
-{"w":["Earthshaker","шейкер"],"m":"прозвище героя Earthshaker","s":"hero"}
+{"w":["Primal Beast","Праймал","ПБ"],"m":"прозвище героя Primal Beast","s":"hero"}
+{"w":["Queen of Pain","Квопа","акаша"],"m":"прозвище героя Queen of Pain","s":"hero"}
+{"w":["Rubick","Рубик","рубен"],"m":"прозвище героя Rubick","s":"hero"}
+{"w":["Sand King","СК","сенд кинг","скорпион"],"m":"прозвище героя Sand King","s":"hero"}
+{"w":["Shadow Demon","Шадоу демон","ШД"],"m":"прозвище героя Shadow Demon","s":"hero"}
+{"w":["Shadow Fiend","СФ","невермор","финд","уголь"],"m":"прозвище героя Shadow Fiend","s":"hero"}
+{"w":["Shadow Shaman","Шаман"],"m":"прозвище героя Shadow Shaman","s":"hero"}
+{"w":["Skywrath Mage","Скаймаг","скай","петух"],"m":"прозвище героя Skywrath Mage","s":"hero"}
+{"w":["Slardar","Селёдка"],"m":"прозвище героя Slardar; о герое — «он»","s":"hero"}
+{"w":["Slark","Сларк","рыба"],"m":"прозвище героя Slark; о герое — «он»","s":"hero"}
+{"w":["Snapfire","Бабка","снэпка"],"m":"прозвище героя Snapfire","s":"hero"}
+{"w":["Sniper","Снайпер","дед"],"m":"прозвище героя Sniper","s":"hero"}
+{"w":["Spirit Breaker","Баратрум","бара"],"m":"прозвище героя Spirit Breaker; о герое — «он»","s":"hero"}
+{"w":["Storm Spirit","Шторм"],"m":"прозвище героя Storm Spirit","s":"hero"}
+{"w":["Techies","Течис","минер"],"m":"прозвище героя Techies","s":"hero"}
+{"w":["Templar Assassin","Темпларка","ТА","ланая"],"m":"прозвище героя Templar Assassin; о герое — «она»","s":"hero"}
+{"w":["Terrorblade","ТБ","террор"],"m":"прозвище героя Terrorblade","s":"hero"}
+{"w":["Tidehunter","Тайд","арбуз"],"m":"прозвище героя Tidehunter","s":"hero"}
+{"w":["Timbersaw","Тимбер"],"m":"прозвище героя Timbersaw","s":"hero"}
+{"w":["Tiny","Тини","тиник","камень"],"m":"прозвище героя Tiny","s":"hero"}
+{"w":["Treant Protector","Трент","дерево"],"m":"прозвище героя Treant Protector","s":"hero"}
+{"w":["Tusk","Таск","тусик","морж"],"m":"прозвище героя Tusk","s":"hero"}
+{"w":["Underlord","Андерлорд","питлорд"],"m":"прозвище героя Underlord","s":"hero"}
+{"w":["Undying","Зомби"],"m":"прозвище героя Undying","s":"hero"}
+{"w":["Ursa","Урса","медведь"],"m":"прозвище героя Ursa; о герое — «он»","s":"hero"}
+{"w":["Vengeful Spirit","Венга","ВС"],"m":"прозвище героя Vengeful Spirit; о герое — «она»","s":"hero"}
+{"w":["Venomancer","Веник","веном","гидра"],"m":"прозвище героя Venomancer","s":"hero"}
+{"w":["Warlock","Варлок"],"m":"прозвище героя Warlock","s":"hero"}
+{"w":["Weaver","Вивер","жук"],"m":"прозвище героя Weaver","s":"hero"}
+{"w":["Windranger","ВРка","винрейджер","ветрогонка","ВР"],"m":"прозвище героя Windranger; о герое — «она»","s":"hero"}
+{"w":["Winter Wyvern","Виверна"],"m":"прозвище героя Winter Wyvern","s":"hero"}
+{"w":["Witch Doctor","Доктор","ВД"],"m":"прозвище героя Witch Doctor","s":"hero"}
+{"w":["Wraith King","ВК","скелет","папич","леорик"],"m":"прозвище героя Wraith King","s":"hero"}
+{"w":["Pudge","Пудж"],"m":"прозвище героя Pudge","s":"hero"}
+{"w":["Riki","Рики","рикимару"],"m":"прозвище героя Riki","s":"hero"}
+{"w":["Lina","Лина"],"m":"прозвище героя Lina","s":"hero"}
+{"w":["Doom","Дум"],"m":"прозвище героя Doom","s":"hero"}
+{"w":["Lich","Лич"],"m":"прозвище героя Lich","s":"hero"}
+{"w":["Earthshaker","Шейкер"],"m":"прозвище героя Earthshaker","s":"hero"}
 {"w":["пудж в лесу","лесной Пудж"],"m":"«пудж в лесу» (патч 7.30), комьюнити бурно обсуждало","s":"meme","t":"классика"}
 {"w":["маршрутка до Грозного"],"m":"«маршрутка до Грозного»: игра против Магнуса как поездка в маршрутке (по описанию в обзоре рофлов патча)","s":"meme","t":"классика"}
 {"w":["бабушка с монологом про пенсии"],"m":"«бабушка» с монологом про пенсии и гречку и «печеньки» постройкам (рофл патча 7.23)","s":"meme","t":"классика"}
@@ -285,37 +285,37 @@
 {"w":["suicide Pudge"],"m":"самоубийство Пуджа, чтобы враг не получил награду","s":"feed"}
 {"w":["пассивная агрессия: «gg» в минуту 5"],"m":"пассивная агрессия: «gg» в минуту 5","s":"feed"}
 {"w":["пуш лайн"],"m":"тоже вид руина, если без смысла»","s":"feed"}
-{"w":["Axe","акс"],"m":"прозвище героя Axe","s":"hero"}
-{"w":["Ancient Apparition","аппарат","АА"],"m":"прозвище героя Ancient Apparition","s":"hero"}
-{"w":["Bane","бейн"],"m":"прозвище героя Bane","s":"hero"}
-{"w":["Chen","чен"],"m":"прозвище героя Chen","s":"hero"}
-{"w":["Dazzle","даззл"],"m":"прозвище героя Dazzle","s":"hero"}
-{"w":["Disruptor","диз"],"m":"прозвище героя Disruptor","s":"hero"}
-{"w":["Earth Spirit","эртспирит"],"m":"прозвище героя Earth Spirit","s":"hero"}
-{"w":["Enigma","энигма"],"m":"прозвище героя Enigma","s":"hero"}
-{"w":["Kunkka","кунка"],"m":"прозвище героя Kunkka","s":"hero"}
-{"w":["Lion","лион"],"m":"прозвище героя Lion","s":"hero"}
-{"w":["Lone Druid","друид","ЛД"],"m":"прозвище героя Lone Druid","s":"hero"}
-{"w":["Luna","луна"],"m":"прозвище героя Luna; о герое — «она»","s":"hero"}
-{"w":["Marci","марси"],"m":"прозвище героя Marci; о герое — «она»","s":"hero"}
-{"w":["Mars","марс"],"m":"прозвище героя Mars","s":"hero"}
-{"w":["Meepo","мипо"],"m":"прозвище героя Meepo","s":"hero"}
-{"w":["Muerta","муэрта"],"m":"прозвище героя Muerta; о герое — «она»","s":"hero"}
-{"w":["Naga Siren","нага"],"m":"прозвище героя Naga Siren; о герое — «она»","s":"hero"}
-{"w":["Ogre Magi","огр"],"m":"прозвище героя Ogre Magi","s":"hero"}
-{"w":["Omniknight","омник"],"m":"прозвище героя Omniknight","s":"hero"}
-{"w":["Oracle","оракл"],"m":"прозвище героя Oracle","s":"hero"}
-{"w":["Phoenix","феникс"],"m":"прозвище героя Phoenix","s":"hero"}
-{"w":["Puck","пак"],"m":"прозвище героя Puck","s":"hero"}
-{"w":["Pugna","пугна"],"m":"прозвище героя Pugna","s":"hero"}
-{"w":["Razor","разор"],"m":"прозвище героя Razor","s":"hero"}
-{"w":["Silencer","сайленсер"],"m":"прозвище героя Silencer","s":"hero"}
-{"w":["Spectre","спектра"],"m":"прозвище героя Spectre; о герое — «она»","s":"hero"}
-{"w":["Tinker","тинкер"],"m":"прозвище героя Tinker","s":"hero"}
-{"w":["Viper","вайпер"],"m":"прозвище героя Viper","s":"hero"}
-{"w":["Visage","визаж"],"m":"прозвище героя Visage","s":"hero"}
-{"w":["Void Spirit","войд спирит"],"m":"прозвище героя Void Spirit","s":"hero"}
-{"w":["Zeus","зевс"],"m":"прозвище героя Zeus","s":"hero"}
+{"w":["Axe","Акс"],"m":"прозвище героя Axe","s":"hero"}
+{"w":["Ancient Apparition","Аппарат","АА"],"m":"прозвище героя Ancient Apparition","s":"hero"}
+{"w":["Bane","Бейн"],"m":"прозвище героя Bane","s":"hero"}
+{"w":["Chen","Чен"],"m":"прозвище героя Chen","s":"hero"}
+{"w":["Dazzle","Даззл"],"m":"прозвище героя Dazzle","s":"hero"}
+{"w":["Disruptor","Дизраптор","диз"],"m":"прозвище героя Disruptor","s":"hero"}
+{"w":["Earth Spirit","Эртспирит"],"m":"прозвище героя Earth Spirit","s":"hero"}
+{"w":["Enigma","Энигма"],"m":"прозвище героя Enigma","s":"hero"}
+{"w":["Kunkka","Кунка"],"m":"прозвище героя Kunkka","s":"hero"}
+{"w":["Lion","Лион"],"m":"прозвище героя Lion","s":"hero"}
+{"w":["Lone Druid","Друид","ЛД"],"m":"прозвище героя Lone Druid","s":"hero"}
+{"w":["Luna","Луна"],"m":"прозвище героя Luna; о герое — «она»","s":"hero"}
+{"w":["Marci","Марси"],"m":"прозвище героя Marci; о герое — «она»","s":"hero"}
+{"w":["Mars","Марс"],"m":"прозвище героя Mars","s":"hero"}
+{"w":["Meepo","Мипо"],"m":"прозвище героя Meepo","s":"hero"}
+{"w":["Muerta","Муэрта"],"m":"прозвище героя Muerta; о герое — «она»","s":"hero"}
+{"w":["Naga Siren","Нага"],"m":"прозвище героя Naga Siren; о герое — «она»","s":"hero"}
+{"w":["Ogre Magi","Огр"],"m":"прозвище героя Ogre Magi","s":"hero"}
+{"w":["Omniknight","Омник"],"m":"прозвище героя Omniknight","s":"hero"}
+{"w":["Oracle","Оракл"],"m":"прозвище героя Oracle","s":"hero"}
+{"w":["Phoenix","Феникс"],"m":"прозвище героя Phoenix","s":"hero"}
+{"w":["Puck","Пак"],"m":"прозвище героя Puck","s":"hero"}
+{"w":["Pugna","Пугна"],"m":"прозвище героя Pugna","s":"hero"}
+{"w":["Razor","Разор"],"m":"прозвище героя Razor","s":"hero"}
+{"w":["Silencer","Сайленсер"],"m":"прозвище героя Silencer","s":"hero"}
+{"w":["Spectre","Спектра"],"m":"прозвище героя Spectre; о герое — «она»","s":"hero"}
+{"w":["Tinker","Тинкер"],"m":"прозвище героя Tinker","s":"hero"}
+{"w":["Viper","Вайпер"],"m":"прозвище героя Viper","s":"hero"}
+{"w":["Visage","Визаж"],"m":"прозвище героя Visage","s":"hero"}
+{"w":["Void Spirit","Войд спирит"],"m":"прозвище героя Void Spirit","s":"hero"}
+{"w":["Zeus","Зевс"],"m":"прозвище героя Zeus","s":"hero"}
 {"w":["Aeon Disk","аеон"],"m":"предмет Aeon Disk","s":"item"}
 {"w":["Lotus Orb","лотус"],"m":"предмет Lotus Orb","s":"item"}
 {"w":["Glimmer Cape","глиммер"],"m":"предмет Glimmer Cape","s":"item"}
@@ -500,9 +500,9 @@
 {"w":["Aphotic Shield"],"m":"способность Abaddon; игроки говорят: щит","s":"ability"}
 {"w":["Mist Coil"],"m":"способность Abaddon; игроки говорят: койл","s":"ability"}
 {"w":["Unstable Concoction"],"m":"способность Alchemist; игроки говорят: банка, колба","s":"ability"}
-{"w":["Magnus","магнус"],"m":"прозвище героя Magnus","s":"hero"}
-{"w":["Sven","свен"],"m":"прозвище героя Sven","s":"hero"}
-{"w":["Troll Warlord","тролль"],"m":"прозвище героя Troll Warlord","s":"hero"}
-{"w":["Kez","кез"],"m":"прозвище героя Kez","s":"hero"}
-{"w":["Ring Master","ринг мастер"],"m":"прозвище героя Ring Master","s":"hero"}
-{"w":["Largo","ларго"],"m":"прозвище героя Largo","s":"hero"}
+{"w":["Magnus","Магнус"],"m":"прозвище героя Magnus","s":"hero"}
+{"w":["Sven","Свен"],"m":"прозвище героя Sven","s":"hero"}
+{"w":["Troll Warlord","Тролль"],"m":"прозвище героя Troll Warlord","s":"hero"}
+{"w":["Kez","Кез"],"m":"прозвище героя Kez","s":"hero"}
+{"w":["Ring Master","Ринг мастер"],"m":"прозвище героя Ring Master","s":"hero"}
+{"w":["Largo","Ларго"],"m":"прозвище героя Largo","s":"hero"}
