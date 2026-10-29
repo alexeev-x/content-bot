@@ -2,6 +2,8 @@
 // a day). The screenshot quick action loads an HTML page with Valve's real icons and returns it as a PNG, so heroes,
 // items and words come out exactly; no model draws them. Only the binding's one call is typed here.
 
+import { causeDetail, readErrorDetail } from '../../platform/error-detail';
+
 export const BROWSER_RENDER_TIMEOUT_MS = 30_000;
 /** The attribute a page sets on <html> once its web fonts are loaded; the shot waits for it. */
 export const FONTS_READY = 'data-fonts-ready';
@@ -26,7 +28,9 @@ export type BrowserRenderErrorCode = 'BROWSER_FAILED' | 'BROWSER_RATE' | 'BROWSE
 export class BrowserRenderError extends Error {
   constructor(
     readonly code: BrowserRenderErrorCode,
-    readonly httpStatus: number | null = null
+    readonly httpStatus: number | null = null,
+    /** The provider's own error text, bounded and redacted (`platform/error-detail.ts`). */
+    readonly detail?: string
   ) {
     super(code);
     this.name = 'BrowserRenderError';
@@ -43,7 +47,17 @@ export function createBrowserPictureRenderer(binding: BrowserBinding): PictureRe
     async render(html, { width, height }, format = 'png') {
       let timer: ReturnType<typeof setTimeout> | undefined;
       const timeout = new Promise<never>((_, reject) => {
-        timer = setTimeout(() => reject(new BrowserRenderError('BROWSER_TIMEOUT')), BROWSER_RENDER_TIMEOUT_MS);
+        timer = setTimeout(
+          () =>
+            reject(
+              new BrowserRenderError(
+                'BROWSER_TIMEOUT',
+                null,
+                `страница не отрисовалась за ${BROWSER_RENDER_TIMEOUT_MS / 1000} с`
+              )
+            ),
+          BROWSER_RENDER_TIMEOUT_MS
+        );
       });
       let response: Response;
       try {
@@ -62,19 +76,22 @@ export function createBrowserPictureRenderer(binding: BrowserBinding): PictureRe
         ]);
       } catch (error) {
         if (error instanceof BrowserRenderError) throw error;
-        throw new BrowserRenderError('BROWSER_FAILED');
+        throw new BrowserRenderError('BROWSER_FAILED', null, causeDetail(error));
       } finally {
         clearTimeout(timer);
       }
       if (!response.ok) {
-        await response.body?.cancel();
-        throw new BrowserRenderError(response.status === 429 ? 'BROWSER_RATE' : 'BROWSER_FAILED', response.status);
+        throw new BrowserRenderError(
+          response.status === 429 ? 'BROWSER_RATE' : 'BROWSER_FAILED',
+          response.status,
+          await readErrorDetail(response)
+        );
       }
       const bytes = new Uint8Array(await response.arrayBuffer());
       // A PNG starts with its 8-byte signature, a JPEG with FF D8 FF; anything else (an error page) is not a picture.
       const signature = format === 'png' ? [0x89, 0x50, 0x4e, 0x47] : [0xff, 0xd8, 0xff];
       if (bytes.byteLength > MAX_PNG_BYTES || signature.some((value, index) => bytes[index] !== value)) {
-        throw new BrowserRenderError('BROWSER_SHAPE');
+        throw new BrowserRenderError('BROWSER_SHAPE', null, `ответ не картинка (${bytes.byteLength} байт)`);
       }
       return bytes;
     }

@@ -140,14 +140,20 @@ export interface StatsSource {
   heroMatchups(heroId: number): Promise<{ heroId: number; matches: number; wins: number }[]>;
   /** The hero's recent matches at one position, one row per match (the guide's sample). */
   heroGuideSample(heroId: number, position: number, withPurchases: boolean): Promise<GuideSample>;
+  /** Every hero's matches and wins at one position for the last `weeks` weeks in a bracket (null: all), newest first. */
+  positionWeeks(
+    bracket: number | null,
+    position: number,
+    weeks: number
+  ): Promise<{ heroId: number; week: number; matches: number; wins: number }[]>;
+  /** Every hero's matches and wins by position and match length; `minute` is the length bin's start (Divine+). */
+  lengthRates(
+    position: number
+  ): Promise<{ heroId: number; position: number; minute: number; matches: number; wins: number }[]>;
   /** Every hero's matches and wins by position 1–5. */
   positions(): Promise<{ heroId: number; position: number; matches: number; wins: number }[]>;
   /** Every hero's last two weeks in a bracket (null: every bracket together), newest first. */
   twoWeeks(bracket: number | null): Promise<{ heroId: number; week: number; matches: number; wins: number }[]>;
-  /** Every hero's per-match averages this week. */
-  averages(): Promise<
-    { heroId: number; matches: number; networth: number; heroDamage: number; kills: number; deaths: number }[]
-  >;
 }
 
 /** OpenDota's hero reads: the guide's fallback when STRATZ fails or comes back empty. Counts only, no minutes. */
@@ -195,6 +201,10 @@ export interface RubricSources {
   fallback?: FallbackStatsSource | null;
   /** The bot's own base of high-rank matches (14 days); absent outside the Worker. */
   heroMatches?: HeroMatchSource | null;
+  /** The horoscope's fortune-tellers so far this round; absent outside the Worker (any hero may come then). */
+  tellers?: { used(): Promise<number[]>; remember(heroIds: number[]): Promise<void> } | null;
+  /** A rubric's own counter of turns (0, 1, 2…), kept between posts; absent outside the Worker. */
+  turns?: { next(name: string): Promise<number> } | null;
 }
 
 /** The bot's own high-rank matches, one row per player, the last 14 days (migration 0116). */
@@ -204,7 +214,6 @@ export interface HeroMatchSource {
   /** The newest `limit` games of the hero at the position as guide matches (purchases, skills, items). */
   sample(heroId: number, position: number, limit: number): Promise<GuideMatch[]>;
 }
-
 export interface RubricSample {
   picture: { html: string; width: number; height: number } | null;
   /** Plain text: the caption under the picture, or the message itself. */
@@ -232,6 +241,16 @@ export interface RubricSample {
   reference?: string;
   /** The text is final as written (fixed captions): no AI caption. */
   ownText?: boolean;
+  /** The image model puts this hero (Valve's render) into the picture's scene; the page shows it as `--scene`. */
+  heroScene?: { renderUrl: string; heroName: string };
+  /** «Гороскоп»: the model seats the fortune-teller and puts the ball's hero into the owner's scene. */
+  fortuneScene?: { teller: { renderUrl: string; heroName: string }; ball: { renderUrl: string; heroName: string } };
+  /** The post as a rich message (tables, bold, italics) in place of the plain text; `text` stays its plain form. */
+  rich?: string;
+  /** The rubric posts no picture at all, not even the drawn title scene (a text joke or a bare poll). */
+  noPicture?: boolean;
+  /** The text's first line is bold: a setup or a heading that must stand out in the feed. */
+  boldLead?: boolean;
   /**
    * A second post of the rubric that follows the first after a while (e.g. a riddle's answer); `afterMinutes: null`
    * waits for the next patch, and the sample reads the latest one in its place.

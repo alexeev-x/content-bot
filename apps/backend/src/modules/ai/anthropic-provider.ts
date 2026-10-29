@@ -1,4 +1,5 @@
 import Anthropic from '@anthropic-ai/sdk';
+import { causeDetail } from '../../platform/error-detail';
 import { type AiCompletion, AiProviderError, type AiTextProvider } from './ports';
 
 // Claude through the official SDK (owner, 21.10.2026: a second provider for a blind comparison; plan in
@@ -42,15 +43,18 @@ function mapValues(properties: unknown): unknown {
 }
 
 function failure(error: unknown, signal: AbortSignal | undefined): AiProviderError {
+  const status = error instanceof Anthropic.APIError && typeof error.status === 'number' ? error.status : null;
+  const detail = causeDetail(error);
+  const make = (code: string) => new AiProviderError(code, false, status, detail);
   if (error instanceof Anthropic.AuthenticationError || error instanceof Anthropic.PermissionDeniedError)
-    return new AiProviderError('AI_KEY_REJECTED');
-  if (error instanceof Anthropic.RateLimitError) return new AiProviderError('AI_RATE_OR_QUOTA');
-  if (error instanceof Anthropic.NotFoundError) return new AiProviderError('AI_MODEL_NOT_FOUND');
-  if (error instanceof Anthropic.BadRequestError) return new AiProviderError('AI_BAD_REQUEST');
-  if (error instanceof Anthropic.APIConnectionTimeoutError || signal?.aborted) return new AiProviderError('AI_TIMEOUT');
-  if (error instanceof Anthropic.APIConnectionError) return new AiProviderError('AI_PROVIDER_UNREACHABLE');
-  if (error instanceof Anthropic.APIError) return new AiProviderError(`AI_HTTP_${error.status ?? 'unknown'}`);
-  return new AiProviderError('AI_PROVIDER_UNREACHABLE');
+    return make('AI_KEY_REJECTED');
+  if (error instanceof Anthropic.RateLimitError) return make('AI_RATE_OR_QUOTA');
+  if (error instanceof Anthropic.NotFoundError) return make('AI_MODEL_NOT_FOUND');
+  if (error instanceof Anthropic.BadRequestError) return make('AI_BAD_REQUEST');
+  if (error instanceof Anthropic.APIConnectionTimeoutError || signal?.aborted) return make('AI_TIMEOUT');
+  if (error instanceof Anthropic.APIConnectionError) return make('AI_PROVIDER_UNREACHABLE');
+  if (error instanceof Anthropic.APIError) return make(`AI_HTTP_${error.status ?? 'unknown'}`);
+  return make('AI_PROVIDER_UNREACHABLE');
 }
 
 export function createAnthropicProvider(apiKey: string): AiTextProvider {

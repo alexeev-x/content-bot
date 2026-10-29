@@ -1,6 +1,7 @@
 import { Buffer } from 'node:buffer';
 import { z } from 'zod';
 import { readBounded } from './openai-provider';
+import { causeDetail, readErrorDetail } from '../../platform/error-detail';
 import { type AiImage, type AiImageProvider, AiProviderError } from './ports';
 
 // OpenAI's image edits (`POST /v1/images/edits`, read 22.10.2026): multipart with the references as repeated `image[]`,
@@ -23,18 +24,24 @@ const responseSchema = z.object({
 export function createOpenAiImageProvider(apiKey: string, fetchImpl: typeof fetch): AiImageProvider {
   return {
     provider: 'openai',
-    async draw({ model, prompt, references, size, signal }): Promise<AiImage> {
+    async draw({ model, prompt, references, size, quality, signal }): Promise<AiImage> {
       const form = new FormData();
       form.set('model', model);
       form.set('prompt', prompt);
       form.set('size', size);
-      // «medium» keeps a picture at a few cents (owner, 22.10.2026); the read-back catches a wrong letter.
-      form.set('quality', 'medium');
+      // «medium» keeps a picture at a few cents (owner, 22.10.2026); a scene that is the whole post asks for «high»
+      // (owner, 28.10.2026: «почему оно размытое»).
+      form.set('quality', quality ?? 'medium');
       form.set('output_format', 'jpeg');
       form.set('n', '1');
-      references.forEach((bytes, index) =>
-        form.append('image[]', new File([bytes], `reference-${index + 1}.jpg`, { type: 'image/jpeg' }))
-      );
+      // A reference is a JPEG, or a PNG with transparency (a hero's render); the type follows its first bytes.
+      references.forEach((bytes, index) => {
+        const png = bytes[0] === 0x89 && bytes[1] === 0x50;
+        form.append(
+          'image[]',
+          new File([bytes], `reference-${index + 1}.${png ? 'png' : 'jpg'}`, { type: png ? 'image/png' : 'image/jpeg' })
+        );
+      });
       let response: Response;
       try {
         // A plain call: the runtime's fetch throws «Illegal invocation» when called as a method of another object.
@@ -45,15 +52,27 @@ export function createOpenAiImageProvider(apiKey: string, fetchImpl: typeof fetc
           body: form,
           signal
         });
-      } catch {
-        throw new AiProviderError(signal.aborted ? 'AI_TIMEOUT' : 'AI_PROVIDER_UNREACHABLE');
+      } catch (error) {
+        throw new AiProviderError(
+          signal.aborted ? 'AI_TIMEOUT' : 'AI_PROVIDER_UNREACHABLE',
+          false,
+          null,
+          causeDetail(error)
+        );
       }
       if (!response.ok) {
-        await response.body?.cancel();
-        if (response.status === 401) throw new AiProviderError('AI_KEY_REJECTED');
-        if (response.status === 429) throw new AiProviderError('AI_RATE_OR_QUOTA');
-        if (response.status === 404) throw new AiProviderError('AI_MODEL_NOT_FOUND');
-        throw new AiProviderError(response.status === 400 ? 'AI_BAD_REQUEST' : `AI_HTTP_${response.status}`);
+        const detail = await readErrorDetail(response);
+        const code =
+          response.status === 401
+            ? 'AI_KEY_REJECTED'
+            : response.status === 429
+              ? 'AI_RATE_OR_QUOTA'
+              : response.status === 404
+                ? 'AI_MODEL_NOT_FOUND'
+                : response.status === 400
+                  ? 'AI_BAD_REQUEST'
+                  : `AI_HTTP_${response.status}`;
+        throw new AiProviderError(code, false, response.status, detail);
       }
       let raw: string;
       try {
@@ -61,7 +80,12 @@ export function createOpenAiImageProvider(apiKey: string, fetchImpl: typeof fetc
       } catch (error) {
         if (error instanceof AiProviderError) throw error;
         // The body broke off (our timeout or the network): a failed try, not a bug.
-        throw new AiProviderError(signal.aborted ? 'AI_TIMEOUT' : 'AI_PROVIDER_UNREACHABLE', true);
+        throw new AiProviderError(
+          signal.aborted ? 'AI_TIMEOUT' : 'AI_PROVIDER_UNREACHABLE',
+          true,
+          response.status,
+          causeDetail(error)
+        );
       }
       let parsed: z.infer<typeof responseSchema>;
       let base64: string;
@@ -71,8 +95,8 @@ export function createOpenAiImageProvider(apiKey: string, fetchImpl: typeof fetc
         base64 = parsed.data[0]?.b64_json ?? '';
         bytes = new Uint8Array(Buffer.from(base64, 'base64'));
         if (bytes.byteLength === 0) throw new Error('empty');
-      } catch {
-        throw new AiProviderError('AI_RESPONSE_SHAPE', true);
+      } catch (error) {
+        throw new AiProviderError('AI_RESPONSE_SHAPE', true, response.status, causeDetail(error));
       }
       return {
         bytes,

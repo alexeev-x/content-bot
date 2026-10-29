@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { causeDetail, readErrorDetail } from '../../platform/error-detail';
 import { type AiCompletion, AiProviderError, type AiTextProvider } from './ports';
 
 // OpenAI through the Responses API with plain fetch (recommended for new projects; docs checked 15.10.2026 at
@@ -95,28 +96,45 @@ export function createOpenAiProvider(apiKey: string, fetchImpl: typeof fetch): A
           }),
           signal
         });
-      } catch {
+      } catch (error) {
         // Our own timeout is not an outage: the owner needs to know which one it was.
-        throw new AiProviderError(signal?.aborted ? 'AI_TIMEOUT' : 'AI_PROVIDER_UNREACHABLE');
+        throw new AiProviderError(
+          signal?.aborted ? 'AI_TIMEOUT' : 'AI_PROVIDER_UNREACHABLE',
+          false,
+          null,
+          causeDetail(error)
+        );
       }
       if (response.status === 401 || response.status === 429) {
-        await response.body?.cancel();
-        throw new AiProviderError(response.status === 401 ? 'AI_KEY_REJECTED' : 'AI_RATE_OR_QUOTA');
+        throw new AiProviderError(
+          response.status === 401 ? 'AI_KEY_REJECTED' : 'AI_RATE_OR_QUOTA',
+          false,
+          response.status,
+          await readErrorDetail(response)
+        );
       }
       if (response.status === 404 || response.status === 400) {
-        await response.body?.cancel();
-        throw new AiProviderError(response.status === 404 ? 'AI_MODEL_NOT_FOUND' : 'AI_BAD_REQUEST');
+        throw new AiProviderError(
+          response.status === 404 ? 'AI_MODEL_NOT_FOUND' : 'AI_BAD_REQUEST',
+          false,
+          response.status,
+          await readErrorDetail(response)
+        );
       }
       if (!response.ok) {
-        await response.body?.cancel();
-        throw new AiProviderError(`AI_HTTP_${response.status}`);
+        throw new AiProviderError(
+          `AI_HTTP_${response.status}`,
+          false,
+          response.status,
+          await readErrorDetail(response)
+        );
       }
       const raw = await readBounded(response, MAX_RESPONSE_BYTES);
       let parsed: z.infer<typeof responseSchema>;
       try {
         parsed = responseSchema.parse(JSON.parse(raw));
-      } catch {
-        throw new AiProviderError('AI_RESPONSE_SHAPE', true);
+      } catch (error) {
+        throw new AiProviderError('AI_RESPONSE_SHAPE', true, response.status, causeDetail(error));
       }
       const text = parsed.output
         .filter((item) => item.type === 'message')

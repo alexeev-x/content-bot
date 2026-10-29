@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { causeDetail, readErrorDetail } from '../../platform/error-detail';
 import { readCappedText } from '../../platform/http/read-capped-text';
 
 // Steam's public, keyless reads for rubric samples: Dota 2 announcements with their first picture, and the set rising
@@ -46,7 +47,9 @@ export type SteamPublicErrorCode = 'STEAM_FETCH' | 'STEAM_HTTP' | 'STEAM_SHAPE';
 export class SteamPublicError extends Error {
   constructor(
     readonly code: SteamPublicErrorCode,
-    readonly httpStatus: number | null = null
+    readonly httpStatus: number | null = null,
+    /** The provider's own error text, bounded and redacted (`platform/error-detail.ts`). */
+    readonly detail?: string
   ) {
     super(code);
     this.name = 'SteamPublicError';
@@ -107,10 +110,10 @@ export function createSteamPublicApi(input: { fetchImpl?: typeof fetch } = {}): 
     let response: Response;
     try {
       response = await fetchImpl(url, { ...init, signal: signal ?? AbortSignal.timeout(STEAM_PUBLIC_TIMEOUT_MS) });
-    } catch {
-      throw new SteamPublicError('STEAM_FETCH');
+    } catch (error) {
+      throw new SteamPublicError('STEAM_FETCH', null, causeDetail(error));
     }
-    if (!response.ok) throw new SteamPublicError('STEAM_HTTP', response.status);
+    if (!response.ok) throw new SteamPublicError('STEAM_HTTP', response.status, await readErrorDetail(response));
     const body = await readCappedText(response, MAX_BODY_BYTES);
     if (body === null) throw new SteamPublicError('STEAM_SHAPE');
     return body;

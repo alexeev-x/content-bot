@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { causeDetail, readErrorDetail } from '../../platform/error-detail';
 import { readCappedText } from '../../platform/http/read-capped-text';
 
 // Valve's own dota2.com datafeed in Russian (no key; the studio already reads it for patches): heroes with their
@@ -14,7 +15,9 @@ export type DatafeedErrorCode = 'DATAFEED_FETCH' | 'DATAFEED_HTTP' | 'DATAFEED_S
 export class DatafeedError extends Error {
   constructor(
     readonly code: DatafeedErrorCode,
-    readonly httpStatus: number | null = null
+    readonly httpStatus: number | null = null,
+    /** The provider's own error text, bounded and redacted (`platform/error-detail.ts`). */
+    readonly detail?: string
   ) {
     super(code);
     this.name = 'DatafeedError';
@@ -246,10 +249,10 @@ export function createValveDatafeedApi(input: { fetchImpl?: typeof fetch } = {})
         signal: signal ?? AbortSignal.timeout(DATAFEED_TIMEOUT_MS),
         redirect: 'manual'
       });
-    } catch {
-      throw new DatafeedError('DATAFEED_FETCH');
+    } catch (error) {
+      throw new DatafeedError('DATAFEED_FETCH', null, causeDetail(error));
     }
-    if (!response.ok) throw new DatafeedError('DATAFEED_HTTP', response.status);
+    if (!response.ok) throw new DatafeedError('DATAFEED_HTTP', response.status, await readErrorDetail(response));
     const body = await readCappedText(response, MAX_BODY_BYTES);
     if (body === null) throw new DatafeedError('DATAFEED_SHAPE');
     let json: unknown;

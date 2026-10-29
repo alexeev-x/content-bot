@@ -1,9 +1,11 @@
+import { heroProfile } from './anketa';
+import { forgottenHero } from './forgotten-hero';
+import { horoscope } from './horoscope';
 import { fakeItem, filesDontLie, rateIt, rebus, workshopSet } from './content-rubrics';
 import {
   abilityInLife,
   confess,
   explainDumb,
-  heroProfile,
   itemLeaflet,
   onLane,
   toxicBingo,
@@ -13,19 +15,10 @@ import {
   wouldYouRather
 } from './fun-rubrics';
 import { whoseAbility } from './game-rubrics';
+import { recruitPicks } from './recruit-picks';
 import { grandpa, nerfOrBuff, patchBroken, valveFixed, valveSeriously, valveTime, whoIsImba } from './patch-rubrics';
-import {
-  crimeNews,
-  forgottenHero,
-  heroGuide,
-  heroTrial,
-  horoscope,
-  notBuiltYet,
-  recruitPicks,
-  tierList,
-  whoBeatsWhom,
-  whoGetsNerfed
-} from './stats-rubrics';
+import { heroGuide, heroTrial, notBuiltYet, whoBeatsWhom, whoGetsNerfed } from './stats-rubrics';
+import { tierList } from './tier-list';
 import type { RubricContext, RubricSample } from './types';
 
 // The channel's rubrics, each built from live data the way the channel would show it: 01–10 approved by the owner, the
@@ -49,7 +42,6 @@ export const RUBRIC_KEYS = [
   'confess',
   'explain_dumb',
   'toxic_translator',
-  'crime_news',
   'ability_in_life',
   'hero_profile',
   'item_leaflet',
@@ -88,7 +80,6 @@ export const RUBRIC_TITLES: Record<RubricKey, string> = {
   confess: 'Признавайтесь',
   explain_dumb: 'Объясни как дебилу',
   toxic_translator: 'Переводчик с токсичного',
-  crime_news: 'Криминальная хроника',
   ability_in_life: 'Способность в жизнь',
   hero_profile: 'Анкета',
   item_leaflet: 'Инструкция по применению',
@@ -125,7 +116,6 @@ const BUILDERS: Record<RubricKey, (context: RubricContext) => Promise<RubricSamp
   confess,
   explain_dumb: explainDumb,
   toxic_translator: toxicTranslator,
-  crime_news: crimeNews,
   ability_in_life: abilityInLife,
   hero_profile: heroProfile,
   item_leaflet: itemLeaflet,

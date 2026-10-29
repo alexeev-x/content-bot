@@ -27,11 +27,13 @@ import {
 import { runSeriesPublishStep } from './workflows/autopublish-series';
 import { runTreasureWatch } from './workflows/treasure-watch';
 import { gameFilesExternalId, prepareGameFilesPost, runGameFilesWatch } from './workflows/game-files';
-import { runHeroMatches } from './workflows/hero-matches';
+import { runHeroStats } from './workflows/hero-stats';
 import type { LabQueue } from './lab';
 import { runSteamWatch } from './workflows/steam-watch';
 import { getOwnerOperationsSettings } from '../modules/settings';
+import { notifyOwnerOfFailure } from './notifications/failure-notice';
 import { escapeHtml } from './notifications/notice-template';
+import { errorLogFields } from '../platform/error-detail';
 import type { AiJob, WriterJob } from './bot/ai-job';
 import type { Container } from './container';
 
@@ -106,7 +108,7 @@ function sourceMediaDeps(
         component: 'source_media',
         operation: 'picture_improve',
         status: 'failed',
-        errorCode: error instanceof Error ? error.name : 'unknown'
+        ...errorLogFields(error)
       }));
   return {
     repo: container.dotaRepository,
@@ -351,6 +353,21 @@ async function handleAiQueueMessages(
   token: string,
   lab: LabQueue | null
 ) {
+  const notices: Promise<void>[] = [];
+  try {
+    await runAiQueueMessages(batch, container, token, lab, notices);
+  } finally {
+    await Promise.allSettled(notices);
+  }
+}
+
+async function runAiQueueMessages(
+  batch: MessageBatch<unknown>,
+  container: Container,
+  token: string,
+  lab: LabQueue | null,
+  notices: Promise<void>[]
+) {
   const { logger } = container;
   for (const message of batch.messages) {
     const requestId = `queue:${message.id}`;
@@ -362,19 +379,26 @@ async function handleAiQueueMessages(
       continue;
     }
     const job = parsed.data;
-    const onError = (error: unknown) =>
-      logger.error({
-        component: 'ai_queue',
-        operation: job.kind,
-        requestId,
-        // A stable code when the error has one (GITHUB_TOKEN tells a revoked token from GITHUB_RATE), else its name.
-        errorCode:
-          error instanceof Error
-            ? 'code' in error && typeof error.code === 'string'
-              ? error.code
-              : error.name
-            : 'unknown'
-      });
+    // The log line carries the detailed description (API, step, code, HTTP status, the provider's words), and the
+    // owner hears of it in his chat once per window (owner, 28.10.2026). The notices are awaited before the message
+    // ends, so the runtime does not drop them.
+    const logError = (error: unknown) =>
+      logger.error({ component: 'ai_queue', operation: job.kind, requestId, ...errorLogFields(error) });
+    const onError = (error: unknown) => {
+      logError(error);
+      notices.push(
+        notifyOwnerOfFailure(
+          {
+            messenger: container.ownerMessenger,
+            ownerChatId: container.ownerChatId,
+            state: container.systemState,
+            clock: container.clock,
+            logger
+          },
+          { where: job.kind, error, requestId }
+        )
+      );
+    };
     if (job.kind === 'daily_review') {
       // The report row is the state: its review is written once, and a redelivered job finds it released.
       try {
@@ -429,7 +453,7 @@ async function handleAiQueueMessages(
       // Claimed once: the pictures and the caption are paid calls.
       try {
         if (lab !== null && (await container.aiWriter.claimJob(job.id, container.clock.now())))
-          await lab.runRubricSample(container, token, job.rubric, requestId, onError);
+          await lab.runRubricSample(container, token, job.rubric, requestId, logError);
       } catch (error) {
         onError(error);
       }
@@ -447,7 +471,16 @@ async function handleAiQueueMessages(
       continue;
     }
     if (job.kind === 'hero_matches') {
-      await runHeroMatches(container, job, requestId, onError);
+      // The hero statistics collector (app/workflows/hero-stats.ts); never throws, so the message is always acked.
+      const repo = container.heroStats;
+      const stratz = container.statsMatches;
+      if (repo !== null && stratz !== null)
+        await runHeroStats({
+          repo,
+          stratz,
+          now: () => container.clock.now(),
+          log: (fields) => container.logger.info({ requestId, ...fields })
+        });
       message.ack();
       continue;
     }
@@ -665,7 +698,7 @@ async function handleAiQueueMessages(
         return claimed;
       },
       finish: () => container.aiWriter.finishJob(job.id, container.clock.now()),
-      writer: () => createWriterDeps(container, requestId),
+      writer: () => createWriterDeps(container, requestId, onError),
       sourceEvents: sourceEventWriter({
         repo: container.dotaRepository,
         ...(container.dotaWatcher.digestPatch === undefined ? {} : { digestPatch: container.dotaWatcher.digestPatch }),
@@ -687,7 +720,7 @@ async function handleAiQueueMessages(
       autopublish: async (eventJob, draft) => {
         const outcome = await autopublishSourceEvent(
           container,
-          await createWriterDeps(container, requestId),
+          await createWriterDeps(container, requestId, onError),
           sourceMediaDeps(container, token, eventJob.chatId, { requestId, onError }),
           {
             externalId: eventJob.externalId,

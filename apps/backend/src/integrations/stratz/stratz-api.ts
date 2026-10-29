@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { readCappedText } from '../../platform/http/read-capped-text';
+import { causeDetail, readErrorDetail, schemaDetail } from '../../platform/error-detail';
 
 // STRATZ GraphQL with the owner's free token (`STRATZ_TOKEN`, owner 25.10.2026): pick and win rates by rank, item
 // purchases by minute, win rate by game length and by position. STRATZ refuses Cloudflare's addresses (403 without
@@ -17,7 +18,9 @@ export type StratzErrorCode =
 export class StratzError extends Error {
   constructor(
     readonly code: StratzErrorCode,
-    readonly httpStatus: number | null = null
+    readonly httpStatus: number | null = null,
+    /** The provider's own error text, bounded and redacted (`platform/error-detail.ts`). */
+    readonly detail?: string
   ) {
     super(code);
     this.name = 'StratzError';
@@ -176,70 +179,23 @@ const detailSchema = z.record(
     .catch(null)
 );
 const dayRowSchema = z.object({ day: z.number().int(), matchCount: count, winCount: count });
-/** Whole matches by id for the hero-matches base: every player's position, inventory, purchases and skill order. */
-const matchPlayersSchema = z.record(
-  z.string(),
-  z
-    .object({
-      id: z.number().int(),
-      startDateTime: z.number().int().nonnegative().nullable().catch(null),
-      durationSeconds: z.number().int().nonnegative().nullable().catch(null),
-      gameVersionId: z.number().int().nullable().catch(null),
-      didRadiantWin: z.boolean().nullable().catch(null),
-      players: z
-        .array(
-          z.object({
-            heroId: z.number().int(),
-            isRadiant: z.boolean().nullable().catch(null),
-            position: z.string().max(20).nullable().catch(null),
-            item0Id: slot,
-            item1Id: slot,
-            item2Id: slot,
-            item3Id: slot,
-            item4Id: slot,
-            item5Id: slot,
-            neutral0Id: slot,
-            abilities: z
-              .array(z.object({ abilityId: z.number().int(), level: z.number().catch(0) }))
-              .max(60)
-              .nullable()
-              .catch(null),
-            stats: z
-              .object({
-                itemPurchases: z
-                  .array(z.object({ time: z.number(), itemId: z.number().int() }))
-                  .max(300)
-                  .nullable()
-                  .catch(null)
-              })
-              .nullable()
-              .catch(null)
-          })
-        )
-        .max(10)
-        .catch([])
-    })
-    .nullable()
-    .catch(null)
-);
-/**
- * Matches per `matchPlayers` request: six took 9–12 ms of CPU to parse on a fresh isolate (QA 28.10.2026, over the Free
- * plan's 10 ms); four keep the reply near 120 KB.
- */
-export const MATCH_PLAYERS_MAX = 4;
+// Rubric 21 «Тир-лист» reads. `winWeek` takes `positionIds` (the guide's `winDay` does too). The lane, length and ban
+// reads follow STRATZ's generated schema (STRATZ_Models, read 28.10.2026: `laneOutcome` rows are pairs heroId1 vs
+// heroId2, length is `stats(groupByTime)`, bans are `banDay`) but are not yet checked against a live reply; a reply
+// that does not parse is a STRATZ_SHAPE and the rubric's look then says «Нет данных» instead of drawing guesses.
+const lengthSchema = z.object({
+  heroId: z.number().int(),
+  position: z.string().max(20),
+  time: z.coerce.number().nonnegative().catch(0),
+  matchCount: count,
+  winCount: count
+});
+const positionPlace = (position: string | null) => Number(/POSITION_(\d)/u.exec(position ?? '')?.[1] ?? 0);
 const positionSchema = z.object({
   heroId: z.number().int(),
   position: z.string().max(20),
   matchCount: count,
   winCount: count
-});
-const averageSchema = z.object({
-  heroId: z.number().int(),
-  matchCount: count,
-  networth: z.coerce.number().catch(0),
-  heroDamage: z.coerce.number().catch(0),
-  kills: z.coerce.number().catch(0),
-  deaths: z.coerce.number().catch(0)
 });
 
 /** One player's match as a guide sample row; `purchases` is null when the reply carried none. */
@@ -256,30 +212,6 @@ export interface StratzGuideMatch {
   neutralsHeld: number[];
   purchases: { itemId: number; minute: number }[] | null;
   abilities: { abilityId: number; time: number; level: number }[];
-}
-
-/** One player of a whole match; `position` 1–5, null when STRATZ has not set it yet. */
-export interface StratzMatchPlayer {
-  heroId: number;
-  /** Null when STRATZ leaves the side out: such a match is not kept. */
-  radiant: boolean | null;
-  position: number | null;
-  items: number[];
-  neutral: number | null;
-  /** Every purchase with its minute (negative: before the horn). */
-  purchases: { itemId: number; minute: number }[];
-  /** Ability ids in the order the points were spent. */
-  skills: number[];
-}
-
-/** A whole match from STRATZ; `startedAt` in UTC seconds. */
-export interface StratzMatch {
-  id: number;
-  startedAt: number | null;
-  patch: number | null;
-  minutes: number | null;
-  radiantWon: boolean | null;
-  players: StratzMatchPlayer[];
 }
 
 export interface StratzApi {
@@ -307,14 +239,20 @@ export interface StratzApi {
     days: number,
     signal?: AbortSignal
   ): Promise<{ day: number; matches: number; wins: number }[]>;
+  /** Every hero's matches and wins at one position for the last `weeks` weeks in a bracket (null: every bracket), newest first. */
+  positionWeeks(
+    bracket: number | null,
+    position: number,
+    weeks: number,
+    signal?: AbortSignal
+  ): Promise<{ heroId: number; week: number; matches: number; wins: number }[]>;
+  /** Every hero's matches and wins by position and match length (Divine and Immortal); `minute` is the length bin's start. */
+  lengthRates(
+    position: number,
+    signal?: AbortSignal
+  ): Promise<{ heroId: number; position: number; minute: number; matches: number; wins: number }[]>;
   /** Every hero's matches and wins by position 1–5 (Divine and Immortal). */
   positions(signal?: AbortSignal): Promise<{ heroId: number; position: number; matches: number; wins: number }[]>;
-  /** Every hero's per-match averages this week (Divine and Immortal); STRATZ leaves goldPerMinute empty. */
-  averages(
-    signal?: AbortSignal
-  ): Promise<
-    { heroId: number; matches: number; networth: number; heroDamage: number; kills: number; deaths: number }[]
-  >;
   /** A hero's starting buys at one position (1–5), each item with its copy number. */
   startingItems(
     heroId: number,
@@ -357,15 +295,22 @@ export interface StratzApi {
     matches: StratzGuideMatch[];
     positions: Record<string, number>;
   }>;
-  /** Whole matches by id (at most `MATCH_PLAYERS_MAX`) in one request; a match STRATZ does not hold is left out. */
-  matchPlayers(ids: readonly number[], signal?: AbortSignal): Promise<StratzMatch[]>;
 }
 
 /** Matches per guide sample and opponents per matchup read: both bound the reply. */
 const MATCHUP_TAKE = 130;
 
 /** `bridgeUrl`: the stats bridge's origin; without it STRATZ is called directly (it works from any non-Cloudflare host). */
-export function createStratzApi(input: { token: string; bridgeUrl?: string; fetchImpl?: typeof fetch }): StratzApi {
+/**
+ * `cache`: answers kept by query text and reused (STRATZ's aggregates change weekly); only a body that parsed is kept,
+ * so an error is never repeated from the cache.
+ */
+export function createStratzApi(input: {
+  token: string;
+  bridgeUrl?: string;
+  fetchImpl?: typeof fetch;
+  cache?: { get(key: string): Promise<string | null>; put(key: string, body: string): Promise<void> };
+}): StratzApi {
   const endpoint = input.bridgeUrl === undefined ? DIRECT : `${input.bridgeUrl.replace(/\/+$/, '')}/stratz/graphql`;
   const fetchImpl = input.fetchImpl ?? fetch;
   async function query<T>(
@@ -374,6 +319,11 @@ export function createStratzApi(input: { token: string; bridgeUrl?: string; fetc
     schema: z.ZodType<T>,
     signal?: AbortSignal
   ): Promise<T[]> {
+    const cached = (await input.cache?.get(text)) ?? null;
+    if (cached !== null) {
+      const fromCache = parseRows(cached, pick, schema);
+      if (fromCache !== null) return fromCache;
+    }
     let response: Response;
     try {
       response = await fetchImpl(endpoint, {
@@ -386,29 +336,45 @@ export function createStratzApi(input: { token: string; bridgeUrl?: string; fetc
         body: JSON.stringify({ query: text }),
         signal: signal ?? AbortSignal.timeout(STRATZ_TIMEOUT_MS)
       });
-    } catch {
-      throw new StratzError('STRATZ_FETCH');
+    } catch (error) {
+      throw new StratzError('STRATZ_FETCH', null, causeDetail(error));
     }
     if (response.status === 401 || response.status === 403) {
       // STRATZ's gateway (Kong) names itself when it refuses a key; a refusal without that header is not about the key.
       const byGateway = (response.headers.get('www-authenticate') ?? '').toLowerCase().includes('kong');
-      await response.body?.cancel();
-      throw new StratzError(byGateway ? 'STRATZ_TOKEN' : 'STRATZ_BLOCKED', response.status);
+      throw new StratzError(
+        byGateway ? 'STRATZ_TOKEN' : 'STRATZ_BLOCKED',
+        response.status,
+        await readErrorDetail(response)
+      );
     }
-    if (response.status === 429) throw new StratzError('STRATZ_RATE', 429);
-    if (!response.ok) throw new StratzError('STRATZ_HTTP', response.status);
+    if (response.status === 429) throw new StratzError('STRATZ_RATE', 429, await readErrorDetail(response));
+    if (!response.ok) throw new StratzError('STRATZ_HTTP', response.status, await readErrorDetail(response));
     const body = await readCappedText(response, MAX_BODY_BYTES);
-    if (body === null) throw new StratzError('STRATZ_SHAPE');
+    if (body === null) throw new StratzError('STRATZ_SHAPE', null, `ответ больше ${MAX_BODY_BYTES} байт`);
     let json: unknown;
     try {
       json = JSON.parse(body);
     } catch {
-      throw new StratzError('STRATZ_SHAPE');
+      throw new StratzError('STRATZ_SHAPE', null, 'ответ не JSON');
     }
     const rows = pick((json as { data?: unknown }).data);
     const parsed = z.array(schema).max(5000).safeParse(rows);
-    if (!parsed.success) throw new StratzError('STRATZ_SHAPE');
+    if (!parsed.success) throw new StratzError('STRATZ_SHAPE', null, schemaDetail(parsed.error));
+    await input.cache?.put(text, body);
     return parsed.data;
+  }
+  /** A cached body read the same way; null when it no longer fits (the read then goes to STRATZ). */
+  function parseRows<T>(body: string, pick: (data: unknown) => unknown, schema: z.ZodType<T>): T[] | null {
+    try {
+      const parsed = z
+        .array(schema)
+        .max(5000)
+        .safeParse(pick((JSON.parse(body) as { data?: unknown }).data));
+      return parsed.success ? parsed.data : null;
+    } catch {
+      return null;
+    }
   }
   const heroStats = (data: unknown, field: string) =>
     (data as { heroStats?: Record<string, unknown> } | undefined)?.heroStats?.[field];
@@ -434,6 +400,38 @@ export function createStratzApi(input: { token: string; bridgeUrl?: string; fetc
       return rows
         .map((row) => ({ heroId: row.heroId, week: row.week, matches: row.matchCount, wins: row.winCount }))
         .sort((a, b) => b.week - a.week);
+    },
+    async positionWeeks(bracket, position, weeks, signal) {
+      const name = bracket === null ? Object.values(BRACKETS).join(', ') : BRACKETS[bracket];
+      if (name === undefined) throw new StratzError('STRATZ_SHAPE');
+      const rows = await query(
+        `{ heroStats { winWeek(take: ${Math.min(Math.max(Math.trunc(weeks), 1), 4)}, bracketIds: [${name}], positionIds: [POSITION_${place(position)}]) { heroId week matchCount winCount } } }`,
+        (data) => heroStats(data, 'winWeek'),
+        winRowSchema,
+        signal
+      );
+      return rows
+        .map((row) => ({ heroId: row.heroId, week: row.week, matches: row.matchCount, wins: row.winCount }))
+        .sort((a, b) => b.week - a.week);
+    },
+    async lengthRates(position, signal) {
+      // One role at a time: every role with every minute came back over the 1 MB cap (DEV, 28.10.2026).
+      const rows = await query(
+        `{ heroStats { stats(groupByPosition: true, groupByTime: true, bracketBasicIds: [DIVINE_IMMORTAL], positionIds: [POSITION_${place(position)}]) { heroId position time matchCount winCount } } }`,
+        (data) => heroStats(data, 'stats'),
+        lengthSchema,
+        signal
+      );
+      return rows
+        .map((row) => ({ row, place: positionPlace(row.position) }))
+        .filter((each) => each.place >= 1 && each.place <= 5)
+        .map((each) => ({
+          heroId: each.row.heroId,
+          position: each.place,
+          minute: each.row.time,
+          matches: each.row.matchCount,
+          wins: each.row.winCount
+        }));
     },
     async heroPurchases(id, signal) {
       const rows = await query(
@@ -468,22 +466,6 @@ export function createStratzApi(input: { token: string; bridgeUrl?: string; fetc
           wins: row.winCount
         }))
         .filter((row) => row.position >= 1 && row.position <= 5);
-    },
-    async averages(signal) {
-      const rows = await query(
-        '{ heroStats { stats(bracketBasicIds: [DIVINE_IMMORTAL]) { heroId matchCount networth heroDamage kills deaths } } }',
-        (data) => heroStats(data, 'stats'),
-        averageSchema,
-        signal
-      );
-      return rows.map((row) => ({
-        heroId: row.heroId,
-        matches: row.matchCount,
-        networth: row.networth,
-        heroDamage: row.heroDamage,
-        kills: row.kills,
-        deaths: row.deaths
-      }));
     },
     async startingItems(id, position, signal) {
       const rows = await query(
@@ -541,48 +523,6 @@ export function createStratzApi(input: { token: string; bridgeUrl?: string; fetc
       return rows
         .flatMap((row) => row.vs)
         .map((row) => ({ heroId: row.heroId2, matches: row.matchCount, wins: row.winCount }));
-    },
-    async matchPlayers(ids, signal) {
-      const wanted = [...new Set(ids.map((each) => Math.trunc(each)))].filter((each) => each > 0);
-      if (wanted.length === 0) return [];
-      if (wanted.length > MATCH_PLAYERS_MAX) throw new StratzError('STRATZ_SHAPE');
-      const fields = wanted.map(
-        (matchId, index) =>
-          `m${index}: match(id: ${matchId}) { id startDateTime durationSeconds gameVersionId didRadiantWin players { heroId isRadiant position item0Id item1Id item2Id item3Id item4Id item5Id neutral0Id abilities { abilityId level } stats { itemPurchases { time itemId } } } }`
-      );
-      const [reply] = await query(`{ ${fields.join(' ')} }`, (data) => [data], matchPlayersSchema, signal);
-      return Object.values(reply ?? {}).flatMap((match) =>
-        match === null
-          ? []
-          : [
-              {
-                id: match.id,
-                startedAt: match.startDateTime,
-                patch: match.gameVersionId,
-                minutes: match.durationSeconds === null ? null : Math.round(match.durationSeconds / 60),
-                radiantWon: match.didRadiantWin,
-                players: match.players.map((player) => ({
-                  heroId: player.heroId,
-                  radiant: player.isRadiant,
-                  position: Number(/^POSITION_([1-5])$/u.exec(player.position ?? '')?.[1] ?? 0) || null,
-                  items: [
-                    player.item0Id,
-                    player.item1Id,
-                    player.item2Id,
-                    player.item3Id,
-                    player.item4Id,
-                    player.item5Id
-                  ].filter((item): item is number => item !== null && item > 0),
-                  neutral: player.neutral0Id,
-                  purchases: (player.stats?.itemPurchases ?? []).map((each) => ({
-                    itemId: each.itemId,
-                    minute: Math.floor(each.time / 60)
-                  })),
-                  skills: [...(player.abilities ?? [])].sort((a, b) => a.level - b.level).map((each) => each.abilityId)
-                }))
-              }
-            ]
-      );
     },
     async guideSample(id, position, withPurchases, signal) {
       const wanted = place(position);

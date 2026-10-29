@@ -1,3 +1,4 @@
+import { edgeTextCache, STRATZ_CACHE_SECONDS } from '../platform/edge-cache';
 import {
   createD1PostRepository,
   createD1PostMediaRepository,
@@ -47,7 +48,8 @@ import {
 import { createGitHubRepoApi, type GitHubRepoApi } from '../integrations/github/github-api';
 import { createOpenDotaApi, type OpenDotaApi } from '../integrations/opendota/opendota-api';
 import { createStratzApi, type StratzApi } from '../integrations/stratz/stratz-api';
-import { createD1HeroMatches, type HeroMatchRepository } from '../modules/hero-matches';
+import { createD1HeroStats, type HeroStatsRepository } from '../modules/hero-stats';
+import { createStratzMatches, type StratzMatchesApi } from '../integrations/stratz/stratz-matches';
 import { stratzAccess } from './stats-access';
 import {
   createD1GameFileBuilds,
@@ -226,8 +228,12 @@ export interface Container {
   autopublishLog: AutopublishLogStore;
   /** The game-files tracker on GitHub; null without `GITHUB_TOKEN`, which only leaves the source off. */
   gameFilesRepo: GitHubRepoApi | null;
-  /** The hero-matches base «Гайд на героя» counts from (migration 0116). */
-  heroMatches: HeroMatchRepository;
+  /** The hero statistics base (its own database, `STATS_DB`); null where it is not bound (DEV never runs it). */
+  heroStats: HeroStatsRepository | null;
+  /** STRATZ reads of the statistics base; null without `STRATZ_TOKEN` and the bridge. */
+  statsMatches: StratzMatchesApi | null;
+  /** The nightly statistics Workflow; null where it is not bound. */
+  statsSnapshot: Workflow | null;
   /** STRATZ and OpenDota through the stats bridge; null without `STRATZ_TOKEN` and `STATS_BRIDGE_URL`. */
   statsApis: { stratz: StratzApi; openDota: OpenDotaApi } | null;
   dotaWatchlists: ReturnType<typeof createD1DotaWatchlists>;
@@ -323,6 +329,11 @@ export interface ContainerEnv {
   BROWSER?: unknown;
   STRATZ_TOKEN?: string;
   STATS_BRIDGE_URL?: string;
+  /** The hero statistics database (owner, 29.10.2026); bound locally and on production only. */
+  STATS_DB?: D1Database;
+  STATS_SNAPSHOT?: Workflow;
+  /** "true" only in local runs: STRATZ and OpenDota are called directly, without the bridge. */
+  STATS_DIRECT?: string;
   OWNER_TELEGRAM_ID?: string;
   /** Public username of the owner's channel; empty means content analytics skips Telegram. */
   ANALYTICS_TELEGRAM_CHANNEL?: string;
@@ -361,6 +372,8 @@ export interface ContainerOverrides {
   gameFilesRepo?: GitHubRepoApi | null;
   /** Replaces STRATZ and OpenDota (tests script them). */
   statsApis?: Container['statsApis'];
+  /** Replaces the statistics base's STRATZ reads (tests script them). */
+  statsMatches?: StratzMatchesApi | null;
   /** Replaces the AI provider (tests); null forces «no key». */
   aiProvider?: AiTextProvider | null;
   /** Replaces the image provider (tests); null forces «no key». */
@@ -593,15 +606,26 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
       const token = env.GITHUB_TOKEN?.trim() ?? '';
       return token === '' ? null : createGitHubRepoApi({ owner: 'SteamTracking', repo: 'GameTracking-Dota2', token });
     },
-    get heroMatches() {
-      return createD1HeroMatches(db());
+    get heroStats() {
+      return env.STATS_DB === undefined ? null : createD1HeroStats(env.STATS_DB);
+    },
+    get statsMatches(): StratzMatchesApi | null {
+      if (overrides.statsMatches !== undefined) return overrides.statsMatches;
+      const access = stratzAccess(env.STRATZ_TOKEN, env.STATS_BRIDGE_URL, env.STATS_DIRECT);
+      return access === null ? null : createStratzMatches(access);
+    },
+    get statsSnapshot() {
+      return env.STATS_SNAPSHOT ?? null;
     },
     get statsApis(): Container['statsApis'] {
       if (overrides.statsApis !== undefined) return overrides.statsApis;
-      const access = stratzAccess(env.STRATZ_TOKEN, env.STATS_BRIDGE_URL);
+      const access = stratzAccess(env.STRATZ_TOKEN, env.STATS_BRIDGE_URL, env.STATS_DIRECT);
       return access === null
         ? null
-        : { stratz: createStratzApi(access), openDota: createOpenDotaApi({ bridgeUrl: access.bridgeUrl }) };
+        : {
+            stratz: createStratzApi({ ...access, cache: edgeTextCache('stratz', STRATZ_CACHE_SECONDS) }),
+            openDota: createOpenDotaApi({ bridgeUrl: access.bridgeUrl })
+          };
     },
     get sourceEvents() {
       return createD1SourceEventsRepository(db(), () => (overrides.clock ?? systemClock).now());

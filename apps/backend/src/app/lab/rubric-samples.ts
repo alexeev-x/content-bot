@@ -1,13 +1,14 @@
+import { edgeTextCache, STRATZ_CACHE_SECONDS } from '../../platform/edge-cache';
 import { expandRichMedia, RICH_MEDIA_SLOT, richMediaId } from '@alexeev/contracts';
 import { InputFile } from 'grammy';
-import { BrowserRenderError, type PictureRenderer } from '../../integrations/browser-render/browser-render';
+import { type PictureRenderer } from '../../integrations/browser-render/browser-render';
 import { createDotaConstantsApi, DotaConstantsError } from '../../integrations/dotaconstants/dotaconstants';
 import { createSteamPublicApi, SteamPublicError } from '../../integrations/steam-public/steam-public';
 import { createOpenDotaApi, OpenDotaError } from '../../integrations/opendota/opendota-api';
 import { createStratzApi, StratzError } from '../../integrations/stratz/stratz-api';
 import { createTelegramApi, type TelegramSendApi } from '../../integrations/telegram/telegram-api';
 import { createValveDatafeedApi, DatafeedError } from '../../integrations/valve-datafeed/valve-datafeed';
-import { drawRubricScene, writeRubricCaption } from '../../modules/ai';
+import { drawAnketaScene, drawHoroscopeScene, drawRubricScene, writeRubricCaption } from '../../modules/ai';
 import { condenseBuild, isRelevantPath, parseBuildMessage, splitDiff, type GameFind } from '../../modules/game-files';
 import {
   buildRubricSample,
@@ -21,11 +22,11 @@ import {
   type RubricSources,
   withBackground
 } from '../../modules/rubrics';
+import { describeError, errorParts } from '../../platform/error-detail';
 import type { Logger } from '../../platform/logging/logger';
 import { getOwnerOperationsSettings } from '../../modules/settings';
 import { AppError } from '../../shared/app-error';
 import type { Container } from '../container';
-import { HERO_MATCHES_KEEP_MS } from '../workflows/hero-matches';
 import { pictureImproverFor, type SourcePicture } from '../workflows/picture-quality';
 
 // DEV only (owner, 25.10.2026): one rubric's post from live data — the picture rendered by the browser from Valve's
@@ -64,6 +65,40 @@ function withLinks(
     text += link.text;
   }
   return { text, entities };
+}
+
+const RENDER_MAX_BYTES = 8 * 1024 * 1024;
+const RENDER_TIMEOUT_MS = 15_000;
+
+/** Valve's hero render for the image model; null when it can't be read. */
+async function fetchRender(url: string): Promise<Uint8Array | null> {
+  try {
+    const response = await fetch(url, { signal: AbortSignal.timeout(RENDER_TIMEOUT_MS) });
+    if (!response.ok) {
+      await response.body?.cancel();
+      return null;
+    }
+    const bytes = new Uint8Array(await response.arrayBuffer());
+    return bytes.length > 0 && bytes.length <= RENDER_MAX_BYTES ? bytes : null;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * A hero's image for the image model: Valve's big render, or — when a hero has none under that name (DEV, 28.10.2026:
+ * «Гадалка не нарисована (нет рендера)») — Valve's portrait of the same hero, which the model reads just as well.
+ */
+async function fetchHeroImage(renderUrl: string): Promise<Uint8Array | null> {
+  return (
+    (await fetchRender(renderUrl)) ??
+    (await fetchRender(renderUrl.replace('/videos/dota_react/heroes/renders/', '/images/dota_react/heroes/')))
+  );
+}
+
+/** A rubric whose post IS its drawn scene does not go out without it (owner, 28.10.2026): the sample fails, in detail. */
+function sceneFailed(what: string, why: string): never {
+  throw new AppError('UNAVAILABLE', `No picture: ${what}`, { reason: `PICTURE: ${what} — ${why}` });
 }
 
 /** The carousel's order: stills first, then GIFs, then clips. */
@@ -152,17 +187,39 @@ async function fillBareFinds(container: Container, finds: GameFind[]): Promise<G
   return finds.map((find) => ({ ...find, text: filled.get(find.sha) ?? find.text }));
 }
 
-/** The bot's own match base as the guide reads it: the last 14 days of one hero at one position. */
-function heroMatchSource(container: Container): HeroMatchSource {
-  const since = () => container.clock.now() - HERO_MATCHES_KEEP_MS;
+/** The guide's window and band in the statistics base (owner, 29.10.2026): 14 days of Immortal games. */
+const GUIDE_DAYS_MS = 14 * 86_400_000;
+const GUIDE_BAND = 'immortal';
+const GUIDE_GAMES_MAX = 20_000;
+
+/**
+ * The statistics base as the guide reads it (`modules/hero-stats`): one hero at one position over the last 14 days,
+ * without the followed players' own rows (they win more than their lobby, so their games would flatter the hero).
+ * Null where the base is not bound (DEV never runs it): the guide then keeps STRATZ's sample.
+ */
+function heroMatchSource(container: Container): HeroMatchSource | null {
+  const repo = container.heroStats;
+  if (repo === null) return null;
+  const fair = async (heroId: number, position: number, limit: number) =>
+    (await repo.rows(heroId, position, container.clock.now() - GUIDE_DAYS_MS, GUIDE_BAND, limit)).filter(
+      (row) => !row.tracked
+    );
   return {
-    games: (heroId, position) => container.heroMatches.games(heroId, position, since()),
+    async games(heroId, position) {
+      return (await fair(heroId, position, GUIDE_GAMES_MAX)).map((row) => ({
+        won: row.won,
+        minutes: row.minutes,
+        enemies: row.enemies
+          .split(',')
+          .map((slot) => Number(slot.split(':')[0]))
+          .filter((hero) => Number.isInteger(hero) && hero > 0)
+      }));
+    },
     async sample(heroId, position, limit) {
-      const rows = await container.heroMatches.sample(heroId, position, since(), limit);
-      return rows.map((row) => ({
+      return (await fair(heroId, position, limit * 2)).slice(0, limit).map((row) => ({
         victory: row.won,
         startedAt: Math.floor(row.startedAt / 1000),
-        patch: row.detail.v,
+        patch: row.patch,
         minutes: row.minutes,
         items: row.detail.i,
         neutral: row.detail.n,
@@ -176,9 +233,12 @@ function heroMatchSource(container: Container): HeroMatchSource {
 
 function rubricSources(
   gameFinds: (since: number) => Promise<GameFind[]>,
-  stratzAccess: { token: string; bridgeUrl: string } | null
+  stratzAccess: { token: string; bridgeUrl?: string } | null
 ): RubricSources {
-  const stratz = stratzAccess === null ? null : createStratzApi(stratzAccess);
+  const stratz =
+    stratzAccess === null
+      ? null
+      : createStratzApi({ ...stratzAccess, cache: edgeTextCache('stratz', STRATZ_CACHE_SECONDS) });
   // One STRATZ request at a time with a pause between (owner, 27.10.2026: «не надо спешить… делай по 1 запросу»):
   // eight at once came back STRATZ_BLOCKED. The chain lives for this one sample only.
   let turn: Promise<unknown> = Promise.resolve();
@@ -285,8 +345,9 @@ function rubricSources(
             heroGuideSample: (heroId, position, withPurchases) =>
               inTurn(() => stratz.guideSample(heroId, position, withPurchases)),
             positions: () => inTurn(() => stratz.positions()),
-            twoWeeks: (bracket) => inTurn(() => stratz.heroWeeks(bracket, 2)),
-            averages: () => inTurn(() => stratz.averages())
+            positionWeeks: (bracket, position, weeks) => inTurn(() => stratz.positionWeeks(bracket, position, weeks)),
+            lengthRates: (position) => inTurn(() => stratz.lengthRates(position)),
+            twoWeeks: (bracket) => inTurn(() => stratz.heroWeeks(bracket, 2))
           }
   };
 }
@@ -308,15 +369,27 @@ const CAPTION_TIMEOUT_MS = 120_000;
 /** The free plan takes one screenshot per 10 seconds. */
 const BROWSER_GAP_MS = 11_000;
 
-type Scene = { kind: 'drawn'; base64: string } | { kind: 'failed'; reason: string };
+type Scene = { kind: 'drawn'; base64: string } | { kind: 'failed'; reason: string; detail?: string };
+
+const sceneWhy = (scene: Scene & { kind: 'failed' }) =>
+  scene.detail === undefined ? scene.reason : `${scene.reason} — ${scene.detail}`;
+
+/** A local run's copy of a sample (`SAMPLE_MIRROR`, local vars only): read back from the local R2 to check results. */
+export type SampleMirror = (name: string, body: Uint8Array | string, contentType: string) => Promise<void>;
 
 export type RubricSampleDeps = {
+  /** Local runs only: every sample is also kept in the local R2. */
+  mirror?: SampleMirror | null;
   /** The finds in the game's files since a time (the game-files module's read). */
   gameFinds: (since: number) => Promise<GameFind[]>;
   /** STRATZ through the stats bridge; null until both the token and the bridge are set. */
-  stratzAccess: { token: string; bridgeUrl: string } | null;
+  stratzAccess: { token: string; bridgeUrl?: string } | null;
   /** The bot's own match base «Гайд на героя» counts from. */
   heroMatches: HeroMatchSource | null;
+  /** The horoscope's round of fortune-tellers. */
+  tellers: { used(): Promise<number[]>; remember(heroIds: number[]): Promise<void> } | null;
+  /** A rubric's counter of turns. */
+  turns: { next(name: string): Promise<number> } | null;
   renderer: PictureRenderer | null;
   /** The AI writer's caption and the drawn scene with the title; null when the AI is not wired. */
   ai: {
@@ -329,6 +402,15 @@ export type RubricSampleDeps = {
       signal: AbortSignal;
     }) => Promise<string | null>;
     scene: (input: { heading: { text: string; red: string | null } | null }) => Promise<Scene>;
+    /** «Анкета»: the hero placed into the owner's scene. */
+    heroScene: (input: { hero: Uint8Array; heroName: string }) => Promise<Scene>;
+    /** «Гороскоп»: the fortune-teller and the ball's head drawn into the owner's scene. */
+    fortuneScene: (input: {
+      teller: Uint8Array;
+      tellerName: string;
+      ball: Uint8Array;
+      ballName: string;
+    }) => Promise<Scene>;
   } | null;
   /** The picture law (workflows/picture-quality.ts): a narrow source picture comes back sharper, else as it was. */
   improvePhoto: (file: SourcePicture) => Promise<SourcePicture>;
@@ -360,7 +442,12 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
   let sample;
   try {
     sample = await buildRubricSample(rubric, {
-      sources: { ...rubricSources(deps.gameFinds, deps.stratzAccess), heroMatches: deps.heroMatches },
+      sources: {
+        ...rubricSources(deps.gameFinds, deps.stratzAccess),
+        heroMatches: deps.heroMatches,
+        tellers: deps.tellers,
+        turns: deps.turns
+      },
       random: deps.random,
       now: deps.now
     });
@@ -368,9 +455,9 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
     const source = sourceError(error);
     if (source !== null) {
       log('failed', source.code);
-      // The source's HTTP status tells a wrong key (401) from a refused address (403).
+      // The source's HTTP status tells a wrong key (401) from a refused address (403); its own words say why.
       throw new AppError('UNAVAILABLE', 'A data source did not answer', {
-        reason: source.code,
+        reason: describeError(error),
         ...(source.status === null ? {} : { status: String(source.status) })
       });
     }
@@ -401,8 +488,10 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
   let picture: Uint8Array | null = null;
   // Every rubric gets a picture for now (owner, 25.10.2026: «пусть ИИ рисует для всех, а там уже отбросим»): one with
   // no layout of its own is the drawn scene with its title alone, and none at all when the scene is not drawn.
+  // A rubric that decided against a picture (owner, 28.10.2026: text jokes and bare polls) gets no scene either.
   const ownPhotos = sample.photo !== undefined || sample.album !== undefined;
-  const page = ownPhotos ? null : (sample.picture ?? (deps.ai === null ? null : titlePicture(title)));
+  const page =
+    ownPhotos || sample.noPicture === true ? null : (sample.picture ?? (deps.ai === null ? null : titlePicture(title)));
   if (page !== null) {
     if (deps.renderer === null) {
       throw new AppError('UNAVAILABLE', 'Browser Rendering is not bound here', { reason: 'BROWSER_NOT_BOUND' });
@@ -410,21 +499,74 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
     let html: string | null = page.html;
     // A rubric with a layout of its own is drawn by code alone on the flat style (owner, 26.10.2026); only a rubric
     // with no layout gets the model's scene under its title.
-    if (sample.picture === null && deps.ai !== null) {
+    // «Анкета»: the model puts the hero into the scene; without it the board alone would float on nothing.
+    if (sample.fortuneScene !== undefined) {
+      const { teller, ball } = sample.fortuneScene;
+      const tellerBytes = deps.ai === null ? null : await fetchHeroImage(teller.renderUrl);
+      const ballBytes = deps.ai === null || tellerBytes === null ? null : await fetchHeroImage(ball.renderUrl);
+      const scene =
+        tellerBytes === null || ballBytes === null || deps.ai === null
+          ? null
+          : await deps.ai.fortuneScene({
+              teller: tellerBytes,
+              tellerName: teller.heroName,
+              ball: ballBytes,
+              ballName: ball.heroName
+            });
+      if (scene?.kind === 'drawn' && /^[A-Za-z0-9+/=]+$/.test(scene.base64)) {
+        html = html.replace(
+          '</head>',
+          `<style>:root{--scene:url(data:image/jpeg;base64,${scene.base64})}</style></head>`
+        );
+      } else {
+        sceneFailed(
+          `гадалка ${teller.heroName}, в шаре ${ball.heroName}`,
+          tellerBytes === null
+            ? `нет изображения героя ${teller.heroName}`
+            : ballBytes === null
+              ? `нет изображения героя ${ball.heroName}`
+              : scene?.kind === 'failed'
+                ? sceneWhy(scene)
+                : 'ИИ не подключён'
+        );
+      }
+    } else if (sample.heroScene !== undefined) {
+      const render = deps.ai === null ? null : await fetchHeroImage(sample.heroScene.renderUrl);
+      const scene =
+        render === null || deps.ai === null
+          ? null
+          : await deps.ai.heroScene({ hero: render, heroName: sample.heroScene.heroName });
+      if (scene?.kind === 'drawn' && /^[A-Za-z0-9+/=]+$/.test(scene.base64)) {
+        html = html.replace(
+          '</head>',
+          `<style>:root{--scene:url(data:image/jpeg;base64,${scene.base64})}</style></head>`
+        );
+      } else {
+        sceneFailed(
+          `анкета ${sample.heroScene.heroName}`,
+          render === null
+            ? `нет изображения героя ${sample.heroScene.heroName}`
+            : scene?.kind === 'failed'
+              ? sceneWhy(scene)
+              : 'ИИ не подключён'
+        );
+      }
+    } else if (sample.picture === null && deps.ai !== null) {
       const scene = await deps.ai.scene({ heading: pictureHeading(page.html) });
       if (scene.kind === 'drawn') html = withBackground(page.html, scene.base64);
       else {
         html = null;
-        notes.push(`Сцена не нарисована (${scene.reason}): пост без картинки.`);
+        notes.push(`Сцена не нарисована (${sceneWhy(scene)}): пост без картинки.`);
       }
     }
     if (html !== null)
       try {
         picture = await deps.renderer.render(html, page, 'png');
       } catch (error) {
-        const code = error instanceof BrowserRenderError ? error.code : 'BROWSER_FAILED';
-        log('failed', code);
-        throw new AppError('UNAVAILABLE', 'The picture was not rendered', { reason: code });
+        log('failed', errorParts(error).code);
+        throw new AppError('UNAVAILABLE', 'The picture was not rendered', {
+          reason: describeError(error, 'screenshot')
+        });
       }
   }
   if (sample.photo !== undefined) {
@@ -470,8 +612,7 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
       try {
         pages.push(await deps.renderer.render(slide.html, slide, 'png'));
       } catch (error) {
-        const code = error instanceof BrowserRenderError ? error.code : 'BROWSER_FAILED';
-        notes.push(`Слайд не нарисован (${code}).`);
+        notes.push(`Слайд не нарисован (${describeError(error, 'screenshot')}).`);
       }
     }
     if (pages.length > 1) {
@@ -488,6 +629,9 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
   const body = [written ?? sample.text, ...(sample.footer === undefined ? [] : [sample.footer])].join('\n\n');
   const linked = withLinks(body, sample.links ?? []);
   const text = linked.text;
+  // A bold first line (a setup or a heading) as an entity: the text is sent plain.
+  const lead = sample.boldLead === true ? (text.split('\n')[0] ?? '').length : 0;
+  const entities = [...(lead > 0 ? [{ type: 'bold' as const, offset: 0, length: lead }] : []), ...linked.entities];
 
   // The second post (a riddle's answer) is drawn now too; the free plan takes one screenshot per 10 seconds.
   let followUpPicture: Uint8Array | null = null;
@@ -497,9 +641,23 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
     try {
       followUpPicture = await deps.renderer.render(followUp.picture.html, followUp.picture, 'png');
     } catch (error) {
-      const code = error instanceof BrowserRenderError ? error.code : 'BROWSER_FAILED';
-      notes.push(`Картинка второго поста не нарисована (${code}).`);
+      notes.push(`Картинка второго поста не нарисована (${describeError(error, 'screenshot')}).`);
     }
+  }
+
+  if (deps.mirror) {
+    const stamp = `${new Date(deps.now).toISOString().replace(/[:.]/g, '-')}-${rubric}`;
+    await deps
+      .mirror(
+        `samples/${stamp}.txt`,
+        [text, '', ...notes.map((note) => `NOTE: ${note}`)].join('\n'),
+        'text/plain; charset=utf-8'
+      )
+      .catch(() => undefined);
+    if (picture !== null) await deps.mirror(`samples/${stamp}.png`, picture, 'image/png').catch(() => undefined);
+    // A local run checks samples from the copy; nothing goes to Telegram (owner, 28.10.2026: «в тг ничего слать не надо»).
+    log('sent');
+    return;
   }
 
   try {
@@ -511,7 +669,14 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
         { ...FLAGS, entities: [] },
         signal()
       );
-    const rich = pollOnly || album.length > 0 ? null : rubricRichHtml(text, picture !== null);
+    // A rubric's own rich HTML marks where its picture goes; without a drawn picture that mark is dropped.
+    const ownRich =
+      sample.rich === undefined
+        ? null
+        : picture === null
+          ? sample.rich.replace(RICH_MEDIA_SLOT, '')
+          : expandRichMedia(sample.rich, [{ kind: 'photo' }]);
+    const rich = pollOnly || album.length > 0 ? null : (ownRich ?? rubricRichHtml(text, picture !== null));
     if (album.length > 0) {
       // One rich message, the photos and GIFs as a carousel on top (owner, 27.10.2026: «формата rich, чтобы был как
       // карусель»), then the text, the verdict and the links as words.
@@ -549,11 +714,11 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
       await deps.telegram.sendPhoto(
         deps.ownerChatId,
         new InputFile(picture, `${rubric}.png`),
-        { ...FLAGS, caption: text, caption_entities: linked.entities },
+        { ...FLAGS, caption: text, caption_entities: entities },
         signal()
       );
     } else {
-      await deps.telegram.sendMessage(deps.ownerChatId, text, { ...FLAGS, entities: linked.entities }, signal());
+      await deps.telegram.sendMessage(deps.ownerChatId, text, { ...FLAGS, entities }, signal());
     }
     if (sample.poll !== null) {
       await deps.telegram.sendPoll(
@@ -594,9 +759,11 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
         );
       else await deps.telegram.sendMessage(deps.ownerChatId, followUp.text, { ...FLAGS, entities: [] }, signal());
     }
-  } catch {
+  } catch (error) {
     log('failed', 'TELEGRAM_SEND');
-    throw new AppError('UNAVAILABLE', 'Telegram did not take the sample', { reason: 'TELEGRAM_SEND' });
+    // Telegram's own refusal (method, HTTP status, e.g. «can't parse rich message») tells the owner which part it
+    // rejected; `describeError` bounds it and strips secrets.
+    throw new AppError('UNAVAILABLE', 'Telegram did not take the sample', { reason: describeError(error) });
   }
   log('sent');
 }
@@ -604,7 +771,8 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
 /** What a sample needs beyond the container: the browser and STRATZ, read from the Worker's env by `lab-queue.ts`. */
 export type RubricSampleAccess = {
   renderer: PictureRenderer | null;
-  stratzAccess: { token: string; bridgeUrl: string } | null;
+  mirror?: SampleMirror | null;
+  stratzAccess: { token: string; bridgeUrl?: string } | null;
 };
 
 /** The `rubric_sample` job: runs once per press and tells the owner in the chat when the sample could not be built. */
@@ -639,11 +807,19 @@ export async function runRubricSampleJob(
           return fillBareFinds(container, stored.length > 0 ? stored : await trackerFinds(container, since));
         },
         stratzAccess: access.stratzAccess,
+        mirror: access.mirror ?? null,
         heroMatches: heroMatchSource(container),
+        tellers: {
+          used: () => container.systemState.readHoroscopeTellers(),
+          remember: (heroIds) => container.systemState.rememberHoroscopeTellers(heroIds, container.clock.now())
+        },
+        turns: { next: (name) => container.systemState.nextTurn(name, container.clock.now()) },
         renderer: access.renderer,
         ai: {
           caption: (input) => writeRubricCaption(aiDeps, input),
-          scene: (input) => drawRubricScene({ ...aiDeps, images: container.aiImageProvider, onError }, input)
+          scene: (input) => drawRubricScene({ ...aiDeps, images: container.aiImageProvider, onError }, input),
+          heroScene: (input) => drawAnketaScene({ ...aiDeps, images: container.aiImageProvider, onError }, input),
+          fortuneScene: (input) => drawHoroscopeScene({ ...aiDeps, images: container.aiImageProvider, onError }, input)
         },
         improvePhoto: pictureImproverFor(container, requestId, onError, RUBRIC_PHOTO_MIN_WIDTH),
         telegram,
@@ -657,14 +833,24 @@ export async function runRubricSampleJob(
     );
   } catch (error) {
     onError(error);
+    // «No data» names what was missing (a tier-list look, a bracket): the owner sees which part to look at.
+    const missing =
+      error instanceof AppError && error.details?.['reason'] === 'NO_DATA'
+        ? `: ${error.message.replace(/^No data for the rubric: /, '').slice(0, 400)}`
+        : '';
     const reason =
-      error instanceof AppError
-        ? `${error.details?.['reason'] ?? error.code}${error.details?.['status'] ? `, HTTP ${error.details['status']}` : ''}`
-        : 'ошибка сервера';
+      error instanceof AppError ? `${error.details?.['reason'] ?? error.code}${missing}` : describeError(error);
+    await access
+      .mirror?.(
+        `samples/${new Date(container.clock.now()).toISOString().replace(/[:.]/g, '-')}-${rubric}-FAILED.txt`,
+        `образец не собран. ${reason}`,
+        'text/plain; charset=utf-8'
+      )
+      .catch(() => undefined);
     await telegram
       .sendMessage(
         ownerChatId,
-        `«${RUBRIC_TITLES[rubric]}»: образец не собран (${reason}).`,
+        `«${RUBRIC_TITLES[rubric]}»: образец не собран. ${reason}`,
         { ...FLAGS, entities: [] },
         AbortSignal.timeout(TELEGRAM_TIMEOUT_MS)
       )

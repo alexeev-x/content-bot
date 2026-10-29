@@ -17,7 +17,6 @@ const OPENDOTA_PATHS = [
   /^\/heroes\/\d{1,3}\/(matchups|itemPopularity|durations)$/,
   /^\/scenarios\/itemTimings$/,
   /^\/records\/(duration|kills|gold_per_min)$/,
-  /^\/publicMatches$/,
   /^\/matches\/\d{1,12}$/
 ];
 

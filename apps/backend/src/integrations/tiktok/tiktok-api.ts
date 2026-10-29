@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { boundDetail, causeDetail } from '../../platform/error-detail';
 import { readCappedText } from '../../platform/http/read-capped-text';
 
 // TikTok Login Kit (web) and Display API v2: the owner's own account statistics and public videos.
@@ -21,7 +22,9 @@ export type TikTokErrorCode =
 export class TikTokApiError extends Error {
   constructor(
     readonly code: TikTokErrorCode,
-    readonly httpStatus: number | null = null
+    readonly httpStatus: number | null = null,
+    /** The provider's own error text, bounded and redacted (`platform/error-detail.ts`). */
+    readonly detail?: string
   ) {
     super(code);
     this.name = 'TikTokApiError';
@@ -137,8 +140,8 @@ function classify(code: string | undefined, status: number): TikTokErrorCode {
 async function send(fetchImpl: typeof fetch, url: string, init: RequestInit): Promise<Response> {
   try {
     return await fetchImpl(url, { ...init, signal: AbortSignal.timeout(TIKTOK_TIMEOUT_MS), redirect: 'manual' });
-  } catch {
-    throw new TikTokApiError('TIKTOK_FETCH');
+  } catch (error) {
+    throw new TikTokApiError('TIKTOK_FETCH', null, causeDetail(error));
   }
 }
 
@@ -151,7 +154,11 @@ async function tokenRequest(fetchImpl: typeof fetch, body: Record<string, string
   const json = await readJson(response);
   const failure = oauthErrorSchema.safeParse(json);
   if (!response.ok || failure.success)
-    throw new TikTokApiError(classify(failure.data?.error, response.status), response.status);
+    throw new TikTokApiError(
+      classify(failure.data?.error, response.status),
+      response.status,
+      failure.data?.error === undefined ? undefined : boundDetail(`TikTok error: ${failure.data.error}`)
+    );
   const parsed = tokenSchema.safeParse(json);
   if (!parsed.success) throw new TikTokApiError('TIKTOK_SHAPE', response.status);
   return {
@@ -224,7 +231,11 @@ export async function fetchTikTokAccount(accessToken: string, fetchImpl: typeof 
   const json = await readJson(response);
   const errorCode = z.object({ error: apiErrorSchema }).safeParse(json).data?.error.code;
   if (!response.ok || (errorCode !== undefined && errorCode !== 'ok')) {
-    throw new TikTokApiError(classify(errorCode, response.status), response.status);
+    throw new TikTokApiError(
+      classify(errorCode, response.status),
+      response.status,
+      errorCode === undefined ? undefined : boundDetail(`TikTok error: ${errorCode}`)
+    );
   }
   const parsed = userSchema.safeParse(json);
   if (!parsed.success) throw new TikTokApiError('TIKTOK_SHAPE', response.status);
@@ -260,7 +271,11 @@ export async function fetchTikTokVideos(accessToken: string, fetchImpl: typeof f
     const json = await readJson(response);
     const errorCode = z.object({ error: apiErrorSchema }).safeParse(json).data?.error.code;
     if (!response.ok || (errorCode !== undefined && errorCode !== 'ok')) {
-      throw new TikTokApiError(classify(errorCode, response.status), response.status);
+      throw new TikTokApiError(
+        classify(errorCode, response.status),
+        response.status,
+        errorCode === undefined ? undefined : boundDetail(`TikTok error: ${errorCode}`)
+      );
     }
     const parsed = videoListSchema.safeParse(json);
     if (!parsed.success) throw new TikTokApiError('TIKTOK_SHAPE', response.status);

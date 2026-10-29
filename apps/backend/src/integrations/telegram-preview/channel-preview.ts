@@ -1,3 +1,4 @@
+import { causeDetail, readErrorDetail } from '../../platform/error-detail';
 import { readCappedText } from '../../platform/http/read-capped-text';
 
 // The public web preview of a Telegram channel (`https://t.me/s/<username>`): the only keyless source
@@ -41,7 +42,9 @@ export type ChannelPreviewErrorCode = 'PREVIEW_FETCH' | 'PREVIEW_HTTP' | 'PREVIE
 export class ChannelPreviewError extends Error {
   constructor(
     readonly code: ChannelPreviewErrorCode,
-    readonly httpStatus: number | null = null
+    readonly httpStatus: number | null = null,
+    /** The provider's own error text, bounded and redacted (`platform/error-detail.ts`). */
+    readonly detail?: string
   ) {
     super(code);
     this.name = 'ChannelPreviewError';
@@ -264,12 +267,11 @@ export async function fetchChannelPreview(
       signal: AbortSignal.timeout(PREVIEW_TIMEOUT_MS),
       redirect: 'manual'
     });
-  } catch {
-    throw new ChannelPreviewError('PREVIEW_FETCH');
+  } catch (error) {
+    throw new ChannelPreviewError('PREVIEW_FETCH', null, causeDetail(error));
   }
   if (!response.ok) {
-    await response.body?.cancel();
-    throw new ChannelPreviewError('PREVIEW_HTTP', response.status);
+    throw new ChannelPreviewError('PREVIEW_HTTP', response.status, await readErrorDetail(response));
   }
   let body: string | null;
   try {

@@ -45,3 +45,20 @@ regexTarget = "line"
 regexes = [
   '''const KEY = 'sk-test-PLACEHOLDER-0123456789';''',
 ]
+
+[[allowlists]]
+description = "Historical dummy secrets in the redaction test, before they were assembled at run time (28.10.2026)"
+condition = "AND"
+paths = [
+  '''(^|/)apps/backend/src/platform/error-detail\.test\.ts$''',
+]
+regexTarget = "line"
+regexes = [
+  '''AAHdqTcvCH1vGWJxfSeofSAs0K5PALDsaw9''',
+  '''sk-proj-abcd''',
+  '''AIzaSyA1234567890abcdef''',
+  '''eyJhbGciOiJIUzI1NiJ9''',
+  '''0123456789abcdef0123456789abcdef0123''',
+  '''abc\.def-ghi_jkl123''',
+  '''Bearer abcdef123456''',
+]

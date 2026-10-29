@@ -5,11 +5,12 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig(async () => {
   // The real migrations, applied to an empty local D1 before each test file (tests/setup).
   const migrations = await readD1Migrations(path.join(import.meta.dirname, 'migrations'));
+  const statsMigrations = await readD1Migrations(path.join(import.meta.dirname, 'migrations-stats'));
   return {
     plugins: [
       cloudflareTest({
         wrangler: { configPath: './wrangler.jsonc' },
-        miniflare: { bindings: { TEST_MIGRATIONS: migrations } }
+        miniflare: { bindings: { TEST_MIGRATIONS: migrations, TEST_STATS_MIGRATIONS: statsMigrations } }
       })
     ],
     test: {

@@ -23,9 +23,25 @@
       // environments: env.dev and env.production declare their own databases below.
       "database_id": "00000000-0000-0000-0000-000000000000",
       "migrations_dir": "migrations"
+    },
+    // Hero statistics (owner, 29.10.2026): their own database, so long scans never block publishing claims. Local and
+    // tests only here; production declares its own once the owner creates it; DEV never runs statistics.
+    {
+      "binding": "STATS_DB",
+      "database_name": "content-stats",
+      "database_id": "00000000-0000-0000-0000-000000000001",
+      "migrations_dir": "migrations-stats"
     }
   ],
+  // The nightly statistics: one step per hero, retried on its own; the instance id is the date, so a second Cron tick
+  // cannot start the same night twice.
+  "workflows": [
+    { "name": "content-stats-snapshot", "binding": "STATS_SNAPSHOT", "class_name": "StatsSnapshotWorkflow" }
+  ],
   "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "content-r2-test" }],
+  // Local runs draw rubric pictures on Cloudflare's real browser (remote binding: the code stays local, the database
+  // and secrets are untouched); it shares the account's free 10 browser minutes a day.
+  "browser": { "binding": "BROWSER", "remote": true },
   // The bot's AI model calls (owner, 19.10.2026): a consumer has 15 min of wall time, a webhook's waitUntil 30 s.
   // Like D1, queues are not inherited: each environment names its own, which the owner creates once.
   "queues": {
@@ -42,7 +58,11 @@
     // Content analytics sources (public identifiers, not secrets). Empty here so local runs and
     // tests never reach the network; YOUTUBE_API_KEY is a Worker secret the owner sets.
     "ANALYTICS_TELEGRAM_CHANNEL": "",
-    "ANALYTICS_YOUTUBE_CHANNEL_ID": ""
+    "ANALYTICS_YOUTUBE_CHANNEL_ID": "",
+    // Local runs only: STRATZ and OpenDota are called directly from the owner's one home address (no bridge).
+    "STATS_DIRECT": "true",
+    // Local runs only: every rubric sample is also kept in the local R2 (samples/…), so its result can be read back.
+    "SAMPLE_MIRROR": "true"
   },
 
   // Cloudflare Vite plugin selects these at build time via CLOUDFLARE_ENV.
@@ -93,7 +113,18 @@
           "database_name": "content-db-prod",
           "database_id": "18d701c9-ba51-4668-b811-618ad3867670",
           "migrations_dir": "migrations"
+        },
+        // Hero statistics (owner, 29.10.2026; docs/backend/sources.md): created by the owner, migrations applied by
+        // the owner (`wrangler d1 migrations apply content-stats-prod --remote --env production`).
+        {
+          "binding": "STATS_DB",
+          "database_name": "content-stats-prod",
+          "database_id": "8d12ced1-b2d8-41ed-b502-af89d37381cc",
+          "migrations_dir": "migrations-stats"
         }
+      ],
+      "workflows": [
+        { "name": "content-stats-snapshot-prod", "binding": "STATS_SNAPSHOT", "class_name": "StatsSnapshotWorkflow" }
       ],
       "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "content-r2-prod" }],
       "queues": {

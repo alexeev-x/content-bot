@@ -1,5 +1,5 @@
 import { apiErrorSchema, healthSchema } from '@alexeev/contracts';
-import { exports } from 'cloudflare:workers';
+import { env as workerEnv, exports } from 'cloudflare:workers';
 import { HTTPException } from 'hono/http-exception';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { createApp } from '../../src/app/create-app';
@@ -75,7 +75,7 @@ describe('AppError mapping', () => {
       throw Object.assign(new Error('private diagnostic'), { details: { reason: 'private diagnostic' } });
     });
 
-    const response = await app.request('/internal/unexpected-error');
+    const response = await app.request('/internal/unexpected-error', undefined, workerEnv);
     const body: unknown = await response.json();
 
     expect(response.status).toBe(500);
@@ -98,7 +98,7 @@ describe('AppError mapping', () => {
         throw new Error(message);
       });
 
-      const response = await app.request('/internal/unexpected-error');
+      const response = await app.request('/internal/unexpected-error', undefined, workerEnv);
 
       expect(response.status).toBe(500);
       expect(logSpy).toHaveBeenCalledWith(expect.stringContaining(`"errorCode":"${errorCode}"`));

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { causeDetail, readErrorDetail } from '../../platform/error-detail';
 import { readCappedText } from '../../platform/http/read-capped-text';
 
 // GitHub's REST API for one public repository with the owner's free token (`GITHUB_TOKEN`, 5 000 calls an hour; an
@@ -23,7 +24,9 @@ export type GitHubErrorCode =
 export class GitHubApiError extends Error {
   constructor(
     readonly code: GitHubErrorCode,
-    readonly httpStatus: number | null = null
+    readonly httpStatus: number | null = null,
+    /** The provider's own error text, bounded and redacted (`platform/error-detail.ts`). */
+    readonly detail?: string
   ) {
     super(code);
     this.name = 'GitHubApiError';
@@ -73,14 +76,16 @@ export function createGitHubRepoApi(input: {
         },
         signal: signal ?? AbortSignal.timeout(GITHUB_TIMEOUT_MS)
       });
-    } catch {
-      throw new GitHubApiError('GITHUB_FETCH');
+    } catch (error) {
+      throw new GitHubApiError('GITHUB_FETCH', null, causeDetail(error));
     }
-    if (response.status === 401) throw new GitHubApiError('GITHUB_TOKEN', 401);
-    if (response.status === 403 || response.status === 429) throw new GitHubApiError('GITHUB_RATE', response.status);
+    if (response.status === 401) throw new GitHubApiError('GITHUB_TOKEN', 401, await readErrorDetail(response));
+    if (response.status === 403 || response.status === 429)
+      throw new GitHubApiError('GITHUB_RATE', response.status, await readErrorDetail(response));
     // GitHub answers 406 or 422 when a diff is too big for it to make.
-    if (response.status === 406 || response.status === 422) throw new GitHubApiError('GITHUB_TOO_BIG', response.status);
-    if (!response.ok) throw new GitHubApiError('GITHUB_HTTP', response.status);
+    if (response.status === 406 || response.status === 422)
+      throw new GitHubApiError('GITHUB_TOO_BIG', response.status, await readErrorDetail(response));
+    if (!response.ok) throw new GitHubApiError('GITHUB_HTTP', response.status, await readErrorDetail(response));
     const text = await readCappedText(response, maxBytes);
     if (text === null) throw new GitHubApiError('GITHUB_TOO_BIG');
     return text;

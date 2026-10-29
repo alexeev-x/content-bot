@@ -23,7 +23,7 @@ No prototype stage: build UI directly in production code from `design-refs/<task
 2. Contract first (yourself, skill `contract-change`) if any shape changes.
 3. Build the smallest vertical slice. Backend: tests only for critical paths (skill `testing`). Frontend: compose `shared/ui`; a missing primitive is added in `shared/ui`, never styled locally.
 4. UI: check in a browser at 375 and 1280 px (skill `visual-check`), light and dark. Compare with the reference image side by side once, not per state.
-5. Gate (below), then commit and push (root `AGENTS.md` § Git).
+5. Gate (below), then commit; the owner pushes (root `AGENTS.md` § Git).
 
 ## Risk gate
 | Risk | Typical change | Review | Check |
@@ -42,7 +42,7 @@ The pre-push hook runs `verify:changed` with the tests named after the changed f
 A failure goes back to its owner with only the failing lines and file. Same first error after 2 rounds, or no progress → stop and give the owner options with a recommended default. Never resume a finished agent; start fresh with the packet plus `.logs/handoff/<task>.md`.
 
 ## Deliver
-Commit (conventional message), push `develop`/branch (CI applies DEV migrations before deploying), then the final message from root `AGENTS.md`. Never touch `main`.
+Commit (conventional message); the owner pushes `develop` (CI applies DEV migrations before deploying; root `AGENTS.md` § Git); then the final message from root `AGENTS.md`. Never touch `main`.
 
 ## Releases and hotfixes (owner, 25.10.2026)
 - Work piles up on `develop`; small tasks never go to production alone. After a release (the owner's `develop → main`), the first `develop` commit raises the minor version (`0.2.0 → 0.3.0`) in the root and `apps/contracts` `package.json`.

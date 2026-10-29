@@ -1,4 +1,5 @@
 import { DRAW_TIMEOUT_MS, decodeReference, IMAGE_MODEL, type PictureDeps, prepare, SIZE } from './patch-picture';
+import { describeError } from '../../platform/error-detail';
 import { AiProviderError } from './ports';
 
 // A rubric's picture after the owner's ten references (embedded in rubric-style-refs.generated.ts; their source folder was removed 26.10.2026): the model draws the scene and the
@@ -32,7 +33,8 @@ function scenePrompt(heading: PictureHeading | null): string {
   ].join('\n');
 }
 
-export type RubricScene = { kind: 'drawn'; base64: string } | { kind: 'failed'; reason: 'unavailable' | 'provider' };
+export type RubricScene =
+  { kind: 'drawn'; base64: string } | { kind: 'failed'; reason: 'unavailable' | 'provider'; detail?: string };
 
 /** The drawn scene with the title as base64 JPEG, ready for a data URL. */
 export async function drawRubricScene(
@@ -57,6 +59,6 @@ export async function drawRubricScene(
     // A provider failure leaves the browser's own picture; anything else is a bug and goes up.
     if (!(error instanceof AiProviderError)) throw error;
     deps.onError?.(error);
-    return { kind: 'failed', reason: 'provider' };
+    return { kind: 'failed', reason: 'provider', detail: describeError(error, 'images/edits') };
   }
 }

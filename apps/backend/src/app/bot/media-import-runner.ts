@@ -9,6 +9,7 @@ import { createPublishActions, type PublishActionsContainer } from './publish-ac
 import { publishKeyboard } from './publish-keyboard';
 import { importReportText, RUN_MIN_BUDGET, runMediaImport, type MediaImportWorkerDeps } from './media-import-worker';
 import { createTelegramCaller } from './telegram-call';
+import { errorLogFields } from '../../platform/error-detail';
 
 const NOTICE_TIMEOUT_MS = 5_000;
 const CAPTION_ATTEMPTS = 3;
@@ -137,7 +138,7 @@ export function createMediaImportRunner(
         component: 'bot',
         operation: 'media_import',
         requestId: config.requestId,
-        errorCode: error instanceof AppError ? error.code : error instanceof Error ? error.name : 'unknown'
+        ...errorLogFields(error)
       });
     }
   };

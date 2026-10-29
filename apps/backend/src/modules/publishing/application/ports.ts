@@ -24,8 +24,13 @@ import type { JobSnapshot } from '../domain/status-projection';
 export type SendOutcome =
   | { kind: 'sent'; externalMessageIds: string[] }
   | { kind: 'rate_limited'; retryAfterSec: number } // 429: Telegram refused, nothing was published
-  | { kind: 'rejected'; code: 'CHAT_MIGRATED' | 'CONTENT_INVALID' | 'DESTINATION_UNAVAILABLE' | 'BOT_UNAUTHORIZED' }
-  | { kind: 'unknown'; reason: string }; // timeout, network, 5xx, ok without message_id
+  | {
+      kind: 'rejected';
+      code: 'CHAT_MIGRATED' | 'CONTENT_INVALID' | 'DESTINATION_UNAVAILABLE' | 'BOT_UNAUTHORIZED';
+      /** Telegram's own refusal text, bounded and redacted. */
+      detail?: string;
+    }
+  | { kind: 'unknown'; reason: string; detail?: string }; // timeout, network, 5xx, ok without message_id
 
 export interface PublicationTransport {
   /** `text` is plain text and `entities` its UTF-16 ranges (see domain/format-message.ts); the adapter owns previews and the timeout. */
@@ -139,6 +144,8 @@ export interface OwnerIncidentAlertGroup {
   publicationId: string | null;
   postTitle: string | null;
   channelTitle: string | null;
+  /** What Telegram (or the transport) said about the failure, from the incident's stored details. */
+  detail: string | null;
   firstSeenAt: number;
   lastSeenAt: number;
   occurrenceCount: number;

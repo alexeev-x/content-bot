@@ -17,6 +17,8 @@ import { getOwnerOperationsSettings } from '../../modules/settings';
 import { createTelegramCaller } from './telegram-call';
 import { createWriterDeps } from './writer-deps';
 import { handleScriptPromptTap } from '../workflows/script-prompts';
+import { notifyOwnerOfFailure } from '../notifications/failure-notice';
+import { errorLogFields } from '../../platform/error-detail';
 
 const MAX_UPDATE_BYTES = 256 * 1024;
 // grammY's default is 10 s, the point where Telegram gives up on the webhook. The handler only does D1
@@ -73,6 +75,22 @@ export const telegramWebhook = new Hono<AppBindings>().post(
     const actor = String(config.ownerId);
     const call = createTelegramCaller({ logger: container.logger, requestId: c.get('requestId') });
     const requestId = c.get('requestId');
+    // Logged with the detailed description, and told to the owner once per window (owner, 28.10.2026).
+    const onFailure = (error: unknown) => {
+      container.logger.error({ component: 'bot', operation: 'handle_update', requestId, ...errorLogFields(error) });
+      c.executionCtx.waitUntil(
+        notifyOwnerOfFailure(
+          {
+            messenger: container.ownerMessenger,
+            ownerChatId: container.ownerChatId,
+            state: container.systemState,
+            clock: container.clock,
+            logger: container.logger
+          },
+          { where: 'бот: обработка сообщения', error, requestId }
+        )
+      );
+    };
     // Built when an import starts, so an update that carries no file never reaches for the media stores.
     const imports = () =>
       createMediaImportRunner(container, {
@@ -123,7 +141,7 @@ export const telegramWebhook = new Hono<AppBindings>().post(
         ),
         button: { text: 'Открыть аналитику', url: `${appOrigin}/analytics` }
       }),
-      writer: () => createWriterDeps(container, requestId),
+      writer: () => createWriterDeps(container, requestId, onFailure),
       rules: () => Promise.resolve(container.aiRules),
       styleLessons: () => Promise.resolve(container.aiStyleLessons),
       enqueueAiJob: (job) => container.aiJobs.send(job),
@@ -160,7 +178,7 @@ export const telegramWebhook = new Hono<AppBindings>().post(
                 component: 'bot',
                 operation: 'media_import',
                 requestId,
-                errorCode: error instanceof Error ? error.name : 'unknown'
+                ...errorLogFields(error)
               });
             })
           )
@@ -169,14 +187,7 @@ export const telegramWebhook = new Hono<AppBindings>().post(
       adminApi: container.botAdminApi,
       call,
       waitUntil: (work) => c.executionCtx.waitUntil(work),
-      onError: (error) => {
-        container.logger.error({
-          component: 'bot',
-          operation: 'handle_update',
-          requestId: c.get('requestId'),
-          errorCode: error instanceof Error ? error.name : 'unknown'
-        });
-      }
+      onError: onFailure
     });
     return webhookCallback(bot, 'cloudflare-mod', {
       secretToken: config.webhookSecret,

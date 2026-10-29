@@ -49,7 +49,12 @@
 }
 .section {
   display: grid;
+  grid-template-columns: minmax(0, 1fr);
   gap: var(--space-2);
+}
+.section > * {
+  min-width: 0;
+  overflow-wrap: anywhere;
 }
 .section > :not(button) {
   padding: 0 var(--space-3) var(--space-2) 42px;
@@ -66,4 +71,12 @@
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+/* The row's title stays whole; the status beside it gives way and ends with «…». */
+.title {
+  flex: none;
+}
+.summary {
+  flex: 1 1 0;
+  justify-content: flex-end;
 }

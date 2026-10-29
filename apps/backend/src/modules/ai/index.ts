@@ -22,6 +22,8 @@ export { hotfixWorthPost } from './hotfix-check';
 export { condensePatchNotes } from './patch-condense';
 export { drawHotfixPicture, drawPatchPicture, type PatchPictureResult } from './patch-picture';
 export { enhancePicture, type EnhanceResult } from './picture-enhance';
+export { ANKETA_SIZE, drawAnketaScene } from './anketa-picture';
+export { drawHoroscopeScene, HOROSCOPE_SIZE } from './horoscope-picture';
 export { drawRubricScene, type RubricScene } from './rubric-picture';
 export { writeRubricCaption } from './rubric-writer';
 export {

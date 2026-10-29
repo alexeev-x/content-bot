@@ -18,7 +18,7 @@ import {
   GUIDE_DAYS
 } from './guide-data';
 import { type GuideItem, guideAltPicture, guideItemsPicture, guidePicture, type HeroGuideCard } from './guide-pictures';
-import { heroImage, PICTURE_SIZE, picturePage } from './picture';
+import { PICTURE_SIZE } from './picture';
 import { type PatchOutcome, patchOutcomes } from './patch-rubrics';
 import { NERF_LOOKS, nerfQuestionPicture, nerfResultPicture } from './nerf-pictures';
 import { VERSUS_LOOKS, VERSUS_TITLES, versusPicture } from './versus-pictures';
@@ -41,19 +41,6 @@ import {
 // Rubrics over pick and win rates by rank (STRATZ, once its token is set). Without it each answers
 // STATS_NOT_CONFIGURED, so the studio shows what is waiting for the token.
 
-const RANKS: Record<number, { name: string; on: string }> = {
-  1: { name: 'Рекрут', on: 'Рекрутах' },
-  2: { name: 'Страж', on: 'Стражах' },
-  3: { name: 'Рыцарь', on: 'Рыцарях' },
-  4: { name: 'Герой', on: 'Героях' },
-  5: { name: 'Легенда', on: 'Легендах' },
-  6: { name: 'Властелин', on: 'Властелинах' },
-  7: { name: 'Божество', on: 'Божествах' },
-  8: { name: 'Титан', on: 'Титанах' }
-};
-const BRACKETS = [1, 2, 3, 4, 5, 6, 7, 8];
-const rank = (bracket: number) => RANKS[bracket] ?? { name: 'ранг', on: 'ранге' };
-
 interface Share {
   hero: HeroInfo;
   matches: number;
@@ -75,55 +62,6 @@ async function shares(context: RubricContext, bracket: number): Promise<Share[]>
       winRate: each.matches === 0 ? 0 : each.wins / each.matches
     }))
     .filter((each): each is Share => each.hero !== undefined);
-}
-
-export async function forgottenHero(context: RubricContext): Promise<RubricSample> {
-  const list = await shares(context, 7);
-  const candidates = list.filter((each) => each.pickRate < 0.03 && each.winRate > 0.51 && each.matches >= 100);
-  const hero = candidates.sort((a, b) => b.winRate - a.winRate)[0];
-  if (hero === undefined) throw noData('heroes');
-  return {
-    picture: null,
-    text: `🕸 Забытый герой: ${hero.hero.localizedName}.\nЕго берут в ${percent(hero.pickRate)} игр, а он выигрывает ${percent(hero.winRate)}. Почему вы его не пикаете? Пишите в комментарии.`,
-    poll: null
-  };
-}
-
-const TIERS = [
-  { name: 'ЛЕГ', min: 0.53, color: 'var(--tier-s)' },
-  { name: 'НОРМ', min: 0.5, color: 'var(--tier-a)' },
-  { name: 'НОЛЬ', min: 0.47, color: 'var(--tier-b)' },
-  { name: 'РАК', min: 0, color: 'var(--tier-c)' }
-];
-
-export async function tierList(context: RubricContext): Promise<RubricSample> {
-  const bracket = pick(BRACKETS, context.random);
-  const list = (await shares(context, bracket)).filter((each) => each.matches >= 500);
-  const rows = TIERS.map((tier, index) => {
-    const upper = index === 0 ? Number.POSITIVE_INFINITY : (TIERS[index - 1]?.min ?? 1);
-    const heroes = list
-      .filter((each) => each.winRate >= tier.min && each.winRate < upper)
-      .sort((a, b) => b.pickRate - a.pickRate)
-      .slice(0, 6);
-    return { tier, heroes };
-  });
-  const html = picturePage(
-    `<div class="title">Тир-лист на <b>${rank(bracket).on}</b></div><div class="tiers">${rows
-      .map(
-        (row) => `<div class="tier"><div class="label" style="background:${row.tier.color}">${row.tier.name}</div>
-${row.heroes.map((each) => `<img class="portrait small" src="${heroImage(each.hero.name)}" alt="">`).join('')}</div>`
-      )
-      .join('')}</div>`,
-    `.tiers{display:flex;flex-direction:column;gap:12px;margin-top:28px}
-.tier{display:flex;align-items:center;gap:12px}
-.label{width:150px;height:88px;border-radius:10px;display:flex;align-items:center;justify-content:center;font-weight:900;font-size:34px;color:#0b0e13}
-.portrait.small{width:156px;height:88px;border-width:2px}`
-  );
-  return {
-    picture: { html, ...PICTURE_SIZE },
-    text: `Тир-лист на ${rank(bracket).on} по реальному винрейту: лег, норм, ноль и рак.\nСогласен? Кого бы переставил — в комментарии.`,
-    poll: null
-  };
 }
 
 async function lateBuild(context: RubricContext, heroId: number, items: Map<number, ItemInfo>): Promise<ItemInfo[]> {
@@ -247,64 +185,6 @@ export async function whoBeatsWhom(context: RubricContext): Promise<RubricSample
     },
     text: '',
     ownText: true,
-    poll: null
-  };
-}
-
-// «Криминальная хроника» (owner, 27.10.2026): the week's record of per-match averages told as a tabloid crime note;
-// each record has its «статья».
-const RECORDS = [
-  {
-    crime: 'отмывание золота в особо крупных размерах',
-    value: (row: Average) => row.networth,
-    unit: 'золота к концу игры',
-    digits: 0
-  },
-  {
-    crime: 'причинение тяжких телесных',
-    value: (row: Average) => row.heroDamage,
-    unit: 'урона по героям за игру',
-    digits: 0
-  },
-  { crime: 'серийные убийства', value: (row: Average) => row.kills, unit: 'убийств за игру', digits: 1 },
-  { crime: 'систематическая сдача себя врагу', value: (row: Average) => row.deaths, unit: 'смертей за игру', digits: 1 }
-];
-type Average = { heroId: number; matches: number; networth: number; heroDamage: number; kills: number; deaths: number };
-
-export async function crimeNews(context: RubricContext): Promise<RubricSample> {
-  const [rows, heroes] = await Promise.all([needStats(context).averages(), context.sources.heroes()]);
-  const record = pick(RECORDS, context.random);
-  const best = rows.filter((row) => row.matches >= 500).sort((a, b) => record.value(b) - record.value(a))[0];
-  const hero = heroes.find((each) => each.id === best?.heroId);
-  if (best === undefined || hero === undefined) throw noData('averages');
-  const value =
-    record.digits === 0
-      ? Math.round(record.value(best)).toLocaleString('ru-RU')
-      : record.value(best).toFixed(record.digits).replace('.', ',');
-  return {
-    picture: null,
-    text: `Задержан ${hero.localizedName}. Статья: ${record.crime}.\nВ среднем ${value} ${record.unit} на Божествах и Титанах за неделю — больше всех героев.`,
-    poll: null
-  };
-}
-
-// «Что брать рекруту» (owner, 27.10.2026): the newbie author's side, «бери и побеждай» — the heroes that win most on
-// Рекрут with enough matches to trust.
-const RECRUIT_MIN_MATCHES = 500;
-const RECRUIT_TOP = 5;
-
-export async function recruitPicks(context: RubricContext): Promise<RubricSample> {
-  const top = (await shares(context, 1))
-    .filter((each) => each.matches >= RECRUIT_MIN_MATCHES)
-    .sort((a, b) => b.winRate - a.winRate)
-    .slice(0, RECRUIT_TOP);
-  if (top.length < 3) throw noData('recruit heroes');
-  return {
-    picture: null,
-    text: [
-      'Кого брать на Рекрутах, чтобы побеждать:',
-      ...top.map((each) => `${each.hero.localizedName} — ${percent(each.winRate)} побед`)
-    ].join('\n'),
     poll: null
   };
 }
@@ -616,43 +496,6 @@ function mainPositions(rows: PositionRow[]): Map<number, { position: number; sha
     if (top !== undefined && total > 0) main.set(heroId, { position: top.position, share: top.matches / total, total });
   }
   return main;
-}
-
-const SIGNS: Record<number, string> = { 1: 'Керри', 2: 'Мидеры', 3: 'Хардлайнеры', 4: 'Четвёрки', 5: 'Пятёрки' };
-
-export async function horoscope(context: RubricContext): Promise<RubricSample> {
-  const stats = needStats(context);
-  const [rows, positions, heroes] = await Promise.all([stats.twoWeeks(7), stats.positions(), context.sources.heroes()]);
-  const main = mainPositions(positions);
-  const weeks = [...new Set(rows.map((row) => row.week))].sort((a, b) => b - a);
-  const [current, previous] = weeks;
-  if (current === undefined || previous === undefined) throw noData('two weeks');
-  const rate = (heroId: number, week: number) => {
-    const row = rows.find((each) => each.heroId === heroId && each.week === week);
-    return row === undefined || row.matches < 200 ? null : row.wins / row.matches;
-  };
-  const lines = [1, 2, 3, 4, 5]
-    .map((position) => {
-      const up = heroes
-        .filter((hero) => main.get(hero.id)?.position === position)
-        .map((hero) => {
-          const now = rate(hero.id, current);
-          const before = rate(hero.id, previous);
-          return now === null || before === null ? null : { hero, delta: now - before };
-        })
-        .filter((each): each is { hero: HeroInfo; delta: number } => each !== null)
-        .sort((a, b) => b.delta - a.delta)[0];
-      if (up === undefined || up.delta <= 0) return null;
-      const points = (up.delta * 100).toFixed(1).replace('.', ',');
-      return `${SIGNS[position] ?? 'Все'}: звёзды за ${up.hero.localizedName} — +${points}% побед за неделю.`;
-    })
-    .filter((line): line is string => line !== null);
-  if (lines.length === 0) throw noData('moves');
-  return {
-    picture: null,
-    text: `🔮 Дота-гороскоп на неделю (Божества):\n${lines.join('\n')}`,
-    poll: null
-  };
 }
 
 /** Rubrics that still lack a data source. */

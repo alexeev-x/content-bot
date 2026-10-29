@@ -37,6 +37,10 @@ import { raiseScriptPrompts } from './workflows/script-prompts';
 import { runAiReviews } from './workflows/run-ai-reviews';
 import { DOTA_APP_ID } from './workflows/steam-watch';
 import type { LabCron } from './lab';
+import { notifyOwnerOfFailure } from './notifications/failure-notice';
+import { describeError, errorLogFields } from '../platform/error-detail';
+import { heroStatsAlerts } from './workflows/hero-stats';
+import { snapshotInstanceId } from './workflows/hero-stats-snapshot';
 
 // Per table and per hourly tick; leftovers wait for the next hour.
 export const CLEANUP_LIMIT = 100;
@@ -45,9 +49,11 @@ const HEARTBEAT_RESERVE = 3;
 /** The heartbeat's minutes: those ending in 2 or 7. */
 const HEARTBEAT_EVERY_MINUTES = 5;
 const HEARTBEAT_MINUTE = 2;
-/** The hero-matches runs: two jobs every five minutes, on minutes ending in 1 or 6. */
+/** The hero statistics collector: two runs every five minutes, on minutes ending in 1 or 6. */
 const HERO_MATCHES_MINUTE = 1;
 const HERO_MATCHES_RUNS = 2;
+/** The nightly statistics start from this UTC hour (after the night's matches, before the owner's morning). */
+const SNAPSHOT_HOUR_UTC = 3;
 // The cheapest single source (Telegram: 5 preview pages + its D1 statements). All three sources need about
 // 45 of the 50 subrequests, more than an idle tick has left, so the step collects what fits and defers the
 // rest to the next minute-3 tick ten minutes later (each source keeps its own hourly schedule).
@@ -103,7 +109,9 @@ type TickContainer = Pick<
   | 'dotaWatcher'
   | 'dotaRepository'
   | 'sourceEvents'
-  | 'statsApis'
+  | 'heroStats'
+  | 'statsMatches'
+  | 'statsSnapshot'
   | 'automations'
   | 'dotaWatchlists'
   | 'posts'
@@ -181,6 +189,19 @@ export async function handleScheduled(
   const raised: RaisedIncident[] = [];
   const delivered: DeliveredPublication[] = [];
 
+  // The owner hears of a failed step in his chat, once per window (owner, 28.10.2026).
+  const tell = (where: string, error: unknown) =>
+    notifyOwnerOfFailure(
+      {
+        messenger: container.ownerMessenger,
+        ownerChatId: container.ownerChatId,
+        state: container.systemState,
+        clock,
+        logger
+      },
+      { where: `Cron: ${where}`, error }
+    );
+
   const step = async (operation: string, run: () => Promise<Record<string, number>>): Promise<void> => {
     const stepStartedAt = clock.now();
     try {
@@ -191,14 +212,11 @@ export async function handleScheduled(
         component: 'scheduled',
         operation,
         status: 'error',
-        errorCode:
-          error instanceof DotaWatchError
-            ? `${error.code}_${error.sourceKey}`
-            : error instanceof Error
-              ? error.name
-              : 'unknown',
+        ...errorLogFields(error),
+        ...(error instanceof DotaWatchError ? { errorCode: `${error.code}_${error.sourceKey}` } : {}),
         durationMs: clock.now() - stepStartedAt
       });
+      await tell(operation, error);
     }
   };
 
@@ -230,7 +248,10 @@ export async function handleScheduled(
         newId: container.newId,
         random: container.random
       });
-      if (summary.errors > 0) failures += 1;
+      if (summary.errors > 0) {
+        failures += 1;
+        await tell('dispatch', summary.firstError);
+      }
       raised.push(...summary.raised);
       delivered.push(...summary.delivered);
       return {
@@ -511,23 +532,61 @@ export async function handleScheduled(
     });
   }
 
-  // 7a. the «Гайд на героя» match base (migration 0116): its own switch, so DEV collects only while the owner tests it
-  // (owner, 28.10.2026); production runs it always. Every five minutes two runs, each reading four matches within its
-  // own CPU. Without STRATZ and the stats bridge it is off.
+  // 7a. the hero statistics base (owner, 29.10.2026; `app/workflows/hero-stats.ts`): only where its database is bound
+  // (local runs and production; DEV never runs it) and STRATZ is reachable; a local run also obeys «Фоновые задачи».
+  // Every five minutes two collector runs, each in its own invocation; once a night (from 03:00 UTC) the snapshot
+  // Workflow; once an hour the collector's alerts.
+  const heroStats = container.heroStats;
   if (
-    publicationIdle &&
-    container.statsApis !== null &&
+    heroStats !== null &&
+    container.statsMatches !== null &&
     container.ownerChatId !== null &&
     minute % 5 === HERO_MATCHES_MINUTE &&
     (await backgroundOn('heroMatches')) &&
     container.queryBudget.remaining() >= 1 + HEARTBEAT_RESERVE
   ) {
     const ownerChat = Number(container.ownerChatId);
-    await step('hero-matches', async (): Promise<Record<string, number>> => {
+    await step('hero-stats', async (): Promise<Record<string, number>> => {
       if (!Number.isSafeInteger(ownerChat)) return {};
-      for (let run = 0; run < HERO_MATCHES_RUNS; run += 1)
-        await container.aiJobs.send({ id: container.newId(), kind: 'hero_matches', chatId: ownerChat });
-      return { heroMatchesQueued: HERO_MATCHES_RUNS };
+      const now = clock.now();
+      const counts: Record<string, number> = {};
+      if (publicationIdle) {
+        for (let run = 0; run < HERO_MATCHES_RUNS; run += 1)
+          await container.aiJobs.send({ id: container.newId(), kind: 'hero_matches', chatId: ownerChat });
+        counts.heroStatsQueued = HERO_MATCHES_RUNS;
+      }
+      const day = Math.floor(now / 86_400_000);
+      const snapshot = container.statsSnapshot;
+      if (
+        snapshot !== null &&
+        new Date(now).getUTCHours() >= SNAPSHOT_HOUR_UTC &&
+        (await heroStats.stateValue('snapshot_day')) < day
+      ) {
+        // The date is the instance id: a second tick that gets here first is refused by it. The night counts as
+        // started only once its instance exists, so a failed create is tried again on the next tick.
+        const id = snapshotInstanceId(now);
+        let started = false;
+        try {
+          await snapshot.create({ id, params: {} });
+          started = true;
+          counts.heroStatsSnapshot = 1;
+        } catch (error) {
+          started = await snapshot.get(id).then(
+            () => true,
+            () => false
+          );
+          logger.info({
+            component: 'hero_stats',
+            operation: 'snapshot',
+            status: started ? 'exists' : 'failed',
+            errorCode: describeError(error)
+          });
+        }
+        if (started) await heroStats.setState('snapshot_day', day);
+      }
+      if (minute < 5)
+        counts.heroStatsAlerts = await container.contentAlerts.insert(await heroStatsAlerts(heroStats, now), now);
+      return counts;
     });
   }
 
@@ -611,8 +670,9 @@ export async function handleScheduled(
           logger.error({
             component: 'scheduled',
             operation: 'report_review.enqueue',
-            errorCode: error instanceof Error ? error.name : 'unknown'
+            ...errorLogFields(error)
           });
+          await tell('report_review.enqueue', error);
         }
       }
       return {

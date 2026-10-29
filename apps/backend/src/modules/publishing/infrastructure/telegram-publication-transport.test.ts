@@ -202,7 +202,7 @@ describe('the Telegram transport adapter', () => {
       ...text
     });
     expect(received).toBeInstanceOf(AbortSignal);
-    expect(outcome).toEqual({ kind: 'unknown', reason: 'timeout' });
+    expect(outcome).toMatchObject({ kind: 'unknown', reason: 'timeout' });
   });
 
   it.each([
@@ -214,7 +214,7 @@ describe('the Telegram transport adapter', () => {
     const sender = senderOf(() => Promise.reject(error));
     await expect(
       createTelegramPublicationTransport(sender).send({ chatId: '1', text: 't', entities: [], media: [], ...text })
-    ).resolves.toEqual(expected);
+    ).resolves.toMatchObject(expected);
   });
 
   it('treats a successful response without message id as unknown', async () => {

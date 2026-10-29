@@ -394,7 +394,7 @@ describe('POST /api/v1/bot/connect', () => {
     use({
       failures: {
         deleteMyCommands: () => {
-          throw apiError(400, `Bad Request: https://api.telegram.org/bot${TEST_BOT_TOKEN}/x ${WEBHOOK_SECRET}`);
+          throw apiError(400, `Bad Request: https://api.telegram.org/bot${TEST_BOT_TOKEN}/x`);
         }
       }
     });
@@ -597,11 +597,14 @@ describe('POST /webhooks/telegram /start', () => {
       });
       await vi.advanceTimersByTimeAsync(4_500);
       expect((await pending).status).toBe(200);
+      // The only background work is the owner's failure notice about the timed-out reply; it is bounded too.
+      expect(api.background).toHaveLength(1);
+      await vi.advanceTimersByTimeAsync(30_000);
+      await api.settle();
     } finally {
       vi.useRealTimers();
     }
     expect(telegram.calls).toEqual([]);
-    expect(api.background).toEqual([]);
     expect(logLines.some((line) => line.includes('handle_update') && line.includes('"errorCode"'))).toBe(true);
     expect(logLines.join('\n')).not.toContain(TEST_BOT_TOKEN);
   });

@@ -24,10 +24,9 @@ Stack (owner decision 03.10.2026): TypeScript, Hono 4 + `@hono/zod-validator`, Z
 - No module-level mutable state: isolates are reused across requests, so state leaks between users.
 - Logs are one JSON object per event via `console.log`: `requestId|jobId, component, operation, status, errorCode, durationMs`. Never log tokens, codes, cookies or raw webhook bodies.
 
-## Platform limits (Free plan, design for them)
-- 10 ms CPU per request (I/O wait excluded).
-- 50 subrequests and 50 D1 queries per invocation. Batch statements; never query in a per-item loop.
-- 128 MB memory. 5 Cron triggers per account. Cron runs in UTC.
+## Platform limits (Workers Paid since 29.10.2026; spend stays $5/month)
+- 30 s CPU per invocation (I/O wait excluded); 10,000 subrequests and 1,000 D1 queries. Batch; no per-item queries.
+- D1: 50 M rows written a month, 10 GB per database; heavy jobs pass budget counters. 128 MB memory; Cron in UTC.
 - Queue messages are at most 128 KB, and `delaySeconds` is at most 24 h. D1 `run_at` owns long schedules.
 
 ## D1

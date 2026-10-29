@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { causeDetail, readErrorDetail } from '../../platform/error-detail';
 import { readCappedText } from '../../platform/http/read-capped-text';
 
 // OpenDota's dotaconstants on GitHub: every hero's base numbers and every item's cost and recipe, rebuilt after each
@@ -17,7 +18,9 @@ export type DotaConstantsErrorCode = 'DOTACONSTANTS_FETCH' | 'DOTACONSTANTS_HTTP
 export class DotaConstantsError extends Error {
   constructor(
     readonly code: DotaConstantsErrorCode,
-    readonly httpStatus: number | null = null
+    readonly httpStatus: number | null = null,
+    /** The provider's own error text, bounded and redacted (`platform/error-detail.ts`). */
+    readonly detail?: string
   ) {
     super(code);
     this.name = 'DotaConstantsError';
@@ -93,10 +96,11 @@ export function createDotaConstantsApi(input: { fetchImpl?: typeof fetch } = {})
       response = await fetchImpl(url, {
         signal: signal ?? AbortSignal.timeout(DOTACONSTANTS_TIMEOUT_MS)
       });
-    } catch {
-      throw new DotaConstantsError('DOTACONSTANTS_FETCH');
+    } catch (error) {
+      throw new DotaConstantsError('DOTACONSTANTS_FETCH', null, causeDetail(error));
     }
-    if (!response.ok) throw new DotaConstantsError('DOTACONSTANTS_HTTP', response.status);
+    if (!response.ok)
+      throw new DotaConstantsError('DOTACONSTANTS_HTTP', response.status, await readErrorDetail(response));
     const text = await readCappedText(response, MAX_BODY_BYTES);
     if (text === null) throw new DotaConstantsError('DOTACONSTANTS_SHAPE');
     let body: unknown;
