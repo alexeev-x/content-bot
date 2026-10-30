@@ -43,7 +43,8 @@ export interface AbilityDetail {
   isUltimate: boolean;
   cooldowns: number[];
   manaCosts: number[];
-  values: { heading: string; values: number[] }[];
+  /** `name` is Valve's value name (`damage`), `heading` its Russian label. */
+  values: { name: string; heading: string; values: number[] }[];
 }
 
 /** A talent as Valve's text has it, `{s:bonus_radius}` placeholders unfilled; `bonuses` hold what it adds, by value name. */
@@ -173,6 +174,8 @@ export interface FallbackStatsSource {
 export interface RubricSources {
   heroes(): Promise<HeroInfo[]>;
   items(): Promise<ItemInfo[]>;
+  /** An item's own numbers from Valve by value name, or null when Valve has no such item (`item_blink`). */
+  itemValues(itemKey: string): Promise<{ name: string; values: number[] }[] | null>;
   heroDetail(heroId: number): Promise<HeroDetail>;
   patches(): Promise<{ version: string; timestamp: number }[]>;
   patchNotes(version: string): Promise<PatchNotes>;

@@ -263,6 +263,10 @@ function rubricSources(
   return {
     heroes: () => constants.heroes(),
     items: () => constants.items(),
+    async itemValues(itemKey) {
+      const item = (await datafeed.itemList()).find((each) => each.name === itemKey);
+      return item === undefined ? null : datafeed.itemValues(item.id);
+    },
     async heroDetail(heroId) {
       const hero = await datafeed.hero(heroId);
       return {
@@ -276,7 +280,7 @@ function rubricSources(
           isUltimate: ability.type === 1,
           cooldowns: ability.cooldowns,
           manaCosts: ability.manaCosts,
-          values: ability.values.map((value) => ({ heading: value.heading, values: value.values }))
+          values: ability.values.map((value) => ({ name: value.name, heading: value.heading, values: value.values }))
         })),
         talents: hero.talents.map((talent) => ({
           id: talent.id,

@@ -20,6 +20,10 @@ const itemIds = async () => (await constants.items()).filter((i) => i.cost > 200
 const sources: RubricSources = {
   heroes: () => constants.heroes(),
   items: () => constants.items(),
+  async itemValues(itemKey) {
+    const item = (await datafeed.itemList()).find((each) => each.name === itemKey);
+    return item === undefined ? null : datafeed.itemValues(item.id);
+  },
   async heroDetail(heroId) {
     const hero = await datafeed.hero(heroId);
     return {
@@ -33,7 +37,7 @@ const sources: RubricSources = {
         isUltimate: a.type === 1,
         cooldowns: a.cooldowns,
         manaCosts: a.manaCosts,
-        values: a.values.map((v) => ({ heading: v.heading, values: v.values }))
+        values: a.values.map((v) => ({ name: v.name, heading: v.heading, values: v.values }))
       }))
     };
   },

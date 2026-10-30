@@ -1,4 +1,4 @@
-import { noData, pick, poll, type RubricContext, type RubricSample, shuffled } from './types';
+import { pick, poll, type RubricContext, type RubricSample, shuffled } from './types';
 import { shuffledOrder } from './bank-order';
 import { escapeHtml } from './picture';
 
@@ -4665,25 +4665,6 @@ export async function wouldYouRather(context: RubricContext): Promise<RubricSamp
     noPicture: true,
     ownText: true,
     poll: poll('Что выберешь?', shuffled(chosen, context.random))
-  };
-}
-
-// «Ты на линии»: a carry against an offlaner; the writer sets the lane and stops at one decision.
-export async function onLane(context: RubricContext): Promise<RubricSample> {
-  const heroes = await context.sources.heroes();
-  const carry = pick(
-    heroes.filter((hero) => hero.roles.includes('Carry')),
-    context.random
-  );
-  const offlaner = shuffled(
-    heroes.filter((hero) => hero.id !== carry.id && hero.roles.includes('Durable') && hero.roles.includes('Initiator')),
-    context.random
-  )[0];
-  if (offlaner === undefined) throw noData('offlaners');
-  return {
-    picture: null,
-    text: `Ты — ${carry.localizedName} на лёгкой линии. Против тебя — ${offlaner.localizedName}.`,
-    poll: null
   };
 }
 

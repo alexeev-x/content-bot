@@ -7,7 +7,6 @@ import {
   confess,
   explainDumb,
   itemLeaflet,
-  onLane,
   toxicBingo,
   toxicTranslator,
   trashTier,
@@ -18,6 +17,7 @@ import { whoseAbility } from './game-rubrics';
 import { recruitPicks } from './recruit-picks';
 import { grandpa, nerfOrBuff, patchBroken, valveFixed, valveSeriously, valveTime, whoIsImba } from './patch-rubrics';
 import { heroGuide, notBuiltYet, whoBeatsWhom, whoGetsNerfed } from './stats-rubrics';
+import { onLane } from './on-lane';
 import { suspect } from './suspect';
 import { tierList } from './tier-list';
 import type { RubricContext, RubricSample } from './types';

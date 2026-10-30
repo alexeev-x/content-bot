@@ -198,7 +198,16 @@ const itemDataSchema = z.object({
   result: z.object({
     data: z.object({
       items: z
-        .array(z.object({ id: z.number().int(), item_cost: z.number().int().catch(0) }))
+        .array(
+          z.object({
+            id: z.number().int(),
+            item_cost: z.number().int().catch(0),
+            special_values: z
+              .array(z.object({ name: z.string().max(100).catch(''), values_float: numbers }))
+              .max(60)
+              .catch([])
+          })
+        )
         .min(1)
         .max(1)
     })
@@ -235,6 +244,8 @@ export interface ValveDatafeedApi {
   hero(heroId: number, signal?: AbortSignal): Promise<DatafeedHero>;
   itemList(signal?: AbortSignal): Promise<DatafeedItemSummary[]>;
   itemCost(itemId: number, signal?: AbortSignal): Promise<number>;
+  /** The item's own numbers by Valve's value name (`blink_damage_cooldown`). */
+  itemValues(itemId: number, signal?: AbortSignal): Promise<{ name: string; values: number[] }[]>;
   patchList(signal?: AbortSignal): Promise<{ version: string; timestamp: number }[]>;
   patchNotes(version: string, signal?: AbortSignal): Promise<DatafeedPatchNotes>;
 }
@@ -312,6 +323,13 @@ export function createValveDatafeedApi(input: { fetchImpl?: typeof fetch } = {})
     async itemCost(itemId, signal) {
       const body = await get(`/itemdata?language=russian&item_id=${Math.trunc(itemId)}`, itemDataSchema, signal);
       return body.result.data.items[0]?.item_cost ?? 0;
+    },
+    async itemValues(itemId, signal) {
+      const body = await get(`/itemdata?language=russian&item_id=${Math.trunc(itemId)}`, itemDataSchema, signal);
+      return (body.result.data.items[0]?.special_values ?? []).map((each) => ({
+        name: each.name,
+        values: each.values_float
+      }));
     },
     async patchList(signal) {
       const body = await get('/patchnoteslist?language=russian', patchListSchema, signal);
