@@ -12,10 +12,12 @@ export const SUSPECT_SIZE = { width: 1536, height: 1024 } as const;
 export function suspectPrompt(heroName: string): string {
   return [
     'Image 1 is the scene. Keep it exactly as it is: the concrete wall with the height chart and its numbers, the floor, and the big blank black chalk sign at the bottom centre — its size, position, slight tilt and frame stay exactly as in image 1.',
-    `Image 2 is ${heroName} from Dota 2. Put this exact character behind the sign as a police mugshot: facing the viewer, head and shoulders above the sign against the height chart, a guilty, sullen, angry face looking straight into the camera.`,
-    'He holds the sign with both hands: one hand on its left edge, one on its right edge, the fingers wrapping only over the outer frame. The inside of the sign stays fully visible, black and EMPTY.',
-    "Keep the character's face, design, colours, armour and weapons exactly as in image 2 — do not change the face; only light him like the scene: a hard flat police flash from the front, dark falloff at the sides.",
-    'Write no text, letters, numbers or symbols on the sign or anywhere else; the height chart numbers stay as in image 1.'
+    `Image 2 is ${heroName} from Dota 2. Make a real police mugshot photo of this exact character standing in this room: a close-up, the camera near him, so his head and shoulders are big and fill most of the frame above the sign, the head reaching the 180–200 lines of the height chart, his body wider than the sign, as in a real booking photo. A guilty, sullen, angry face looking straight into the camera.`,
+    'He holds the sign with both hands in front of his chest: one hand on its left edge, one on its right edge, the fingers and thumbs wrapping over the outer frame only. The inside of the sign stays fully visible, black and EMPTY.',
+    "He must look photographed in this room, not pasted in: the same light as the wall — a soft flash from the front, the same dim warm-grey tone, dark vignette and falloff at the sides — the same film grain and softness as the wall, and his real shadow cast on the wall behind him. Match his colours to the scene's muted grade. Keep the character's face, design, colours, armour and weapons exactly as in image 2 — do not change the face.",
+    // The channel's mark lives on the hero himself, as in «Анкета», so a cropped sign still carries it (owner, 30.10.2026).
+    'Write the word «ALEXEEV» exactly once, as a watermark that belongs to the character: on a large, plainly visible part of his outfit above the sign — the chest, a shoulder plate, a strap or the cloak — bold capitals, clearly readable on a phone, shaded and lit like the outfit.',
+    'Add no other text, letters, numbers or symbols, and none on the sign; the height chart numbers stay as in image 1.'
   ].join('\n');
 }
 

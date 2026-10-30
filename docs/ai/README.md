@@ -35,3 +35,9 @@ Owner decision 16.10.2026: the studio controls the AI writer; this folder is its
 One OpenAI key serves production: a trial that empties the balance stops the bot's AI too (29.10.2026: ~384 trial posts ≈ $9).
 Before any run with the AI, tell the owner «≈ N calls ≈ $X». Debug prompts on the cheapest model (`gpt-6-luna`), then judge
 3–5 posts on the production model. About $1 per rubric at most; stop at the first 429.
+
+Trial pictures and texts run LOCALLY, never via a commit or a DEV push (owner 30.10.2026: «мы разрабатывали локально»):
+`npm run dev` (merges the root `.env` into the local Worker), add a temporary unguarded route in `app/create-app.ts`
+(`POST /api/v1/__trial-<name>`, also in `PUBLIC_ROUTES`) that calls the module's prompt and `aiImageProvider.draw`,
+`curl` it from `localhost:5173`, render the result over the page locally and show the owner in Chrome. Remove the route
+before any commit. Commit only after the owner approves the rubric; push to `develop` (DEV) only a big batch of commits.

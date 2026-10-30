@@ -377,7 +377,7 @@
 {"w":["Deafening Blast"],"m":"способность Invoker; игроки говорят: бласт","s":"ability"}
 {"w":["Forge Spirit"],"m":"способность Invoker; игроки говорят: форджи","s":"ability"}
 {"w":["Ice Wall"],"m":"способность Invoker; игроки говорят: стена, айсвол","s":"ability"}
-{"w":["E.M.P."],"m":"способность Invoker; игроки говорят: емп","s":"ability"}
+{"w":["E.M.P."],"m":"способность Invoker; «емп» владелец не принимает (30.10.2026: «никто так не говорит») — не называть, писать через другие способности","s":"ability"}
 {"w":["Shadowraze"],"m":"способность Shadow Fiend; игроки говорят: койлы, рейзы","s":"ability"}
 {"w":["Requiem of Souls"],"m":"способность Shadow Fiend; игроки говорят: реквием","s":"ability"}
 {"w":["Finger of Death"],"m":"способность Lion; игроки говорят: палец, фингер","s":"ability"}
@@ -520,3 +520,6 @@
 {"w":["Drum of Endurance","Барабаны"],"m":"предмет Drum of Endurance","s":"item"}
 {"w":["Boots of Bearing","Бутсы беринга"],"m":"предмет Boots of Bearing","s":"item"}
 {"w":["Maledict"],"m":"способность Witch Doctor; игроки говорят: меледикт","s":"ability"}
+{"w":["Static Storm"],"m":"способность Disruptor; игроки говорят: статик","s":"ability"}
+{"w":["Astral Step"],"m":"способность Void Spirit; игроки говорят: степ","s":"ability"}
+{"w":["Onslaught"],"m":"способность Primal Beast; игроки говорят: разгон","s":"ability"}
