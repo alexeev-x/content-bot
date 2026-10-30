@@ -2,17 +2,16 @@
 
 Shared Claude Code/Codex rules. Talk Russian; code, identifiers, docs, commits and branches English.
 
-**Status:** in development, not in production. Old plan removed 14.10.2026, a new one is being written. Judge what works from code and tests; never describe planned parts as working.
+**Status:** in development, not in production. Plan: `docs/scheduler/MASTER-PLAN.md`. Judge what works from code and tests; never describe planned parts as working.
 
-## Rule #1: save tokens (owner's top priority, above everything below)
-- Every action costs the owner money. Before any step ask: is this the cheapest way? Do small work yourself; no agent for what a few tool calls do.
-- Agents and workflows only when the owner asks or work is truly parallel. Before launching, tell the owner how many agents and a rough cost. Every brief caps reading (named files, line ranges) and output (≤ 150 lines; reports ≤ 20). Never fan out planners without limits (30.10.2026: ~2M tokens burned on one plan).
-- Write tersely: no preamble, no restating the task, no recap of a visible diff.
-- Read line ranges, not whole files; pipe noisy commands through `tail`/`grep`.
-- Images cost ~`⌈w/28⌉×⌈h/28⌉` tokens: view one contact sheet (long edge ≤ 1100 px), only what you compare; ≤ 2 fix rounds.
-- One task per session; never resume a finished subagent (start fresh with a ≤ 40-line packet and a path to `.logs/handoff/<task>.md`).
-- Don't edit instructions, skills, hooks or settings mid-task unless that is the task (it breaks the prompt cache).
-- While the owner is planning, do only what is asked: answers go into the plan, no code until «делай».
+## Rule #1: save tokens — cheapest way first
+- Agents only on the owner's ask or truly parallel work; say count and cost first; cap each brief's reading and output (≤ 150 lines).
+- Terse: no preamble, no restating the task or a visible diff.
+- `rg`, line ranges, not whole files; noisy output through `tail`/`grep`.
+- Images cost ~`⌈w/28⌉×⌈h/28⌉` tokens: one contact sheet (≤ 1100 px), ≤ 2 fix rounds.
+- One task per session; never resume a finished subagent (fresh ≤ 40-line packet).
+- Don't edit instructions, skills, hooks or settings mid-task (prompt cache).
+- While planning, answers go into the plan; no code until «делай».
 
 ## Layout
 - `apps/frontend/` (React SPA), `apps/backend/` (Hono Worker, D1), `apps/contracts/` (shared Zod DTOs); each has its own `AGENTS.md`.
@@ -41,7 +40,7 @@ Edit a fact at its source; elsewhere only link to it.
 | a page, its states, accessibility | skills `page-spec`, `ui-patterns`, `react-aria` |
 | tokens, primitives, look and feel | skill `visual-design`; browser check: skill `visual-check` |
 
-Search with `rg`; read only needed lines. `npm run verify` prints failures; open `.logs/verify.log` if needed.
+`npm run verify` prints failures; open `.logs/verify.log` if needed.
 
 ## Working with the owner
 - The main session does the work itself. Delegate only per skill `orchestrate` (parallel independent areas, noisy research, R3 review). The owner never types a command.
