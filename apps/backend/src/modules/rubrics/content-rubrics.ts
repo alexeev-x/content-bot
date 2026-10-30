@@ -1,6 +1,6 @@
 import { escapeHtml, itemImage, PICTURE_SIZE, picturePage } from './picture';
 import { LEAK_EGGS } from './leak-eggs';
-import { noData, pick, plural, poll, quiz, type RubricContext, type RubricSample, shuffled, withJoke } from './types';
+import { noData, pick, plural, poll, type RubricContext, type RubricSample, shuffled, withJoke } from './types';
 
 // Rubrics over what Valve and the community put out (game files, announcements, the Workshop) and the fun ones whose
 // material will come from banks the owner approves; the samples carry a few examples of such a bank.
@@ -438,42 +438,6 @@ const workshopVerdict = (title: string, random: () => number) => {
   const own = HERO_VERDICTS.find((each) => each.hero.test(title.trim()));
   return own !== undefined && random() < 0.5 ? own.verdict : pick(WORKSHOP_VERDICTS, random);
 };
-
-// Twemoji, an open emoji set; a rebus is pictures only, the answer is in the quiz.
-const TWEMOJI = 'https://cdn.jsdelivr.net/gh/jdecked/twemoji@15.1.0/assets/svg';
-const REBUSES = [
-  { answer: 'Crystal Maiden', emoji: ['1f9ca', '1f478'] },
-  { answer: 'Monkey King', emoji: ['1f412', '1f451'] },
-  { answer: 'Wraith King', emoji: ['1f480', '1f451'] },
-  { answer: 'Dragon Knight', emoji: ['1f409', '1f6e1'] },
-  { answer: 'Phantom Assassin', emoji: ['1f47b', '1f5e1'] },
-  { answer: 'Storm Spirit', emoji: ['26c8', '1f47b'] }
-];
-
-export async function rebus(context: RubricContext): Promise<RubricSample> {
-  const heroes = await context.sources.heroes();
-  const chosen = pick(REBUSES, context.random);
-  const others = shuffled(
-    heroes.filter((hero) => hero.localizedName !== chosen.answer),
-    context.random
-  ).slice(0, 3);
-  const options = shuffled([chosen.answer, ...others.map((hero) => hero.localizedName)], context.random);
-  const icons = chosen.emoji
-    .map((code) => `<img class="emoji" src="${TWEMOJI}/${code}.svg" alt="">`)
-    .join('<div class="plus">+</div>');
-  const html = picturePage(
-    `<div class="title"><b>Ребус</b></div><div class="row">${icons}<div class="plus">=</div><div class="q">?</div></div>`,
-    `.row{display:flex;align-items:center;gap:36px;margin-top:56px}
-.emoji{width:260px;height:260px}
-.plus{font-weight:900;font-size:96px;color:var(--muted)}
-.q{font-weight:900;font-size:200px;color:var(--red)}`
-  );
-  return {
-    picture: { html, ...PICTURE_SIZE },
-    text: 'Ребус: какой это герой?',
-    poll: quiz('Какой это герой?', options, options.indexOf(chosen.answer), `${chosen.answer}.`)
-  };
-}
 
 const FAKE_NAMES = ['Тапок Рошана', 'Сапоги токсика', 'Кольцо вечного фида', 'Посох мута', 'Шемелис'];
 const FAKE_STATS = [
