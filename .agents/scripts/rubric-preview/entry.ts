@@ -24,6 +24,9 @@ const sources: RubricSources = {
     const item = (await datafeed.itemList()).find((each) => each.name === itemKey);
     return item === undefined ? null : datafeed.itemValues(item.id);
   },
+  async itemNames() {
+    return new Map((await datafeed.itemList()).map((item) => [item.name, item.nameLoc]));
+  },
   async heroDetail(heroId) {
     const hero = await datafeed.hero(heroId);
     return {

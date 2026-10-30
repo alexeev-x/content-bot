@@ -1,4 +1,4 @@
-// GENERATED from design-refs/rubrics/33-fake_item/icons-jpg (the owner's ChatGPT icons for «Предмет, которого нет», 30.10.2026), 768 px JPEGs — do not edit.
+// GENERATED from design-refs/rubrics/28-fake_item/icons-jpg (the owner's ChatGPT icons for «Предмет, которого нет», 30.10.2026), 768 px JPEGs — do not edit.
 // Loaded lazily by fake-item.ts so a cold start does not parse them.
 
 export const FAKE_ITEM_ICONS: Record<string, string> = {

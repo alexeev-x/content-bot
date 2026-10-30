@@ -6,7 +6,7 @@ import { z } from 'zod';
  * the poll — and sends it to the owner's chat with the bot only, never to a channel.
  * Errors: VALIDATION_ERROR 400, UNAUTHORIZED 401, NOT_FOUND 404 in a production build (the route is not there),
  * RATE_LIMIT 429, UNAVAILABLE 503 (the bot, the owner's chat, the browser, a data source; STATS_NOT_CONFIGURED until
- * STRATZ_TOKEN is set, NOT_BUILT_YET for a rubric that needs more STRATZ data).
+ * STRATZ_TOKEN is set).
  */
 export const rubricSampleKeySchema = z.enum([
   'patch_broken',
@@ -21,7 +21,6 @@ export const rubricSampleKeySchema = z.enum([
   'who_beats_whom',
   'workshop_set',
   'hero_guide',
-  'what_if',
   'confess',
   'explain_dumb',
   'toxic_translator',
@@ -38,7 +37,8 @@ export const rubricSampleKeySchema = z.enum([
   'rebus',
   'toxic_bingo',
   'fake_item',
-  'confessional'
+  'shame_of_day',
+  'quote_of_day'
 ]);
 export type RubricSampleKey = z.infer<typeof rubricSampleKeySchema>;
 export const sendRubricSampleInputSchema = z.strictObject({ rubric: rubricSampleKeySchema });

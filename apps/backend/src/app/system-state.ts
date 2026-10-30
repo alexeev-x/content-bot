@@ -27,6 +27,9 @@ export interface SystemStateStore {
   /** The horoscope's fortune-tellers since the round began (owner, 28.10.2026: nobody twice before everyone). */
   readHoroscopeTellers(): Promise<number[]>;
   rememberHoroscopeTellers(heroIds: number[], now: number): Promise<void>;
+  /** The heroes of the last «Пидорок дня» winners, oldest first (owner, 30.10.2026: no hero again within three). */
+  readShameHeroes(): Promise<number[]>;
+  rememberShameHero(heroId: number, now: number): Promise<void>;
   /** One atomic step of a named counter (a rubric's turn of looks); the first call gives 0. */
   nextTurn(name: string, now: number): Promise<number>;
 }
@@ -38,6 +41,8 @@ const COVER_THEME_KEY = 'patch_cover_theme';
 const TELLERS_KEY = 'horoscope_tellers';
 // Hero ids are three digits at most; 200 of them stay well inside the column's 1024 characters.
 const tellersSchema = z.object({ ids: z.array(z.number().int().min(1).max(999)).max(200) });
+const SHAME_HEROES_KEY = 'shame_heroes';
+const SHAME_HEROES_KEPT = 3;
 const coverThemeSchema = z.object({ theme: z.string().min(1).max(40) });
 
 const cronValueSchema = z.object({
@@ -154,6 +159,27 @@ export function createD1SystemState(db: D1Database): SystemStateStore {
            ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
         )
         .bind(TELLERS_KEY, JSON.stringify({ ids }), now)
+        .run();
+    },
+
+    async readShameHeroes() {
+      const row = await read(SHAME_HEROES_KEY);
+      if (row === null) return [];
+      const value = tellersSchema.safeParse(parseJson(row.value));
+      return value.success ? value.data.ids.slice(-SHAME_HEROES_KEPT) : [];
+    },
+
+    async rememberShameHero(heroId, now) {
+      const row = await read(SHAME_HEROES_KEY);
+      const stored = row === null ? null : tellersSchema.safeParse(parseJson(row.value));
+      const kept = (stored?.success ? stored.data.ids : []).filter((id) => id !== heroId);
+      const ids = tellersSchema.shape.ids.parse([...kept, heroId].slice(-SHAME_HEROES_KEPT));
+      await db
+        .prepare(
+          `INSERT INTO system_state (key, value, updated_at) VALUES (?1, ?2, ?3)
+           ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at`
+        )
+        .bind(SHAME_HEROES_KEY, JSON.stringify({ ids }), now)
         .run();
     },
 

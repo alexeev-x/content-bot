@@ -3,20 +3,14 @@ import { forgottenHero } from './forgotten-hero';
 import { horoscope } from './horoscope';
 import { filesDontLie, rateIt, workshopSet } from './content-rubrics';
 import { fakeItem } from './fake-item';
+import { shameOfDay } from './shame-of-day';
+import { quoteOfDay } from './quote-of-day';
 import { rebus } from './rebus';
-import {
-  abilityInLife,
-  confess,
-  explainDumb,
-  itemLeaflet,
-  toxicTranslator,
-  whatIf,
-  wouldYouRather
-} from './fun-rubrics';
+import { abilityInLife, confess, explainDumb, itemLeaflet, toxicTranslator, wouldYouRather } from './fun-rubrics';
 import { whoseAbility } from './game-rubrics';
 import { recruitPicks } from './recruit-picks';
 import { nerfOrBuff, patchBroken, valveSeriously, valveTime, whoIsImba } from './patch-rubrics';
-import { heroGuide, notBuiltYet, whoBeatsWhom, whoGetsNerfed } from './stats-rubrics';
+import { heroGuide, whoBeatsWhom, whoGetsNerfed } from './stats-rubrics';
 import { onLane } from './on-lane';
 import { suspect } from './suspect';
 import { tierList } from './tier-list';
@@ -40,7 +34,6 @@ export const RUBRIC_KEYS = [
   'who_beats_whom',
   'workshop_set',
   'hero_guide',
-  'what_if',
   'confess',
   'explain_dumb',
   'toxic_translator',
@@ -57,7 +50,8 @@ export const RUBRIC_KEYS = [
   'rebus',
   'toxic_bingo',
   'fake_item',
-  'confessional'
+  'shame_of_day',
+  'quote_of_day'
 ] as const;
 export type RubricKey = (typeof RUBRIC_KEYS)[number];
 
@@ -75,7 +69,6 @@ export const RUBRIC_TITLES: Record<RubricKey, string> = {
   who_beats_whom: 'Кто кого перебьёт?',
   workshop_set: 'Сеты из мастерской',
   hero_guide: 'Гайд на героя',
-  what_if: 'Что если…',
   confess: 'Признавайтесь',
   explain_dumb: 'Объясни как дебилу',
   toxic_translator: 'Переводчик с токсичного',
@@ -92,7 +85,8 @@ export const RUBRIC_TITLES: Record<RubricKey, string> = {
   rebus: 'Ребус',
   toxic_bingo: 'Токсик-бинго',
   fake_item: 'Предмет, которого нет',
-  confessional: 'Исповедальня'
+  shame_of_day: 'Пидорок дня',
+  quote_of_day: 'Цитата дня'
 };
 
 const BUILDERS: Record<RubricKey, (context: RubricContext) => Promise<RubricSample>> = {
@@ -108,7 +102,6 @@ const BUILDERS: Record<RubricKey, (context: RubricContext) => Promise<RubricSamp
   who_beats_whom: whoBeatsWhom,
   workshop_set: workshopSet,
   hero_guide: heroGuide,
-  what_if: whatIf,
   confess,
   explain_dumb: explainDumb,
   toxic_translator: toxicTranslator,
@@ -125,8 +118,8 @@ const BUILDERS: Record<RubricKey, (context: RubricContext) => Promise<RubricSamp
   rebus,
   toxic_bingo: toxicBingo,
   fake_item: fakeItem,
-  // Subscribers' confessions come through the channel's direct messages, which the bot does not read yet.
-  confessional: () => notBuiltYet('subscribers’ confessions via the channel’s direct messages')
+  shame_of_day: shameOfDay,
+  quote_of_day: quoteOfDay
 };
 
 export function buildRubricSample(key: RubricKey, context: RubricContext): Promise<RubricSample> {

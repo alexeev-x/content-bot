@@ -11,6 +11,7 @@ export {
   type Span,
   type StatsRow
 } from './d1-hero-stats';
+export { type PositionMedians, type WorstGame, type WorstGames } from './worst-games';
 export {
   keepMatch,
   MIN_BRACKET,

@@ -1,4 +1,3 @@
-import { AppError } from '../../shared/app-error';
 import {
   BUILD_SAMPLE_MIN,
   fallbackPurchases,
@@ -481,13 +480,6 @@ function mainPositions(rows: PositionRow[]): Map<number, { position: number; sha
     if (top !== undefined && total > 0) main.set(heroId, { position: top.position, share: top.matches / total, total });
   }
   return main;
-}
-
-/** Rubrics that still lack a data source. */
-export function notBuiltYet(what: string): Promise<RubricSample> {
-  return Promise.reject(
-    new AppError('UNAVAILABLE', `The rubric has no data source yet: ${what}`, { reason: 'NOT_BUILT_YET' })
-  );
 }
 
 // «Кого понерфят?» (owner, 27.10.2026: «эти герои слишком сильные — понерфят ли, или Valve вообще похуй»): a bet on the

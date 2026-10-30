@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { readWorstGames, type WorstGames } from './worst-games';
 import type { PlayerDetail, StatsMatchRow, StatsPlayerRow } from './domain';
 
 // The statistics database (`STATS_DB`, migrations-stats/0001). Every claim is conditional, so overlapping Cron runs
@@ -148,6 +149,8 @@ export interface HeroStatsRepository {
   snapshot(patch: number, heroId: number, position: number, band: Band, span: Span): Promise<SnapshotRow | null>;
   /** The newest rows of a hero at a position since `since` in a band (the guide's sample and rates). */
   rows(heroId: number, position: number, since: number, band: Band, limit: number): Promise<StatsRow[]>;
+  /** Lost games of `[since, until)` with the most deaths, without any account or match id (see worst-games.ts). */
+  worstGames(since: number, until: number, limit: number, wide?: boolean): Promise<WorstGames>;
 }
 
 const detailSchema = z.object({
@@ -715,7 +718,8 @@ export function createD1HeroStats(db: D1Database): HeroStatsRepository {
         .bind(heroId, position, since, Math.min(limit, GAMES_MAX))
         .all<RawRow>();
       return rows.results.flatMap((row) => toRow(row) ?? []);
-    }
+    },
+    worstGames: (since, until, limit, wide) => readWorstGames(db, since, until, limit, wide)
   };
 }
 

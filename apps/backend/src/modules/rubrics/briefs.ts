@@ -77,11 +77,6 @@ const HERO_GUIDE = [
   'Предметы, таланты и прокачку не перечисляй: они на картинке. Концовка — без вопроса.'
 ].join('\n');
 
-const WHAT_IF = [
-  'Напиши короткую смешную сценку на 3–5 строк: герой на этой работе, и его способности и привычки из игры работают в обычной жизни (как Пудж разделывает туши хуком).',
-  'Способности называй так, как их знают игроки; ничего не выдумывай про героя. Без вопроса в конце.'
-].join('\n');
-
 export const RUBRIC_BRIEFS: Record<RubricKey, string> = {
   patch_broken: STANDARD,
   who_is_imba: WHO_IS_IMBA,
@@ -95,7 +90,6 @@ export const RUBRIC_BRIEFS: Record<RubricKey, string> = {
   who_beats_whom: STANDARD,
   workshop_set: WORKSHOP_SET,
   hero_guide: HERO_GUIDE,
-  what_if: WHAT_IF,
   // Final as written (ownText): the writer never sees it.
   confess: STANDARD,
   explain_dumb: STANDARD,
@@ -116,5 +110,7 @@ export const RUBRIC_BRIEFS: Record<RubricKey, string> = {
   // Final as written (ownText).
   toxic_bingo: STANDARD,
   fake_item: STANDARD,
-  confessional: STANDARD
+  // Final as written (ownText).
+  shame_of_day: STANDARD,
+  quote_of_day: STANDARD
 };

@@ -5,32 +5,37 @@ import { Button } from '../../../shared/ui';
 import { useSendRubricSample } from '../api/rubric-samples-api';
 import styles from './RubricSamples.module.css';
 
-type Need = 'ready' | 'stratz' | 'later';
-// Rubrics the owner approved leave the list (owner, 26.10.2026: «убирай те рубрики, которые мы утвердили»):
-// 1 «Кого понерфили», 2 «Кто теперь имба?», 3 «Нерф или баф?», 4 «Чья способность?», 5 «Утечка недели»; 6–10
-// «Кого понерфят?», «Valve, ты серьёзно?», «Валв-тайм», «Оцениваем», «Кто кого перебьёт?» (27.10.2026); 11 «Сеты из
-// мастерской», 12 «Гайд на героя», 14 «Признавайтесь», 15 «Объясни как дебилу», 16 «Переводчик с токсичного», 18
-// «Способность в жизнь», 19 «Анкета», 20 «Инструкция по
-// применению», 24 «Гороскоп» (28.10.2026); 21 «Тир-лист», 22 «Что брать рекруту» (29.10.2026).
+type Need = 'ready' | 'stratz' | 'stats' | 'later';
+// Rubrics the owner approved leave the list (owner, 26.10.2026: «убирай те рубрики, которые мы утвердили»); numbered
+// 1–30 in the order of RUBRIC_KEYS (renumbered 30.10.2026). Approved and gone from here: 1–20, 22.
 const RUBRICS: { key: RubricSampleKey; label: string; note: string; need: Need }[] = [
-  { key: 'forgotten_hero', label: '23. Забытый герой', note: 'картинка ИИ + текст', need: 'stratz' },
-  { key: 'hero_trial', label: '25. Подозреваемый', note: 'картинка ИИ + опрос «Приговор»', need: 'ready' },
-  { key: 'would_you_rather', label: '26. Что выберешь?', note: 'опрос: два наказания и выход', need: 'ready' },
-  { key: 'on_lane', label: '27. Ты на линии', note: 'викторина, цифры из данных Valve', need: 'ready' },
-  { key: 'rebus', label: '30. Ребус', note: 'викторина-ребус 18+', need: 'ready' },
-  { key: 'toxic_bingo', label: '31. Токсик-бинго', note: 'бинго 5×5 / тир-лист хуйни по очереди', need: 'ready' },
-  { key: 'fake_item', label: '33. Предмет, которого нет', note: 'подсказка предмета + своя иконка', need: 'ready' },
-  { key: 'confessional', label: '34. Исповедальня', note: 'признания подписчиков в личке канала', need: 'later' },
-  { key: 'what_if', label: '35. Что если…', note: 'сценка, картинка ИИ', need: 'ready' }
+  { key: 'forgotten_hero', label: '21. Забытый герой', note: 'картинка ИИ + текст', need: 'stratz' },
+  { key: 'hero_trial', label: '23. Подозреваемый', note: 'картинка ИИ + опрос «Приговор»', need: 'ready' },
+  { key: 'would_you_rather', label: '24. Что выберешь?', note: 'опрос: два наказания и выход', need: 'ready' },
+  { key: 'on_lane', label: '25. Ты на линии', note: 'викторина, цифры из данных Valve', need: 'ready' },
+  { key: 'rebus', label: '26. Ребус', note: 'викторина-ребус 18+', need: 'ready' },
+  { key: 'toxic_bingo', label: '27. Токсик-бинго', note: 'бинго 5×5 / тир-лист хуйни по очереди', need: 'ready' },
+  { key: 'fake_item', label: '28. Предмет, которого нет', note: 'подсказка предмета + своя иконка', need: 'ready' },
+  {
+    key: 'shame_of_day',
+    label: '29. Пидорок дня — худшая игра вчера из базы',
+    note: 'картинка с героем + текст, счёт или сборка по очереди',
+    need: 'stats'
+  },
+  { key: 'quote_of_day', label: '30. Цитата дня', note: 'цитата Стетхема про Доту, только текст', need: 'ready' }
 ];
-const NEED_NOTE: Record<Need, string> = { ready: '', stratz: ' · STRATZ', later: ' · пока не готово' };
+const NEED_NOTE: Record<Need, string> = {
+  ready: '',
+  stratz: ' · STRATZ',
+  stats: ' · база статистики (только прод)',
+  later: ' · пока не готово'
+};
 
 const REASONS: Record<string, string> = {
   BOT_NOT_CONFIGURED: 'Бот не подключён.',
   BROWSER_NOT_BOUND: 'Browser Rendering не подключён к этому серверу.',
   BROWSER_RATE: 'Бесплатный тариф рисует одну картинку в 10 секунд — подождите и нажмите снова.',
   STATS_NOT_CONFIGURED: 'Нужны ключ STRATZ и мост статистики (STATS_BRIDGE_URL).',
-  NOT_BUILT_YET: 'Для этой рубрики ещё нет источника данных.',
   GITHUB_NOT_CONFIGURED: 'Нужен GITHUB_TOKEN для файлов игры.'
 };
 

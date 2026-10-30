@@ -12,6 +12,7 @@ export type {
   ItemInfo,
   PatchNotes,
   PrimaryAttr,
+  ShameGame,
   RubricSample,
   RubricSources,
   StatsSource

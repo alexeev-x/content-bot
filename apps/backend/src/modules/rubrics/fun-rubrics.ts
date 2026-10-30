@@ -6,28 +6,6 @@ import { escapeHtml } from './picture';
 // ability or an item from live data plus a line from a small bank, and the AI writer makes the joke. The facts go to
 // `reference`, not the draft: the writer must keep every number of a draft, and a joke post needs none of them.
 
-// «Что если…»: a hero in an ordinary job; the line completes «Что если бы <hero> …».
-const WHAT_IF_SCENES = [
-  'работал мясником на рынке',
-  'показывал фокусы в электричке',
-  'был сапёром в ЖЭКе',
-  'продавал мороженое на пляже',
-  'таксовал по ночам',
-  'работал охранником в Пятёрочке',
-  'вёл физру в школе',
-  'развозил еду курьером',
-  'был вахтёром в общаге'
-] as const;
-
-export async function whatIf(context: RubricContext): Promise<RubricSample> {
-  const hero = pick(await context.sources.heroes(), context.random);
-  return {
-    picture: null,
-    text: `Что если бы ${hero.localizedName} ${pick(WHAT_IF_SCENES, context.random)}?`,
-    poll: null
-  };
-}
-
 // «Признавайтесь» (owner, 28.10.2026): a bold setup and two answers as reactions, final as written; the joke is always
 // the second answer, on 🤣 (😂 is not a Telegram reaction). The bank of 100 the owner approved on 29.10.2026; no «кто
 // помнит» — the author has played a year.

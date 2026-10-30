@@ -235,7 +235,8 @@ function heroMatchSource(container: Container): HeroMatchSource | null {
         // The base keeps the order the points were spent in: level n is the n-th point.
         abilities: row.detail.s.map((abilityId, index) => ({ abilityId, time: index, level: index + 1 }))
       }));
-    }
+    },
+    worstGames: (sinceMs, untilMs, limit, wide) => repo.worstGames(sinceMs, untilMs, limit, wide)
   };
 }
 
@@ -266,6 +267,9 @@ function rubricSources(
     async itemValues(itemKey) {
       const item = (await datafeed.itemList()).find((each) => each.name === itemKey);
       return item === undefined ? null : datafeed.itemValues(item.id);
+    },
+    async itemNames() {
+      return new Map((await datafeed.itemList()).map((item) => [item.name, item.nameLoc]));
     },
     async heroDetail(heroId) {
       const hero = await datafeed.hero(heroId);
@@ -400,6 +404,8 @@ export type RubricSampleDeps = {
   heroMatches: HeroMatchSource | null;
   /** The horoscope's round of fortune-tellers. */
   tellers: { used(): Promise<number[]>; remember(heroIds: number[]): Promise<void> } | null;
+  /** The heroes of the last «Пидорок дня» winners. */
+  shameHeroes: { used(): Promise<number[]>; remember(heroId: number): Promise<void> } | null;
   /** A rubric's counter of turns. */
   turns: { next(name: string): Promise<number> } | null;
   renderer: PictureRenderer | null;
@@ -462,6 +468,7 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
         ...rubricSources(deps.gameFinds, deps.stratzAccess),
         heroMatches: deps.heroMatches,
         tellers: deps.tellers,
+        shameHeroes: deps.shameHeroes,
         turns: deps.turns
       },
       random: deps.random,
@@ -832,6 +839,10 @@ export async function runRubricSampleJob(
         tellers: {
           used: () => container.systemState.readHoroscopeTellers(),
           remember: (heroIds) => container.systemState.rememberHoroscopeTellers(heroIds, container.clock.now())
+        },
+        shameHeroes: {
+          used: () => container.systemState.readShameHeroes(),
+          remember: (heroId) => container.systemState.rememberShameHero(heroId, container.clock.now())
         },
         turns: { next: (name) => container.systemState.nextTurn(name, container.clock.now()) },
         renderer: access.renderer,

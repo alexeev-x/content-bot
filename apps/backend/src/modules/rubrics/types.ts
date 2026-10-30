@@ -176,6 +176,8 @@ export interface RubricSources {
   items(): Promise<ItemInfo[]>;
   /** An item's own numbers from Valve by value name, or null when Valve has no such item (`item_blink`). */
   itemValues(itemKey: string): Promise<{ name: string; values: number[] }[] | null>;
+  /** Valve's Russian item names keyed by `item_<key>`; absent in tests (the key shows instead). */
+  itemNames?(): Promise<Map<string, string>>;
   heroDetail(heroId: number): Promise<HeroDetail>;
   patches(): Promise<{ version: string; timestamp: number }[]>;
   patchNotes(version: string): Promise<PatchNotes>;
@@ -206,6 +208,8 @@ export interface RubricSources {
   heroMatches?: HeroMatchSource | null;
   /** The horoscope's fortune-tellers so far this round; absent outside the Worker (any hero may come then). */
   tellers?: { used(): Promise<number[]>; remember(heroIds: number[]): Promise<void> } | null;
+  /** The heroes of the last «Пидорок дня» winners (the next winner's hero differs); absent: any hero may come. */
+  shameHeroes?: { used(): Promise<number[]>; remember(heroId: number): Promise<void> } | null;
   /** A rubric's own counter of turns (0, 1, 2…), kept between posts; absent outside the Worker. */
   turns?: { next(name: string): Promise<number> } | null;
 }
@@ -216,6 +220,43 @@ export interface HeroMatchSource {
   games(heroId: number, position: number): Promise<{ won: boolean; minutes: number; enemies: number[] }[]>;
   /** The newest `limit` games of the hero at the position as guide matches (purchases, skills, items). */
   sample(heroId: number, position: number, limit: number): Promise<GuideMatch[]>;
+  /**
+   * Yesterday's worst lost games of players nobody follows (`[sinceMs, untilMs)`, the deadliest `limit`), the day's
+   * match count and per-position medians. It never carries a player's account, a match id or a time (owner, 30.10.2026).
+   */
+  worstGames(
+    sinceMs: number,
+    untilMs: number,
+    limit: number,
+    wide?: boolean
+  ): Promise<{
+    dayMatches: number;
+    games: ShameGame[];
+    medians: { position: number; deaths: number; kills: number; assists: number; nw20: number | null }[];
+  }>;
+}
+
+/** One lost game as «Пидорок дня» scores it: the hero, the position and the numbers, nobody's identity. */
+export interface ShameGame {
+  heroId: number;
+  position: number;
+  minutes: number;
+  kills: number;
+  deaths: number;
+  assists: number;
+  damage: number | null;
+  nw20: number | null;
+  lane: -1 | 0 | 1 | null;
+  /** [item id, minute]. */
+  purchases: [number, number][];
+  /** Final items (item ids). */
+  items: number[];
+  /** The neutral item (id), when the player had one. */
+  neutral: number | null;
+  /** The four team-mates' net worth at 20 minutes. */
+  allyNw20: { position: number; nw20: number }[];
+  /** Damage of all ten players, the player's own included. */
+  damages: number[];
 }
 export interface RubricSample {
   picture: { html: string; width: number; height: number } | null;
