@@ -1,7 +1,8 @@
 import { heroProfile } from './anketa';
 import { forgottenHero } from './forgotten-hero';
 import { horoscope } from './horoscope';
-import { fakeItem, filesDontLie, rateIt, workshopSet } from './content-rubrics';
+import { filesDontLie, rateIt, workshopSet } from './content-rubrics';
+import { fakeItem } from './fake-item';
 import { rebus } from './rebus';
 import {
   abilityInLife,

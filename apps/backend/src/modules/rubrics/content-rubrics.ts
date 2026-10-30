@@ -1,4 +1,4 @@
-import { escapeHtml, itemImage, PICTURE_SIZE, picturePage } from './picture';
+import { escapeHtml, PICTURE_SIZE, picturePage } from './picture';
 import { LEAK_EGGS } from './leak-eggs';
 import { noData, pick, plural, poll, type RubricContext, type RubricSample, shuffled, withJoke } from './types';
 
@@ -438,39 +438,3 @@ const workshopVerdict = (title: string, random: () => number) => {
   const own = HERO_VERDICTS.find((each) => each.hero.test(title.trim()));
   return own !== undefined && random() < 0.5 ? own.verdict : pick(WORKSHOP_VERDICTS, random);
 };
-
-const FAKE_NAMES = ['Тапок Рошана', 'Сапоги токсика', 'Кольцо вечного фида', 'Посох мута', 'Шемелис'];
-const FAKE_STATS = [
-  '+300 к удаче',
-  '−50 к совести',
-  '+1 к мату в чате',
-  '−100% к желанию ставить варды',
-  '+25 к скорости ливания',
-  'Пассивно: репорт отскакивает в отправителя'
-];
-
-export async function fakeItem(context: RubricContext): Promise<RubricSample> {
-  const items = await context.sources.items();
-  const looks = pick(
-    items.filter((item) => item.cost >= 2000),
-    context.random
-  );
-  const name = pick(FAKE_NAMES, context.random);
-  const stats = shuffled(FAKE_STATS, context.random).slice(0, 3);
-  const html = picturePage(
-    `<div class="title">Шемелис <b>недели</b></div>
-<div class="card"><img class="item big" src="${itemImage(looks.key)}" alt=""><div class="facts"><div class="name">${escapeHtml(name)}</div>
-${stats.map((stat) => `<div class="stat">${escapeHtml(stat)}</div>`).join('')}<div class="fake">выдумка</div></div></div>`,
-    `.card{display:flex;align-items:center;gap:48px;margin-top:48px;padding:32px 48px;border:1px solid var(--line);border-radius:18px;background:rgba(0,0,0,.35)}
-.item.big{width:264px;height:192px;border-radius:12px}
-.facts{display:flex;flex-direction:column;gap:10px}
-.name{font-weight:900;font-size:52px;color:var(--red)}
-.stat{font-weight:600;font-size:30px}
-.fake{margin-top:8px;align-self:flex-start;font-weight:800;font-size:22px;letter-spacing:2px;text-transform:uppercase;color:#fff;background:var(--red);padding:4px 12px;border-radius:8px}`
-  );
-  return {
-    picture: { html, ...PICTURE_SIZE },
-    text: `Шемелис недели: «${name}» — ${stats.join(', ')}.\nПредмета нет, это шутка. Собрали бы? 🔥 или 💩`,
-    poll: null
-  };
-}
