@@ -660,20 +660,6 @@ export async function valveTime(context: RubricContext): Promise<RubricSample> {
   };
 }
 
-// «Дед» (owner, 27.10.2026): one real change of the latest patch, grumbled about by an old man «а вот в наше время».
-export async function grandpa(context: RubricContext): Promise<RubricSample> {
-  const patch = await latestPatch(context);
-  const change = pick(patch.changes, context.random);
-  const hero = patch.byId.get(change.heroId)?.localizedName ?? 'Герой';
-  return {
-    picture: null,
-    text: `${hero} в новом патче. Дед недоволен.`,
-    // The note's numbers are background: the grumble need not repeat them all.
-    reference: `Патч ${patch.version}, ${hero}: ${change.note}`,
-    poll: null
-  };
-}
-
 // «Valve исправила» (owner, 27.10.2026): one real note of the latest patch, then what «the fix» led to; the joke is in
 // the escalation, the note itself stays true.
 export async function valveFixed(context: RubricContext): Promise<RubricSample> {

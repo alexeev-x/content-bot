@@ -35,7 +35,6 @@ export const rubricSampleKeySchema = z.enum([
   'hero_trial',
   'would_you_rather',
   'on_lane',
-  'grandpa',
   'valve_fixed',
   'rebus',
   'toxic_bingo',
