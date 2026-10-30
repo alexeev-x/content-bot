@@ -8,9 +8,7 @@ import {
   confess,
   explainDumb,
   itemLeaflet,
-  toxicBingo,
   toxicTranslator,
-  trashTier,
   whatIf,
   wouldYouRather
 } from './fun-rubrics';
@@ -21,6 +19,7 @@ import { heroGuide, notBuiltYet, whoBeatsWhom, whoGetsNerfed } from './stats-rub
 import { onLane } from './on-lane';
 import { suspect } from './suspect';
 import { tierList } from './tier-list';
+import { toxicBingo } from './toxic-bingo';
 import type { RubricContext, RubricSample } from './types';
 
 // The channel's rubrics, each built from live data the way the channel would show it: 01–10 approved by the owner, the
@@ -56,7 +55,6 @@ export const RUBRIC_KEYS = [
   'on_lane',
   'rebus',
   'toxic_bingo',
-  'trash_tier',
   'fake_item',
   'confessional'
 ] as const;
@@ -92,7 +90,6 @@ export const RUBRIC_TITLES: Record<RubricKey, string> = {
   on_lane: 'Ты на линии',
   rebus: 'Ребус',
   toxic_bingo: 'Токсик-бинго',
-  trash_tier: 'Тир-лист хуйни',
   fake_item: 'Предмет, которого нет',
   confessional: 'Исповедальня'
 };
@@ -126,7 +123,6 @@ const BUILDERS: Record<RubricKey, (context: RubricContext) => Promise<RubricSamp
   on_lane: onLane,
   rebus,
   toxic_bingo: toxicBingo,
-  trash_tier: trashTier,
   fake_item: fakeItem,
   // Subscribers' confessions come through the channel's direct messages, which the bot does not read yet.
   confessional: () => notBuiltYet('subscribers’ confessions via the channel’s direct messages')

@@ -18,8 +18,7 @@ const RUBRICS: { key: RubricSampleKey; label: string; note: string; need: Need }
   { key: 'would_you_rather', label: '26. Что выберешь?', note: 'опрос: два наказания и выход', need: 'ready' },
   { key: 'on_lane', label: '27. Ты на линии', note: 'викторина, цифры из данных Valve', need: 'ready' },
   { key: 'rebus', label: '30. Ребус', note: 'викторина-ребус 18+', need: 'ready' },
-  { key: 'toxic_bingo', label: '31. Токсик-бинго', note: 'бинго 3×3 текстом', need: 'ready' },
-  { key: 'trash_tier', label: '32. Тир-лист хуйни', note: 'тир-лист по теме', need: 'ready' },
+  { key: 'toxic_bingo', label: '31. Токсик-бинго', note: 'бинго 5×5 / тир-лист хуйни по очереди', need: 'ready' },
   { key: 'fake_item', label: '33. Предмет, которого нет', note: 'картинка', need: 'ready' },
   { key: 'confessional', label: '34. Исповедальня', note: 'признания подписчиков в личке канала', need: 'later' },
   { key: 'what_if', label: '35. Что если…', note: 'сценка, картинка ИИ', need: 'ready' }

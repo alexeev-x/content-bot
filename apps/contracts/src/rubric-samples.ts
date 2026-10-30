@@ -37,7 +37,6 @@ export const rubricSampleKeySchema = z.enum([
   'on_lane',
   'rebus',
   'toxic_bingo',
-  'trash_tier',
   'fake_item',
   'confessional'
 ]);

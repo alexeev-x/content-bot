@@ -82,16 +82,6 @@ const WHAT_IF = [
   'Способности называй так, как их знают игроки; ничего не выдумывай про героя. Без вопроса в конце.'
 ].join('\n');
 
-const TOXIC_BINGO = [
-  'Составь бинго 3 на 3: девять клеток — фразы из чата и моменты матча, которые узнает любой игрок, три строки по три клетки через « | ».',
-  'Перед бинго одна строка вступления, после — одна строка «Собрал линию — пиши в комменты». Без других вопросов.'
-].join('\n');
-
-const TRASH_TIER = [
-  'Сделай тир-лист по теме из черновика: пять строк «S: …», «A: …», «B: …», «C: …», «D: …», в каждой 1–3 пункта, грубо и узнаваемо для любого игрока.',
-  'Перед ним одна строка вступления, после — без вопроса.'
-].join('\n');
-
 export const RUBRIC_BRIEFS: Record<RubricKey, string> = {
   patch_broken: STANDARD,
   who_is_imba: WHO_IS_IMBA,
@@ -123,8 +113,8 @@ export const RUBRIC_BRIEFS: Record<RubricKey, string> = {
   would_you_rather: STANDARD,
   on_lane: STANDARD,
   rebus: STANDARD,
-  toxic_bingo: TOXIC_BINGO,
-  trash_tier: TRASH_TIER,
+  // Final as written (ownText).
+  toxic_bingo: STANDARD,
   fake_item: STANDARD,
   confessional: STANDARD
 };

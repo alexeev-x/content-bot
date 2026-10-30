@@ -4667,28 +4667,3 @@ export async function wouldYouRather(context: RubricContext): Promise<RubricSamp
     poll: poll('Что выберешь?', shuffled(chosen, context.random))
   };
 }
-
-// «Токсик-бинго»: the writer fills a 3×3 card of chat lines and match moments (text for now).
-export function toxicBingo(): Promise<RubricSample> {
-  return Promise.resolve({ picture: null, text: 'Токсик-бинго на сегодняшнюю катку.', poll: null });
-}
-
-// «Тир-лист хуйни»: a theme ranked S to D by the writer.
-const TRASH_THEMES = [
-  'причины слива',
-  'оправдания после проигрыша',
-  'кого винят в проигрыше',
-  'что пишут в чат после первой смерти',
-  'на что тратят первые две тысячи золота',
-  'почему не ставят варды',
-  'куда уходят керри вместо файта',
-  'что делают мидеры после проигранной линии'
-] as const;
-
-export function trashTier(context: RubricContext): Promise<RubricSample> {
-  return Promise.resolve({
-    picture: null,
-    text: `Тема: ${pick(TRASH_THEMES, context.random)}.`,
-    poll: null
-  });
-}
