@@ -15,7 +15,7 @@ import {
 } from './fun-rubrics';
 import { whoseAbility } from './game-rubrics';
 import { recruitPicks } from './recruit-picks';
-import { nerfOrBuff, patchBroken, valveFixed, valveSeriously, valveTime, whoIsImba } from './patch-rubrics';
+import { nerfOrBuff, patchBroken, valveSeriously, valveTime, whoIsImba } from './patch-rubrics';
 import { heroGuide, notBuiltYet, whoBeatsWhom, whoGetsNerfed } from './stats-rubrics';
 import { onLane } from './on-lane';
 import { suspect } from './suspect';
@@ -53,7 +53,6 @@ export const RUBRIC_KEYS = [
   'hero_trial',
   'would_you_rather',
   'on_lane',
-  'valve_fixed',
   'rebus',
   'toxic_bingo',
   'trash_tier',
@@ -90,7 +89,6 @@ export const RUBRIC_TITLES: Record<RubricKey, string> = {
   hero_trial: 'Подозреваемый',
   would_you_rather: 'Что выберешь?',
   on_lane: 'Ты на линии',
-  valve_fixed: 'Valve исправила',
   rebus: 'Ребус',
   toxic_bingo: 'Токсик-бинго',
   trash_tier: 'Тир-лист хуйни',
@@ -125,7 +123,6 @@ const BUILDERS: Record<RubricKey, (context: RubricContext) => Promise<RubricSamp
   hero_trial: suspect,
   would_you_rather: wouldYouRather,
   on_lane: onLane,
-  valve_fixed: valveFixed,
   rebus,
   toxic_bingo: toxicBingo,
   trash_tier: trashTier,

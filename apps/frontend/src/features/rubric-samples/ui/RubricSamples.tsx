@@ -17,7 +17,6 @@ const RUBRICS: { key: RubricSampleKey; label: string; note: string; need: Need }
   { key: 'hero_trial', label: '25. Подозреваемый', note: 'картинка ИИ + опрос «Приговор»', need: 'ready' },
   { key: 'would_you_rather', label: '26. Что выберешь?', note: 'опрос: два наказания и выход', need: 'ready' },
   { key: 'on_lane', label: '27. Ты на линии', note: 'викторина, цифры из данных Valve', need: 'ready' },
-  { key: 'valve_fixed', label: '29. Valve исправила', note: 'правка патча и эскалация', need: 'ready' },
   { key: 'rebus', label: '30. Ребус', note: 'картинка + викторина', need: 'ready' },
   { key: 'toxic_bingo', label: '31. Токсик-бинго', note: 'бинго 3×3 текстом', need: 'ready' },
   { key: 'trash_tier', label: '32. Тир-лист хуйни', note: 'тир-лист по теме', need: 'ready' },

@@ -659,23 +659,3 @@ export async function valveTime(context: RubricContext): Promise<RubricSample> {
     poll: null
   };
 }
-
-// «Valve исправила» (owner, 27.10.2026): one real note of the latest patch, then what «the fix» led to; the joke is in
-// the escalation, the note itself stays true.
-export async function valveFixed(context: RubricContext): Promise<RubricSample> {
-  const patch = await latestPatch(context);
-  const notes = patch.notes.heroes.flatMap((each) =>
-    each.notes.map((note) => ({ heroId: each.heroId, note: note.note.trim() }))
-  );
-  const chosen = pick(
-    notes.filter((each) => each.note !== ''),
-    context.random
-  );
-  const hero = patch.byId.get(chosen.heroId)?.localizedName ?? 'Герой';
-  return {
-    picture: null,
-    text: `Valve исправила ${hero}.`,
-    reference: `Патч ${patch.version}, ${hero}: ${chosen.note}`,
-    poll: null
-  };
-}
