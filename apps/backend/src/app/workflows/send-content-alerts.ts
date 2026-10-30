@@ -53,14 +53,19 @@ export async function sendContentAlerts(deps: {
             ? [{ text: extra.text, callback_data: extra.callbackData }]
             : button(extra.text, extra.linkPath)
         ),
-        button(
-          alert.kind === 'source'
-            ? 'Открыть и обновить'
-            : alert.kind === 'item'
-              ? 'Открыть в студии'
-              : 'Открыть аналитику',
-          alert.linkPath
-        )
+        // A link to the studio's start page shows nothing the message didn't say: no button (owner, 30.10.2026).
+        ...(alert.linkPath === '/'
+          ? []
+          : [
+              button(
+                alert.kind === 'source'
+                  ? 'Открыть и обновить'
+                  : alert.kind === 'item'
+                    ? 'Открыть в студии'
+                    : 'Открыть аналитику',
+                alert.linkPath
+              )
+            ])
       ]
     };
     deps.charge(1);
