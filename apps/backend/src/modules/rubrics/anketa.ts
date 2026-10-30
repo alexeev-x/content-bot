@@ -588,7 +588,7 @@ const ANKETAS: readonly Anketa[] = [
   {
     hero: 'witch_doctor',
     name: 'Доктор',
-    distance: 'в одной бочке от вас',
+    distance: 'в одном стреляющем варде от вас',
     fields: [
       ['Ищу', 'ту, что постоит на месте, пока я стреляю'],
       ['В постели', 'ставлю вард и стою не двигаясь, иначе всё кончится'],
@@ -1697,6 +1697,11 @@ function anketaPage(anketa: Anketa): string {
 <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@700;800&amp;family=Montserrat:wght@800;900&amp;display=block&amp;subset=cyrillic" rel="stylesheet">
 <style>${CSS}</style></head><body><div class="board"><div class="nm"><span>${escapeHtml(anketa.name)}</span>${HEART}</div>
 <div class="dist">${PIN}${escapeHtml(anketa.distance)}</div><div class="blocks">${fields}</div><div class="ab">${icons}</div></div>${FIT}</body></html>`;
+}
+
+/** The hero's name as players say it (the owner's «Анкета» names), by Valve's key: `abaddon`. */
+export function spokenHeroName(key: string): string | undefined {
+  return ANKETAS.find((anketa) => anketa.hero === key)?.name;
 }
 
 // Every hero once (owner, 29.10.2026: «всех героев полностью»), in a shuffled order without repeats.

@@ -184,7 +184,7 @@ had mostly not parsed (7% kept).
   - **One token, at most 2 IP addresses per 15 minutes** (403 «You cannot use more than 2 IP Addresses every 15
     minutes»). Production already uses the bridge's address, so **no local STRATZ calls while production collects**: a
     local probe made the first production run pause. Probe only with the owner's go, briefly, then wait 15 minutes.
-  - **The stats bridge takes queries up to 4 000 characters** (`bridge/stats-bridge/main.js`, 60 a minute): whole
+  - **The stats bridge takes queries up to 4 000 characters** (`bridge/stats-bridge/server.js`, 60 a minute): whole
     matches go as one fragment (`...M`) plus ten aliases, match lists without spaces; the client refuses a longer
     query itself (`QUERY_MAX_CHARS`, tested).
   - `matches(ids: […])` is admin-only («User is not an admin»): read `match(id)` aliases, ten per request.

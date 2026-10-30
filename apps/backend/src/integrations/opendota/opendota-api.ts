@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { readCappedText } from '../../platform/http/read-capped-text';
 import { causeDetail, readErrorDetail, schemaDetail } from '../../platform/error-detail';
+import { spareBridgeFetch } from '../stats-bridge/spare-bridge-fetch';
 
 // OpenDota's public hero reads (no key; 50 a minute and 2800 a day through the owner's stats bridge). OpenDota answers
 // 429 to Cloudflare's shared addresses, so the Worker only calls it through `bridge/stats-bridge`, which forwards
@@ -65,16 +66,25 @@ export interface OpenDotaApi {
 }
 
 /** `bridgeUrl`: the stats bridge's origin; without it OpenDota is called directly (a local run). */
-export function createOpenDotaApi(input: { bridgeUrl?: string; fetchImpl?: typeof fetch }): OpenDotaApi {
+export function createOpenDotaApi(input: {
+  bridgeUrl?: string;
+  /** The spare bridge, taken only while the main one is down (`spareBridgeFetch`). */
+  spareBridgeUrl?: string;
+  fetchImpl?: typeof fetch;
+}): OpenDotaApi {
   const base =
     input.bridgeUrl === undefined ? 'https://api.opendota.com/api' : `${input.bridgeUrl.replace(/\/+$/, '')}/opendota`;
-  const fetchImpl = input.fetchImpl ?? fetch;
+  const fetchImpl =
+    input.bridgeUrl !== undefined && input.spareBridgeUrl !== undefined
+      ? spareBridgeFetch(input.bridgeUrl, input.spareBridgeUrl, input.fetchImpl ?? fetch)
+      : (input.fetchImpl ?? fetch);
   async function read<T>(path: string, schema: z.ZodType<T>, signal?: AbortSignal): Promise<T> {
     let response: Response;
     try {
       response = await fetchImpl(`${base}${path}`, {
         method: 'GET',
-        headers: { accept: 'application/json' },
+        // The bridge brotli-packs its answers when asked; Workers unpack them themselves (measured 30.10.2026).
+        headers: { accept: 'application/json', 'accept-encoding': 'br, gzip' },
         signal: signal ?? AbortSignal.timeout(OPENDOTA_TIMEOUT_MS)
       });
     } catch (error) {

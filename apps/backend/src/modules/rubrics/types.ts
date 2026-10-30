@@ -242,7 +242,11 @@ export interface RubricSample {
   /** The text is final as written (fixed captions): no AI caption. */
   ownText?: boolean;
   /** The image model puts this hero (Valve's render) into the picture's scene; the page shows it as `--scene`. */
-  heroScene?: { renderUrl: string; heroName: string };
+  heroScene?: {
+    renderUrl: string;
+    heroName: string;
+    /** Whose scene: «Анкета» (default) or «Забытый герой». */ scene?: 'anketa' | 'forgotten';
+  };
   /** «Гороскоп»: the model seats the fortune-teller and puts the ball's hero into the owner's scene. */
   fortuneScene?: { teller: { renderUrl: string; heroName: string }; ball: { renderUrl: string; heroName: string } };
   /** The post as a rich message (tables, bold, italics) in place of the plain text; `text` stays its plain form. */

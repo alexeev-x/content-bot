@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { readCappedText } from '../../platform/http/read-capped-text';
 import { causeDetail, readErrorDetail, schemaDetail } from '../../platform/error-detail';
+import { spareBridgeFetch } from '../stats-bridge/spare-bridge-fetch';
 
 // STRATZ GraphQL with the owner's free token (`STRATZ_TOKEN`, owner 25.10.2026): pick and win rates by rank, item
 // purchases by minute, win rate by game length and by position. STRATZ refuses Cloudflare's addresses (403 without
@@ -308,11 +309,16 @@ const MATCHUP_TAKE = 130;
 export function createStratzApi(input: {
   token: string;
   bridgeUrl?: string;
+  /** The spare bridge, taken only while the main one is down (`spareBridgeFetch`). */
+  spareBridgeUrl?: string;
   fetchImpl?: typeof fetch;
   cache?: { get(key: string): Promise<string | null>; put(key: string, body: string): Promise<void> };
 }): StratzApi {
   const endpoint = input.bridgeUrl === undefined ? DIRECT : `${input.bridgeUrl.replace(/\/+$/, '')}/stratz/graphql`;
-  const fetchImpl = input.fetchImpl ?? fetch;
+  const fetchImpl =
+    input.bridgeUrl !== undefined && input.spareBridgeUrl !== undefined
+      ? spareBridgeFetch(input.bridgeUrl, input.spareBridgeUrl, input.fetchImpl ?? fetch)
+      : (input.fetchImpl ?? fetch);
   async function query<T>(
     text: string,
     pick: (data: unknown) => unknown,
@@ -331,7 +337,9 @@ export function createStratzApi(input: {
         headers: {
           'content-type': 'application/json',
           authorization: `Bearer ${input.token}`,
-          'user-agent': 'STRATZ_API'
+          'user-agent': 'STRATZ_API',
+          // The bridge brotli-packs its answers when asked; Workers unpack them themselves (measured 30.10.2026).
+          'accept-encoding': 'br, gzip'
         },
         body: JSON.stringify({ query: text }),
         signal: signal ?? AbortSignal.timeout(STRATZ_TIMEOUT_MS)

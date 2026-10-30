@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { readCappedText } from '../../platform/http/read-capped-text';
 import { boundDetail, causeDetail, readErrorDetail } from '../../platform/error-detail';
+import { spareBridgeFetch } from '../stats-bridge/spare-bridge-fetch';
 import { StratzError, STRATZ_TIMEOUT_MS } from './stratz-api';
 
 // STRATZ reads of the hero statistics base (owner, 29.10.2026): the regional season leaderboards (whom to follow), a
@@ -290,17 +291,22 @@ const ids = (values: readonly number[], max: number) => {
 export function createStratzMatches(input: {
   token: string;
   bridgeUrl?: string;
+  /** The spare bridge, taken only while the main one is down (`spareBridgeFetch`). */
+  spareBridgeUrl?: string;
   fetchImpl?: typeof fetch;
 }): StratzMatchesApi {
   const endpoint = input.bridgeUrl === undefined ? DIRECT : `${input.bridgeUrl.replace(/\/+$/u, '')}/stratz/graphql`;
-  const fetchImpl = input.fetchImpl ?? fetch;
+  const fetchImpl =
+    input.bridgeUrl !== undefined && input.spareBridgeUrl !== undefined
+      ? spareBridgeFetch(input.bridgeUrl, input.spareBridgeUrl, input.fetchImpl ?? fetch)
+      : (input.fetchImpl ?? fetch);
 
   /** The parsed `data` and the GraphQL errors' alias names (the first path element) with their messages. */
   async function post(
     text: string,
     signal?: AbortSignal
   ): Promise<{ data: Record<string, unknown> | null; errors: { alias: string | null; message: string }[] }> {
-    // The stats bridge refuses longer queries (bridge/stats-bridge/main.js): fail here, with the reason, not there.
+    // The stats bridge refuses longer queries (bridge/stats-bridge/server.js): fail here, with the reason, not there.
     if (text.length > QUERY_MAX_CHARS)
       throw new StratzError('STRATZ_SHAPE', null, `запрос ${text.length} символов, мост берёт до ${QUERY_MAX_CHARS}`);
     let response: Response;
@@ -310,7 +316,9 @@ export function createStratzMatches(input: {
         headers: {
           'content-type': 'application/json',
           authorization: `Bearer ${input.token}`,
-          'user-agent': 'STRATZ_API'
+          'user-agent': 'STRATZ_API',
+          // The bridge brotli-packs its answers when asked; Workers unpack them themselves (measured 30.10.2026).
+          'accept-encoding': 'br, gzip'
         },
         body: JSON.stringify({ query: text }),
         signal: signal ?? AbortSignal.timeout(STRATZ_TIMEOUT_MS)
