@@ -300,7 +300,7 @@ export function createStratzMatches(input: {
     text: string,
     signal?: AbortSignal
   ): Promise<{ data: Record<string, unknown> | null; errors: { alias: string | null; message: string }[] }> {
-    // The stats bridge refuses longer queries (bridge/stats-bridge/main.js): fail here, with the reason, not there.
+    // The stats bridge refuses longer queries (bridge/stats-bridge/server.js): fail here, with the reason, not there.
     if (text.length > QUERY_MAX_CHARS)
       throw new StratzError('STRATZ_SHAPE', null, `запрос ${text.length} символов, мост берёт до ${QUERY_MAX_CHARS}`);
     let response: Response;

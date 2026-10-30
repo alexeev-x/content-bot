@@ -20,7 +20,7 @@ export type AppEnv = Env & {
   GITHUB_TOKEN?: string;
   /** STRATZ GraphQL token: pick and win rates for the rubrics (owner, 25.10.2026). */
   STRATZ_TOKEN?: string;
-  /** The owner's stats bridge (`bridge/stats-bridge`), e.g. https://alexeev-stats.deno.dev: STRATZ refuses Cloudflare. */
+  /** The owner's stats bridge (`bridge/stats-bridge`), e.g. https://alexeev-stats.onrender.com: STRATZ refuses Cloudflare. */
   STATS_BRIDGE_URL?: string;
 };
 
