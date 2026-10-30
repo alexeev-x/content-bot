@@ -4,6 +4,16 @@ Shared Claude Code/Codex rules. Talk Russian; code, identifiers, docs, commits a
 
 **Status:** in development, not in production. Old plan removed 14.10.2026, a new one is being written. Judge what works from code and tests; never describe planned parts as working.
 
+## Rule #1: save tokens (owner's top priority, above everything below)
+- Every action costs the owner money. Before any step ask: is this the cheapest way? Do small work yourself; no agent for what a few tool calls do.
+- Agents and workflows only when the owner asks or work is truly parallel. Before launching, tell the owner how many agents and a rough cost. Every brief caps reading (named files, line ranges) and output (≤ 150 lines; reports ≤ 20). Never fan out planners without limits (30.10.2026: ~2M tokens burned on one plan).
+- Write tersely: no preamble, no restating the task, no recap of a visible diff.
+- Read line ranges, not whole files; pipe noisy commands through `tail`/`grep`.
+- Images cost ~`⌈w/28⌉×⌈h/28⌉` tokens: view one contact sheet (long edge ≤ 1100 px), only what you compare; ≤ 2 fix rounds.
+- One task per session; never resume a finished subagent (start fresh with a ≤ 40-line packet and a path to `.logs/handoff/<task>.md`).
+- Don't edit instructions, skills, hooks or settings mid-task unless that is the task (it breaks the prompt cache).
+- While the owner is planning, do only what is asked: answers go into the plan, no code until «делай».
+
 ## Layout
 - `apps/frontend/` (React SPA), `apps/backend/` (Hono Worker, D1), `apps/contracts/` (shared Zod DTOs); each has its own `AGENTS.md`.
 - `docs/` — canonical architecture. Open only the section you need (`rg -n '^#' file` first, then read that range).
@@ -38,13 +48,6 @@ Search with `rg`; read only needed lines. `npm run verify` prints failures; open
 - Decide defaults; escalate only owner-level publishing, access, money or recorded decisions, with a recommendation.
 - Recorded decisions live in `docs/DECISIONS.md`; don't relitigate them unprompted.
 - Do only what the task asks: no unrequested features, refactors or abstractions.
-
-## Token economy (owner priority)
-- Write tersely: no preamble, no restating the task, no recap of a visible diff.
-- Read line ranges, not whole files; pipe noisy commands through `tail`/`grep`.
-- Images cost ~`⌈w/28⌉×⌈h/28⌉` tokens: view one contact sheet (long edge ≤ 1100 px), only what you compare; ≤ 2 fix rounds.
-- One task per session; never resume a finished subagent (start fresh with a ≤ 40-line packet and a path to `.logs/handoff/<task>.md`).
-- Don't edit instructions, skills, hooks or settings mid-task unless that is the task (it breaks the prompt cache).
 
 ## Non-negotiables
 - Modular monolith: one Worker, one D1, one Cron (plus one Queue; stats DB + Workflow: DECISIONS 29.10.2026). No microservices, generic repositories, event bus, service locator or DI container; `apps/backend/src/app/container.ts` wires adapters by hand.
