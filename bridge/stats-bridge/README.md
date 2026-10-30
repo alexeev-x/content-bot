@@ -4,8 +4,9 @@ STRATZ refuses Cloudflare's addresses (403) and OpenDota's free tier counts call
 shared addresses have always used up (429). `server.js` runs as a free Render web service (owner, 30.10.2026: no card,
 sign-in with GitHub) and only forwards. It holds no keys: the Worker sends STRATZ's token in its own `Authorization`
 header. It forwards only `POST /stratz/graphql` and an allowlist of OpenDota reads (`GET /opendota/...`), caches good
-answers for 10 minutes, keeps OpenDota under 50 calls a minute and 2 800 a day, and gzips its answers (heroStats
-164 KB → 33 KB). `GET /health` answers `{"ok":true}`.
+answers for 10 minutes, keeps OpenDota under 50 calls a minute and 2 800 a day, and packs its answers as tight as it
+can: minified JSON, brotli at its best quality for the Worker (which asks `br, gzip`), heroStats 164 KB → 23 KB (gzip:
+32 KB). `GET /health` answers `{"ok":true}`.
 
 Why Render: one always-on process with one address (STRATZ allows a token at most 2 addresses per 15 minutes) and no
 memory-time billing. Tried and dropped 30.10.2026: Deno Deploy (an organisation without a card gets 1% of the free

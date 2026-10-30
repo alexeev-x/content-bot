@@ -310,7 +310,9 @@ export function createStratzMatches(input: {
         headers: {
           'content-type': 'application/json',
           authorization: `Bearer ${input.token}`,
-          'user-agent': 'STRATZ_API'
+          'user-agent': 'STRATZ_API',
+          // The bridge brotli-packs its answers when asked; Workers unpack them themselves (measured 30.10.2026).
+          'accept-encoding': 'br, gzip'
         },
         body: JSON.stringify({ query: text }),
         signal: signal ?? AbortSignal.timeout(STRATZ_TIMEOUT_MS)

@@ -74,7 +74,8 @@ export function createOpenDotaApi(input: { bridgeUrl?: string; fetchImpl?: typeo
     try {
       response = await fetchImpl(`${base}${path}`, {
         method: 'GET',
-        headers: { accept: 'application/json' },
+        // The bridge brotli-packs its answers when asked; Workers unpack them themselves (measured 30.10.2026).
+        headers: { accept: 'application/json', 'accept-encoding': 'br, gzip' },
         signal: signal ?? AbortSignal.timeout(OPENDOTA_TIMEOUT_MS)
       });
     } catch (error) {

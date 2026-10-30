@@ -4,13 +4,13 @@
 // Deno Deploy billed memory per loaded second and ran out in a day; Google Apps Script gets STRATZ's bot challenge.
 // It holds no keys: the Worker sends STRATZ's token in its own Authorization header and the bridge passes it on. It
 // forwards only to STRATZ's GraphQL and an allowlist of OpenDota reads, caches good answers for 10 minutes, keeps
-// under OpenDota's free limits, gzips its answers and stops for the UTC day after OUT_PER_DAY bytes, so the free
+// under OpenDota's free limits, compresses its answers as tight as it can (minified JSON, brotli) and stops for the UTC day after OUT_PER_DAY bytes, so the free
 // plan's monthly bandwidth is never spent (a spent one suspends the service for the rest of the month). Node's
 // standard library only; it never logs a header or a body.
 
 import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
-import { gzipSync } from 'node:zlib';
+import { brotliCompressSync, constants, gzipSync } from 'node:zlib';
 
 const CACHE_MS = 10 * 60 * 1000;
 const UPSTREAM_TIMEOUT_MS = 20_000;
@@ -19,7 +19,10 @@ const MAX_RESPONSE_BYTES = 3 * 1024 * 1024;
 const OPENDOTA_PER_MINUTE = 50;
 const OPENDOTA_PER_DAY = 2800;
 const STRATZ_PER_MINUTE = 60;
-/** ≈ 3 GB a month; measured 30.10 on Deno: ≈ 41 KB per answer before gzip, ≈ 12 KB after, so ≈ 8 000 answers a day. */
+/**
+ * ≈ 3 GB a month; measured 30.10 on Deno: ≈ 41 KB per answer uncompressed, ≈ 12 KB gzipped, so ≈ 8 000 answers a day;
+ * the Worker's own request caps keep a day under it too.
+ */
 const OUT_PER_DAY = 100 * 1024 * 1024;
 const OPENDOTA_PATHS = [
   /^\/heroStats$/,
@@ -49,7 +52,7 @@ function allowedNow(counter, perMinute, perDay) {
   return true;
 }
 
-/** Bytes sent today (UTC); a restart forgets them, which only ever lets the day send less than twice the cap. */
+/** Bytes sent today (UTC). A restart forgets them, so the Worker's request caps are the hard bound and this the spare. */
 function sentToday() {
   const today = new Date().toISOString().slice(0, 10);
   if (out.day !== today) {
@@ -59,13 +62,42 @@ function sentToday() {
   return out;
 }
 
+/** JSON without its indentation (STRATZ indents); anything else unchanged. */
+function minified(text) {
+  try {
+    return JSON.stringify(JSON.parse(text));
+  } catch {
+    return text;
+  }
+}
+
+/**
+ * Brotli at its best quality packs JSON ≈ 30 % tighter than gzip (heroStats 164 KB: gzip 32 KB, brotli 11 23 KB); it
+ * is slow (≈ 0.15 s for 164 KB on a full CPU, the free instance has a tenth), so bodies past BROTLI_BEST_MAX_BYTES take
+ * a faster quality to stay inside the Worker's 20 s timeout. gzip only for a caller without brotli.
+ */
+const BROTLI_BEST_MAX_BYTES = 512 * 1024;
+function compressed(body, acceptEncoding) {
+  if (/\bbr\b/.test(acceptEncoding)) {
+    const params = {
+      [constants.BROTLI_PARAM_QUALITY]: body.length <= BROTLI_BEST_MAX_BYTES ? 11 : 5,
+      [constants.BROTLI_PARAM_MODE]: constants.BROTLI_MODE_TEXT,
+      [constants.BROTLI_PARAM_SIZE_HINT]: body.length
+    };
+    return { body: brotliCompressSync(body, { params }), encoding: 'br' };
+  }
+  if (/\bgzip\b/.test(acceptEncoding)) return { body: gzipSync(body, { level: 9 }), encoding: 'gzip' };
+  return { body, encoding: null };
+}
+
 const secondsToUtcMidnight = () => Math.ceil((86_400_000 - (Date.now() % 86_400_000)) / 1000);
 const sha256 = (text) => createHash('sha256').update(text).digest('hex');
 
 async function upstream(url, init) {
   const response = await fetch(url, { ...init, signal: AbortSignal.timeout(UPSTREAM_TIMEOUT_MS) });
-  const body = await response.text();
-  if (body.length > MAX_RESPONSE_BYTES) return { status: 502, body: '{"error":"UPSTREAM_TOO_BIG"}' };
+  const text = await response.text();
+  if (text.length > MAX_RESPONSE_BYTES) return { status: 502, body: '{"error":"UPSTREAM_TOO_BIG"}' };
+  const body = minified(text);
   const headers = {};
   for (const name of ['retry-after', 'www-authenticate']) {
     const value = response.headers.get(name);
@@ -174,11 +206,11 @@ createServer(async (request, response) => {
     'cache-control': 'no-store',
     ...answer.headers
   };
-  let body = Buffer.from(answer.body, 'utf8');
-  if (/\bgzip\b/.test(String(request.headers['accept-encoding'] ?? ''))) {
-    body = gzipSync(body);
-    headers['content-encoding'] = 'gzip';
-  }
+  const { body, encoding } = compressed(
+    Buffer.from(answer.body, 'utf8'),
+    String(request.headers['accept-encoding'] ?? '')
+  );
+  if (encoding !== null) headers['content-encoding'] = encoding;
   sentToday().bytes += body.length;
   response.writeHead(answer.status, { ...headers, 'content-length': body.length });
   response.end(body);
