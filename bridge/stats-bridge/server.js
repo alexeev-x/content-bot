@@ -203,7 +203,8 @@ createServer(async (request, response) => {
   }
   const headers = {
     'content-type': 'application/json; charset=utf-8',
-    'cache-control': 'no-store',
+    // Render's Cloudflare proxy would unpack our brotli 11 and repack it looser (heroStats 23 KB → 33 KB, 30.10.2026).
+    'cache-control': 'no-store, no-transform',
     ...answer.headers
   };
   const { body, encoding } = compressed(
