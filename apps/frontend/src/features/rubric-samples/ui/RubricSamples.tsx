@@ -15,7 +15,7 @@ type Need = 'ready' | 'stratz' | 'later';
 const RUBRICS: { key: RubricSampleKey; label: string; note: string; need: Need }[] = [
   { key: 'forgotten_hero', label: '23. Забытый герой', note: 'картинка ИИ + текст', need: 'stratz' },
   { key: 'hero_trial', label: '25. Подозреваемый', note: 'картинка ИИ + опрос «Приговор»', need: 'ready' },
-  { key: 'would_you_rather', label: '26. Что выберешь?', note: 'текст, реакции', need: 'ready' },
+  { key: 'would_you_rather', label: '26. Что выберешь?', note: 'опрос: два наказания и выход', need: 'ready' },
   { key: 'on_lane', label: '27. Ты на линии', note: 'ситуация с решением', need: 'ready' },
   { key: 'grandpa', label: '28. Дед', note: 'правка патча ворчанием', need: 'ready' },
   { key: 'valve_fixed', label: '29. Valve исправила', note: 'правка патча и эскалация', need: 'ready' },
