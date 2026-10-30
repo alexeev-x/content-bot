@@ -13,6 +13,7 @@ import {
   drawForgottenScene,
   drawHoroscopeScene,
   drawRubricScene,
+  drawSuspectScene,
   writeRubricCaption
 } from '../../modules/ai';
 import { condenseBuild, isRelevantPath, parseBuildMessage, splitDiff, type GameFind } from '../../modules/game-files';
@@ -41,6 +42,7 @@ import { pictureImproverFor, type SourcePicture } from '../workflows/picture-qua
 const TELEGRAM_TIMEOUT_MS = 20_000;
 const FLAGS = { disable_notification: false, protect_content: false } as const;
 const BARE_FINDS_MAX = 4;
+const SCENE_LABELS = { anketa: 'анкета', forgotten: 'забытый', suspect: 'подозреваемый' } as const;
 const BARE_TEXT_MAX = 1500;
 const GITHUB_TIMEOUT_MS = 8000;
 const STRATZ_GAP_MS = 1500;
@@ -409,7 +411,11 @@ export type RubricSampleDeps = {
     }) => Promise<string | null>;
     scene: (input: { heading: { text: string; red: string | null } | null }) => Promise<Scene>;
     /** «Анкета»: the hero placed into the owner's scene. */
-    heroScene: (input: { hero: Uint8Array; heroName: string; scene?: 'anketa' | 'forgotten' }) => Promise<Scene>;
+    heroScene: (input: {
+      hero: Uint8Array;
+      heroName: string;
+      scene?: 'anketa' | 'forgotten' | 'suspect';
+    }) => Promise<Scene>;
     /** «Гороскоп»: the fortune-teller and the ball's head drawn into the owner's scene. */
     fortuneScene: (input: {
       teller: Uint8Array;
@@ -553,7 +559,7 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
         );
       } else {
         sceneFailed(
-          `${sample.heroScene.scene === 'forgotten' ? 'забытый' : 'анкета'} ${sample.heroScene.heroName}`,
+          `${SCENE_LABELS[sample.heroScene.scene ?? 'anketa']} ${sample.heroScene.heroName}`,
           render === null
             ? `нет изображения героя ${sample.heroScene.heroName}`
             : scene?.kind === 'failed'
@@ -829,7 +835,7 @@ export async function runRubricSampleJob(
           caption: (input) => writeRubricCaption(aiDeps, input),
           scene: (input) => drawRubricScene({ ...aiDeps, images: container.aiImageProvider, onError }, input),
           heroScene: ({ scene, ...input }) =>
-            (scene === 'forgotten' ? drawForgottenScene : drawAnketaScene)(
+            (scene === 'forgotten' ? drawForgottenScene : scene === 'suspect' ? drawSuspectScene : drawAnketaScene)(
               { ...aiDeps, images: container.aiImageProvider, onError },
               input
             ),

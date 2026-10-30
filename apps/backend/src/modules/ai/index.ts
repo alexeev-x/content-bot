@@ -24,6 +24,7 @@ export { drawHotfixPicture, drawPatchPicture, type PatchPictureResult } from './
 export { enhancePicture, type EnhanceResult } from './picture-enhance';
 export { ANKETA_SIZE, drawAnketaScene } from './anketa-picture';
 export { drawForgottenScene, FORGOTTEN_SIZE } from './forgotten-picture';
+export { drawSuspectScene, SUSPECT_SIZE } from './suspect-picture';
 export { drawHoroscopeScene, HOROSCOPE_SIZE } from './horoscope-picture';
 export { drawRubricScene, type RubricScene } from './rubric-picture';
 export { writeRubricCaption } from './rubric-writer';

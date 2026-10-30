@@ -245,7 +245,8 @@ export interface RubricSample {
   heroScene?: {
     renderUrl: string;
     heroName: string;
-    /** Whose scene: «Анкета» (default) or «Забытый герой». */ scene?: 'anketa' | 'forgotten';
+    /** Whose scene: «Анкета» (default), «Забытый герой» or «Подозреваемый». */ scene?:
+      'anketa' | 'forgotten' | 'suspect';
   };
   /** «Гороскоп»: the model seats the fortune-teller and puts the ball's hero into the owner's scene. */
   fortuneScene?: { teller: { renderUrl: string; heroName: string }; ball: { renderUrl: string; heroName: string } };

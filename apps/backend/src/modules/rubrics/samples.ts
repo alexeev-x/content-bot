@@ -17,7 +17,8 @@ import {
 import { whoseAbility } from './game-rubrics';
 import { recruitPicks } from './recruit-picks';
 import { grandpa, nerfOrBuff, patchBroken, valveFixed, valveSeriously, valveTime, whoIsImba } from './patch-rubrics';
-import { heroGuide, heroTrial, notBuiltYet, whoBeatsWhom, whoGetsNerfed } from './stats-rubrics';
+import { heroGuide, notBuiltYet, whoBeatsWhom, whoGetsNerfed } from './stats-rubrics';
+import { suspect } from './suspect';
 import { tierList } from './tier-list';
 import type { RubricContext, RubricSample } from './types';
 
@@ -87,7 +88,7 @@ export const RUBRIC_TITLES: Record<RubricKey, string> = {
   recruit_picks: 'Что брать рекруту',
   forgotten_hero: 'Забытый герой',
   horoscope: 'Гороскоп',
-  hero_trial: 'Суд',
+  hero_trial: 'Подозреваемый',
   would_you_rather: 'Что выберешь?',
   on_lane: 'Ты на линии',
   grandpa: 'Дед',
@@ -123,7 +124,7 @@ const BUILDERS: Record<RubricKey, (context: RubricContext) => Promise<RubricSamp
   recruit_picks: recruitPicks,
   forgotten_hero: forgottenHero,
   horoscope,
-  hero_trial: heroTrial,
+  hero_trial: suspect,
   would_you_rather: wouldYouRather,
   on_lane: onLane,
   grandpa,

@@ -14,7 +14,7 @@ type Need = 'ready' | 'stratz' | 'later';
 // применению», 24 «Гороскоп» (28.10.2026); 21 «Тир-лист», 22 «Что брать рекруту» (29.10.2026).
 const RUBRICS: { key: RubricSampleKey; label: string; note: string; need: Need }[] = [
   { key: 'forgotten_hero', label: '23. Забытый герой', note: 'картинка ИИ + текст', need: 'stratz' },
-  { key: 'hero_trial', label: '25. Суд', note: 'опрос «Приговор»', need: 'stratz' },
+  { key: 'hero_trial', label: '25. Подозреваемый', note: 'картинка ИИ + опрос «Приговор»', need: 'ready' },
   { key: 'would_you_rather', label: '26. Что выберешь?', note: 'текст, реакции', need: 'ready' },
   { key: 'on_lane', label: '27. Ты на линии', note: 'ситуация с решением', need: 'ready' },
   { key: 'grandpa', label: '28. Дед', note: 'правка патча ворчанием', need: 'ready' },

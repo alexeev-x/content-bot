@@ -468,21 +468,6 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
   };
 }
 
-// «Суд» (owner, 27.10.2026): a hero on trial with this week's numbers on Божество; the subscribers give the verdict.
-const TRIAL_MIN_MATCHES = 500;
-const TRIAL_JOKES = ['Расстрелять, патч не ждать', 'Судья тоже на нём играет', 'Мне похуй, я на Пудже'] as const;
-
-export async function heroTrial(context: RubricContext): Promise<RubricSample> {
-  const list = (await shares(context, 7)).filter((each) => each.matches >= TRIAL_MIN_MATCHES);
-  const accused = pick(list, context.random);
-  return {
-    picture: null,
-    text: `На скамье подсудимых — ${accused.hero.localizedName}.`,
-    reference: `${accused.hero.localizedName} на Божествах за неделю: ${percent(accused.winRate)} побед, берут в ${percent(accused.pickRate)} игр, ${accused.matches.toLocaleString('ru-RU')} матчей.`,
-    poll: poll('Приговор', withJoke(['Виновен — в нерф', 'Оправдан'], context.random, TRIAL_JOKES))
-  };
-}
-
 type PositionRow = { heroId: number; position: number; matches: number; wins: number };
 
 /** Each hero's main position by its own matches (STRATZ), not by the roles the game lists. */
