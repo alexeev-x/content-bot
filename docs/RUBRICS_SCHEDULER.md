@@ -24,8 +24,9 @@ Each rubric's approved look and text: `design-refs/rubrics/<NN>-<key>/README.md`
 6. **Budgets.** Browser Rendering's free 10 minutes a day (one screenshot per 10 s), 50 subrequests and 50 D1 queries
    per invocation, the AI queue's rate limit: render and write at draft time, never inside the Cron tick that sends.
 7. **Automatic on production only** (owner, 30.10.2026: «на деве это не работает… работать только на прод должно
-   автоматически, но также можно выключить»). On DEV the scheduler never posts by itself: the owner calls a rubric
-   from «Тестирование» → «Рубрики». On production it runs on its own, and the owner can switch it off.
+   автоматически, но также можно выключить»). On production it runs on its own, and the owner can switch it off. On DEV
+   it never posts to the main channel: the owner calls a rubric from «Тестирование» → «Рубрики», and a rehearsal runs
+   the scheduler for real into the test channel only, without the AI (DECISIONS 30.10.2026).
 8. **Two kinds of rules, both to design with the owner** (owner, 29.10.2026: «пока не думаем про эти правила, но мы
    вернёмся к ним»). *Between rubrics*: which rubric goes when (the release plan below). *Inside a rubric*: what it
    picks for its next post — e.g. a hero does not come back until every hero of its pool has had his turn
@@ -234,3 +235,14 @@ ready; the release plan picks picture or text per post.
   its turn (its rest is not consumed) and is first in line for the next fitting slot once its cause clears (the
   provider's pause ends); an event rubric is re-planned within its freshness window (09 ≤ 21 days, chain steps within
   their window), a calendar post whose day has passed is skipped. A content skip (nothing to say) is not a failure.
+- **The weekly report has a «Рубрики» block** (owner, 30.10.2026: «в отчёте за неделю — по рубрикам, какая лучше»):
+  in the existing Monday analytics report, the week's rubrics ranked against the channel's usual post (views at the
+  same age, reactions, poll votes, comments), the best and worst rubric with the reason, the best and worst post inside
+  the rubrics that went out, rest changes the scheduler made or advises, and failures/skips of the week in one line.
+- **A picture plus its separate poll counts as one post** of the «≤ 3 a day» (owner, 30.10.2026); where the look
+  allows, one poll message with the picture inside is preferred.
+- **Similar-joke check by meaning is deferred** (owner, 30.10.2026): the lexical check first; the semantic one
+  (Workers AI embeddings) only after 4 weeks of its data.
+- **Comments** (owner, 30.10.2026): comment texts and the hashed author are kept 10 days («на всякий случай, если
+  что-то сдвинется») and then purged; the comment count per post and the daily theme summaries are kept for good; the
+  04 first guesser's @username is kept only on that riddle's answer post.
