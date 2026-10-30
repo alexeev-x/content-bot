@@ -5,31 +5,39 @@ import { Button } from '../../../shared/ui';
 import { useSendRubricSample } from '../api/rubric-samples-api';
 import styles from './RubricSamples.module.css';
 
-type Need = 'ready' | 'stratz' | 'stats' | 'later';
-// Rubrics the owner approved leave the list (owner, 26.10.2026: «убирай те рубрики, которые мы утвердили»); numbered
-// 1–30 in the order of RUBRIC_KEYS (renumbered 30.10.2026). Approved and gone from here: 1–20, 22.
-const RUBRICS: { key: RubricSampleKey; label: string; note: string; need: Need }[] = [
-  { key: 'forgotten_hero', label: '21. Забытый герой', note: 'картинка ИИ + текст', need: 'stratz' },
-  { key: 'hero_trial', label: '23. Подозреваемый', note: 'картинка ИИ + опрос «Приговор»', need: 'ready' },
-  { key: 'would_you_rather', label: '24. Что выберешь?', note: 'опрос: два наказания и выход', need: 'ready' },
-  { key: 'on_lane', label: '25. Ты на линии', note: 'викторина, цифры из данных Valve', need: 'ready' },
-  { key: 'rebus', label: '26. Ребус', note: 'викторина-ребус 18+', need: 'ready' },
-  { key: 'toxic_bingo', label: '27. Токсик-бинго', note: 'бинго 5×5 / тир-лист хуйни по очереди', need: 'ready' },
-  { key: 'fake_item', label: '28. Предмет, которого нет', note: 'подсказка предмета + своя иконка', need: 'ready' },
-  {
-    key: 'shame_of_day',
-    label: '29. Пидорок дня — худшая игра вчера из базы',
-    note: 'картинка с героем + текст, счёт или сборка по очереди',
-    need: 'stats'
-  },
-  { key: 'quote_of_day', label: '30. Цитата дня', note: 'цитата Стетхема про Доту, только текст', need: 'ready' }
+// All 30 approved rubrics, in the order of RUBRIC_KEYS: the owner calls any of them to look (owner, 30.10.2026).
+const RUBRICS: { key: RubricSampleKey; title: string }[] = [
+  { key: 'patch_broken', title: 'Кого понерфили' },
+  { key: 'who_is_imba', title: 'Кто теперь имба?' },
+  { key: 'nerf_or_buff', title: 'Нерф или баф?' },
+  { key: 'whose_ability', title: 'Чья способность?' },
+  { key: 'files_dont_lie', title: 'Утечка недели' },
+  { key: 'who_gets_nerfed', title: 'Кого понерфят?' },
+  { key: 'valve_seriously', title: 'Valve, ты серьёзно?' },
+  { key: 'valve_time', title: 'Валв-тайм' },
+  { key: 'rate_it', title: 'Оцениваем' },
+  { key: 'who_beats_whom', title: 'Кто кого перебьёт?' },
+  { key: 'workshop_set', title: 'Сеты из мастерской' },
+  { key: 'hero_guide', title: 'Гайд на героя' },
+  { key: 'confess', title: 'Признавайтесь' },
+  { key: 'explain_dumb', title: 'Объясни как дебилу' },
+  { key: 'toxic_translator', title: 'Переводчик с токсичного' },
+  { key: 'ability_in_life', title: 'Способность в жизнь' },
+  { key: 'hero_profile', title: 'Анкета' },
+  { key: 'item_leaflet', title: 'Инструкция по применению' },
+  { key: 'tier_list', title: 'Тир-лист' },
+  { key: 'recruit_picks', title: 'Что брать рекруту' },
+  { key: 'forgotten_hero', title: 'Забытый герой' },
+  { key: 'horoscope', title: 'Гороскоп' },
+  { key: 'hero_trial', title: 'Подозреваемый' },
+  { key: 'would_you_rather', title: 'Что выберешь?' },
+  { key: 'on_lane', title: 'Ты на линии' },
+  { key: 'rebus', title: 'Ребус' },
+  { key: 'toxic_bingo', title: 'Токсик-бинго' },
+  { key: 'fake_item', title: 'Предмет, которого нет' },
+  { key: 'shame_of_day', title: 'Пидорок дня' },
+  { key: 'quote_of_day', title: 'Цитата дня' }
 ];
-const NEED_NOTE: Record<Need, string> = {
-  ready: '',
-  stratz: ' · STRATZ',
-  stats: ' · база статистики (только прод)',
-  later: ' · пока не готово'
-};
 
 const REASONS: Record<string, string> = {
   BOT_NOT_CONFIGURED: 'Бот не подключён.',
@@ -47,6 +55,8 @@ const REASONS: Record<string, string> = {
 export function RubricSamplesList() {
   const send = useSendRubricSample();
   const [last, setLast] = useState<RubricSampleKey | null>(null);
+  // A queued rubric's button stays locked until the page reloads: a second press would send a second sample.
+  const [sent, setSent] = useState<ReadonlySet<RubricSampleKey>>(new Set());
   const failure =
     send.error === null
       ? null
@@ -63,13 +73,11 @@ export function RubricSamplesList() {
         : '';
   return (
     <ul className={styles.list}>
-      {RUBRICS.map((rubric) => (
+      {RUBRICS.map((rubric, index) => (
         <li key={rubric.key} className={styles.row}>
           <span className={styles.text}>
-            <span className={styles.label}>{rubric.label}</span>
-            <span className={styles.note}>
-              {rubric.note}
-              {NEED_NOTE[rubric.need]}
+            <span className={styles.label}>
+              {index + 1}. {rubric.title}
             </span>
             {/* Every row keeps its live region so a status appearing after the press is announced. */}
             <output className={failure !== null && last === rubric.key ? styles.failed : styles.status}>
@@ -80,13 +88,15 @@ export function RubricSamplesList() {
             size="sm"
             variant="secondary"
             isLoading={send.isPending && last === rubric.key}
-            isDisabled={send.isPending}
+            isDisabled={send.isPending || sent.has(rubric.key)}
             onPress={() => {
               setLast(rubric.key);
-              send.mutate(rubric.key);
+              send.mutate(rubric.key, {
+                onSuccess: () => setSent((keys) => new Set(keys).add(rubric.key))
+              });
             }}
           >
-            Прислать
+            {sent.has(rubric.key) ? 'Отправлено' : 'Прислать'}
           </Button>
         </li>
       ))}
