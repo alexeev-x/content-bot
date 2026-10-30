@@ -624,7 +624,7 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
         ? null
         : {
             stratz: createStratzApi({ ...access, cache: edgeTextCache('stratz', STRATZ_CACHE_SECONDS) }),
-            openDota: createOpenDotaApi({ bridgeUrl: access.bridgeUrl })
+            openDota: createOpenDotaApi({ bridgeUrl: access.bridgeUrl, spareBridgeUrl: access.spareBridgeUrl })
           };
     },
     get sourceEvents() {
