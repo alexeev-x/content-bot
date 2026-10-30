@@ -541,25 +541,27 @@ const ITEMS: readonly FakeItem[] = [
 
 const CSS = `.main{display:block;padding:0}
 .title{position:absolute;left:82px;top:60px;margin:0;font-size:40px}.title::after{display:none}
-.tip{position:absolute;left:676px;right:72px;top:136px;height:576px;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.tip{position:absolute;left:882px;right:72px;top:136px;height:576px;display:flex;flex-direction:column;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
 .top{display:flex;gap:28px;align-items:center;padding:20px 32px;background:#0f141b;border-bottom:1px solid var(--line)}
-.icon{position:absolute;left:82px;top:136px;width:560px;height:576px;border-radius:10px;border:1px solid var(--line);display:block;object-fit:cover;box-shadow:0 20px 50px rgba(0,0,0,.55)}
+.art{position:absolute;left:82px;top:136px;width:768px;height:576px;border-radius:10px;border:1px solid var(--line);overflow:hidden;box-shadow:0 20px 50px rgba(0,0,0,.55)}
+.icon{width:100%;height:100%;display:block;object-fit:cover}
+.wm{position:absolute;right:22px;bottom:16px;font-weight:800;font-size:26px;letter-spacing:8px;color:rgba(255,255,255,.72);text-shadow:0 2px 8px rgba(0,0,0,.85)}
 .nameblock{min-width:0;flex:1}
-.name{font-weight:800;font-size:52px;line-height:1.1}
+.name{font-weight:800;font-size:56px;line-height:1.1}
 .cost{font-weight:800;font-size:30px;color:var(--muted);margin-top:8px;font-variant-numeric:tabular-nums}
 .cost i{display:inline-block;width:16px;height:16px;border-radius:50%;background:#c9a24a;margin-right:10px;vertical-align:-1px}
 .body{flex:1;min-height:0;padding:22px 40px 24px;display:flex;flex-direction:column;justify-content:center;gap:18px;overflow:hidden}
-.stat{font-weight:600;font-size:30px;line-height:1.2;color:#c9d1db}
+.stat{font-weight:600;font-size:34px;line-height:1.2;color:#c9d1db}
 .abil{border-left:4px solid var(--red);padding:4px 0 4px 20px}
 .abil .h{font-weight:800;font-size:28px;color:var(--red)}
-.abil .t{font-weight:600;font-size:34px;line-height:1.3;margin-top:4px}
-.note{font-weight:600;font-size:28px;color:var(--muted);line-height:1.35}`;
+.abil .t{font-weight:600;font-size:40px;line-height:1.3;margin-top:4px}
+.note{font-weight:600;font-size:32px;color:var(--muted);line-height:1.35}`;
 
 // The name and the body never leave the tooltip: their fonts shrink until they fit.
 const FIT = `<script>(()=>{const done=()=>document.documentElement.setAttribute('data-fonts-ready','');
 const shrink=(box,parts)=>{let k=1;while(box.scrollHeight>box.clientHeight+1&&k>.5){k-=.04;for(const[n,s]of parts){n.style.fontSize=Math.round(s*k)+'px'}}};
-document.fonts.ready.then(()=>{const nm=document.querySelector('.name');let s=52;while(nm.scrollHeight>130&&s>30){s-=2;nm.style.fontSize=s+'px'}
-const body=document.querySelector('.body');shrink(body,[...body.querySelectorAll('.stat')].map((n)=>[n,30]).concat([...body.querySelectorAll('.t')].map((n)=>[n,34]),[...body.querySelectorAll('.note')].map((n)=>[n,28])))}).then(done,done);
+document.fonts.ready.then(()=>{const nm=document.querySelector('.name');let s=56;while(nm.scrollHeight>140&&s>30){s-=2;nm.style.fontSize=s+'px'}
+const body=document.querySelector('.body');shrink(body,[...body.querySelectorAll('.stat')].map((n)=>[n,34]).concat([...body.querySelectorAll('.t')].map((n)=>[n,40]),[...body.querySelectorAll('.note')].map((n)=>[n,32])))}).then(done,done);
 setTimeout(done,8000);})();</script>`;
 
 const upperFirst = (text: string) => text.charAt(0).toUpperCase() + text.slice(1);
@@ -567,7 +569,7 @@ const upperFirst = (text: string) => text.charAt(0).toUpperCase() + text.slice(1
 export function fakeItemPage(item: FakeItem, iconBase64: string): string {
   const page = picturePage(
     `<div class="title">Предмет, которого <b>нет</b></div>
-<img class="icon" src="data:image/jpeg;base64,${iconBase64}" alt="">
+<div class="art"><img class="icon" src="data:image/jpeg;base64,${iconBase64}" alt=""><div class="wm">ALEXEEV</div></div>
 <div class="tip"><div class="top"><div class="nameblock"><div class="name">${escapeHtml(item.name)}</div><div class="cost"><i></i>${escapeHtml(item.cost)}</div></div></div>
 <div class="body">${item.stats.map((stat) => `<div class="stat">${escapeHtml(stat)}</div>`).join('')}
 <div class="abil"><div class="h">${item.ability.type}: ${escapeHtml(item.ability.title)}</div><div class="t">${escapeHtml(upperFirst(item.ability.text))}</div></div>
