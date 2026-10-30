@@ -8,7 +8,13 @@ import { createOpenDotaApi, OpenDotaError } from '../../integrations/opendota/op
 import { createStratzApi, StratzError } from '../../integrations/stratz/stratz-api';
 import { createTelegramApi, type TelegramSendApi } from '../../integrations/telegram/telegram-api';
 import { createValveDatafeedApi, DatafeedError } from '../../integrations/valve-datafeed/valve-datafeed';
-import { drawAnketaScene, drawHoroscopeScene, drawRubricScene, writeRubricCaption } from '../../modules/ai';
+import {
+  drawAnketaScene,
+  drawForgottenScene,
+  drawHoroscopeScene,
+  drawRubricScene,
+  writeRubricCaption
+} from '../../modules/ai';
 import { condenseBuild, isRelevantPath, parseBuildMessage, splitDiff, type GameFind } from '../../modules/game-files';
 import {
   buildRubricSample,
@@ -403,7 +409,7 @@ export type RubricSampleDeps = {
     }) => Promise<string | null>;
     scene: (input: { heading: { text: string; red: string | null } | null }) => Promise<Scene>;
     /** «Анкета»: the hero placed into the owner's scene. */
-    heroScene: (input: { hero: Uint8Array; heroName: string }) => Promise<Scene>;
+    heroScene: (input: { hero: Uint8Array; heroName: string; scene?: 'anketa' | 'forgotten' }) => Promise<Scene>;
     /** «Гороскоп»: the fortune-teller and the ball's head drawn into the owner's scene. */
     fortuneScene: (input: {
       teller: Uint8Array;
@@ -535,7 +541,11 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
       const scene =
         render === null || deps.ai === null
           ? null
-          : await deps.ai.heroScene({ hero: render, heroName: sample.heroScene.heroName });
+          : await deps.ai.heroScene({
+              hero: render,
+              heroName: sample.heroScene.heroName,
+              ...(sample.heroScene.scene === undefined ? {} : { scene: sample.heroScene.scene })
+            });
       if (scene?.kind === 'drawn' && /^[A-Za-z0-9+/=]+$/.test(scene.base64)) {
         html = html.replace(
           '</head>',
@@ -543,7 +553,7 @@ export async function sendRubricSample(deps: RubricSampleDeps, rubric: RubricKey
         );
       } else {
         sceneFailed(
-          `анкета ${sample.heroScene.heroName}`,
+          `${sample.heroScene.scene === 'forgotten' ? 'забытый' : 'анкета'} ${sample.heroScene.heroName}`,
           render === null
             ? `нет изображения героя ${sample.heroScene.heroName}`
             : scene?.kind === 'failed'
@@ -818,7 +828,11 @@ export async function runRubricSampleJob(
         ai: {
           caption: (input) => writeRubricCaption(aiDeps, input),
           scene: (input) => drawRubricScene({ ...aiDeps, images: container.aiImageProvider, onError }, input),
-          heroScene: (input) => drawAnketaScene({ ...aiDeps, images: container.aiImageProvider, onError }, input),
+          heroScene: ({ scene, ...input }) =>
+            (scene === 'forgotten' ? drawForgottenScene : drawAnketaScene)(
+              { ...aiDeps, images: container.aiImageProvider, onError },
+              input
+            ),
           fortuneScene: (input) => drawHoroscopeScene({ ...aiDeps, images: container.aiImageProvider, onError }, input)
         },
         improvePhoto: pictureImproverFor(container, requestId, onError, RUBRIC_PHOTO_MIN_WIDTH),

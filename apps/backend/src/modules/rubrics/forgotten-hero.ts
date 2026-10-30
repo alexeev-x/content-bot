@@ -1,4 +1,7 @@
-import { needStats, noData, pick, type RubricContext, type RubricSample } from './types';
+import { spokenHeroName } from './anketa';
+import { FORGOTTEN_PLAQUE } from './forgotten-plaque.generated';
+import { escapeHtml } from './picture';
+import { type HeroInfo, needStats, noData, pick, type RubricContext, type RubricSample } from './types';
 
 // «Забытый герой» (owner, 28.10.2026: «все варианты понравились»): a hero almost nobody picks on Божества who still
 // wins, checked on Рекрут — «бери» when he wins there too, an honest «это не тебе» when he doesn't; now and then the
@@ -40,10 +43,45 @@ async function rates(context: RubricContext, bracket: number): Promise<Map<numbe
 
 const pct = (value: number) => `${Math.round(value * 100)}%`;
 
+// The picture (owner, 29.10.2026: «да супер»): the image model seats the hero, sad and in cobwebs, in the owner's ruins
+// under the «ЗАБЫТЫЕ ГЕРОИ» sign; the browser writes his name on the plaque below it in a worn font of the sign's colour,
+// screened into the wood, then lays the plaque's own cobwebs back over the letters so they look painted there.
+const RENDERS = 'https://cdn.cloudflare.steamstatic.com/apps/dota2/videos/dota_react/heroes/renders';
+const WIDTH = 1536;
+const HEIGHT = 1024;
+const PLAQUE = `data:image/jpeg;base64,${FORGOTTEN_PLAQUE}`;
+const CSS = `*{margin:0;padding:0}html,body{width:${WIDTH}px;height:${HEIGHT}px;overflow:hidden}
+body{position:relative;background:#0c0d14 var(--scene,none) 0 0/${WIDTH}px ${HEIGHT}px no-repeat}
+.plaque{position:absolute;left:870px;top:575px;width:500px;height:150px}
+.cobwebs{mix-blend-mode:lighten;opacity:.9;filter:brightness(1.05)}
+.name{position:absolute;left:915px;top:612px;width:410px;height:90px;display:flex;align-items:center;justify-content:center;
+font-family:'Rubik Distressed',Arial,sans-serif;font-size:54px;text-transform:uppercase;letter-spacing:2px;white-space:nowrap;
+color:rgb(201,175,168);text-shadow:0 1px 0 rgba(0,0,0,.55),0 -1px 0 rgba(255,255,255,.06);
+mix-blend-mode:screen;opacity:.82;transform:rotate(-.6deg)}`;
+// The name never leaves the plaque: the font shrinks until it fits.
+const FIT = `<script>(()=>{const done=()=>document.documentElement.setAttribute('data-fonts-ready','');
+document.fonts.ready.then(()=>{const n=document.querySelector('.name');let s=54;
+while((n.scrollWidth>n.clientWidth||n.scrollHeight>n.clientHeight)&&s>20){s-=2;n.style.fontSize=s+'px'}}).then(done,done);
+setTimeout(done,8000);})();</script>`;
+
+function scenePage(name: string): string {
+  return `<!doctype html><html lang="ru"><head><meta charset="utf-8">
+<link href="https://fonts.googleapis.com/css2?family=Rubik+Distressed&amp;display=block&amp;subset=cyrillic" rel="stylesheet">
+<style>${CSS}</style></head><body><img class="plaque" src="${PLAQUE}" alt=""><div class="name">${escapeHtml(name)}</div>
+<img class="plaque cobwebs" src="${PLAQUE}" alt="">${FIT}</body></html>`;
+}
+
+const heroKey = (hero: HeroInfo) => hero.name.replace('npc_dota_hero_', '');
+const spokenName = (hero: HeroInfo) => spokenHeroName(heroKey(hero)) ?? hero.localizedName;
+
 export async function forgottenHero(context: RubricContext): Promise<RubricSample> {
   const [divine, heroes] = await Promise.all([rates(context, DIVINE), context.sources.heroes()]);
   const recruit = await rates(context, RECRUIT);
-  const name = new Map(heroes.map((hero) => [hero.id, hero.localizedName]));
+  const byId = new Map(heroes.map((hero) => [hero.id, hero]));
+  const name = (heroId: number) => {
+    const hero = byId.get(heroId);
+    return hero === undefined ? '?' : spokenName(hero);
+  };
   const facts = (hero: Rate, low: Rate) =>
     `Берут в ${pct(hero.pickRate)} игр, на Божествах выигрывает ${pct(hero.winRate)}. На Рекрутах: ${pct(low.winRate)}.`;
 
@@ -57,7 +95,10 @@ export async function forgottenHero(context: RubricContext): Promise<RubricSampl
     if (over.length > 0) {
       const { hero, low } = pick(over, context.random);
       const look = pick(['Записка', 'Найден герой'] as const, context.random);
-      return draft(`Вид: Переоценённый · ${look}\nГерой: ${name.get(hero.heroId) ?? '?'}\n${facts(hero, low)}`);
+      return draft(
+        byId.get(hero.heroId),
+        `Вид: Переоценённый · ${look}\nГерой: ${name(hero.heroId)}\n${facts(hero, low)}`
+      );
     }
   }
 
@@ -80,15 +121,24 @@ export async function forgottenHero(context: RubricContext): Promise<RubricSampl
   const crowd = [...recruit.values()].sort((a, b) => b.pickRate - a.pickRate)[0];
   const pair =
     look === 'Два героя' && crowd !== undefined
-      ? `\nРядом с ним: ${name.get(crowd.heroId) ?? '?'} — берут в ${pct(crowd.pickRate)} игр на Рекрутах, выигрывает ${pct(crowd.winRate)}.`
+      ? `\nРядом с ним: ${name(crowd.heroId)} — берут в ${pct(crowd.pickRate)} игр на Рекрутах, выигрывает ${pct(crowd.winRate)}.`
       : '';
   return draft(
-    `Вид: Забытый · ${look}\nГерой: ${name.get(hero.heroId) ?? '?'}\n${facts(hero, low)} Вердикт: ${verdict}.${pair}`
+    byId.get(hero.heroId),
+    `Вид: Забытый · ${look}\nГерой: ${name(hero.heroId)}\n${facts(hero, low)} Вердикт: ${verdict}.${pair}`
   );
 }
 
-function draft(text: string): RubricSample {
-  return { picture: null, text, noPicture: true, boldLead: true, poll: null };
+function draft(hero: HeroInfo | undefined, text: string): RubricSample {
+  if (hero === undefined) throw noData('the forgotten hero');
+  const name = spokenName(hero);
+  return {
+    picture: { html: scenePage(name), width: WIDTH, height: HEIGHT },
+    heroScene: { renderUrl: `${RENDERS}/${heroKey(hero)}.png`, heroName: name, scene: 'forgotten' },
+    text,
+    boldLead: true,
+    poll: null
+  };
 }
 
 /** The writer's brief: the owner's own examples of each look (banks/23, 28.10.2026), the numbers from the draft. */
