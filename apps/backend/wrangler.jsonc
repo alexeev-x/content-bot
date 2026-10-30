@@ -95,8 +95,8 @@
         "PUBLISHING_ENABLED": "true",
         // Control runs of the AI writer (20+ drafts) on dev; production keeps the default 20 per 10 minutes.
         "AI_DRAFT_LIMIT": "200",
-        // The owner's keyless stats bridge on Deno Deploy (bridge/stats-bridge): STRATZ refuses Cloudflare's addresses.
-        "STATS_BRIDGE_URL": "https://faded-millipede-9696.alexeev-x.deno.net",
+        // The owner's keyless stats bridge on Render (bridge/stats-bridge): STRATZ refuses Cloudflare's addresses.
+        "STATS_BRIDGE_URL": "https://alexeev-stats.onrender.com",
         "ANALYTICS_TELEGRAM_CHANNEL": "alexeev_x",
         "ANALYTICS_YOUTUBE_CHANNEL_ID": "UCE-VQmi1Qym7MrEzHg9ngjA"
       }
@@ -139,7 +139,7 @@
         "ANALYTICS_YOUTUBE_CHANNEL_ID": "UCE-VQmi1Qym7MrEzHg9ngjA",
         // The owner's stats bridge to STRATZ and OpenDota (bridge/stats-bridge): with the STRATZ_TOKEN secret it turns
         // on the stats rubrics and the «Гайд на героя» match base.
-        "STATS_BRIDGE_URL": "https://faded-millipede-9696.alexeev-x.deno.net"
+        "STATS_BRIDGE_URL": "https://alexeev-stats.onrender.com"
       }
     }
   }
