@@ -1,0 +1,103 @@
+.blockers {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+}
+
+.blockerList {
+  display: grid;
+  gap: var(--space-3);
+  inline-size: 100%;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.blocker {
+  display: grid;
+  gap: var(--space-2);
+  min-inline-size: 0;
+}
+
+.blockerText {
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+.blockerText svg {
+  flex: none;
+  margin-block-start: 2px;
+  color: var(--color-status-unknown-fg);
+}
+
+.fix {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: end;
+  gap: var(--space-3);
+}
+
+/* The one-line header of /rubrics: the state, a link to the settings, the start/stop button. */
+.bar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+
+@media (min-width: 860px) {
+  .bar {
+    padding: var(--space-3) var(--space-4);
+  }
+}
+
+.barTitle {
+  margin: 0;
+  font-size: var(--font-size-md);
+}
+
+.barActions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-2);
+  margin-inline-start: auto;
+}
+
+@media (max-width: 599px) {
+  .barActions {
+    inline-size: 100%;
+    margin-inline-start: 0;
+  }
+}
+
+.configure {
+  display: inline-flex;
+  align-items: center;
+  min-block-size: var(--size-target);
+  padding-inline: var(--space-2);
+  color: var(--color-accent);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  text-decoration: none;
+  border-radius: var(--radius-2);
+}
+
+.configure:hover {
+  text-decoration: underline;
+}
+
+.configure:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.barNote {
+  inline-size: 100%;
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}

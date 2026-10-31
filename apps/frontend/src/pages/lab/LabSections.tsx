@@ -1,9 +1,18 @@
+import { Link } from '@tanstack/react-router';
 import { LabAutopublish } from '../../features/lab-autopublish';
 import { BackgroundJobsEditor, useOwnerTimezone } from '../../features/owner-settings';
 import { RubricSamplesList } from '../../features/rubric-samples';
 import { RubricsRareStates, RubricsRehearsal } from '../../features/rubrics';
 import { LabCatalog } from './LabCatalog';
 import styles from './LabPage.module.css';
+
+function SettingsLink() {
+  return (
+    <Link to="/settings/general" search={{ tab: 'news' }}>
+      Настройки → Автопубликация
+    </Link>
+  );
+}
 
 export function LabRubrics() {
   return (
@@ -23,7 +32,8 @@ export function LabAutopublishSection() {
     <div className={styles.panel}>
       <p className={styles.intro}>
         Анонс Steam без поста проходит весь автоматический путь, как будто его только что нашёл Cron: ИИ пишет,
-        проверяет факты и, если на DEV включена автопубликация, публикует без вас в канал из «Настройки → Общие».
+        проверяет факты и, если на DEV включена автопубликация, публикует без вас в канал из настроек. Включить и
+        выбрать канал: <SettingsLink />.
       </p>
       <LabAutopublish timezone={timezone} />
     </div>
@@ -31,7 +41,14 @@ export function LabAutopublishSection() {
 }
 
 export function LabBackground() {
-  return <BackgroundJobsEditor />;
+  return (
+    <div className={styles.panel}>
+      <p className={styles.intro}>
+        Здесь только технические рубильники Cron. Что публиковать само и куда: <SettingsLink />.
+      </p>
+      <BackgroundJobsEditor />
+    </div>
+  );
 }
 
 export function LabRehearsal() {
