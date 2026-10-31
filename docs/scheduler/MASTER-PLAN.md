@@ -32,7 +32,7 @@ Planning only: nothing below is built. This file is the one ordered plan the tea
 4. Этап P: деплой с привязкой Browser Rendering на проде (правку `wrangler.jsonc` делают агенты, деплой — ваш PR); дневной лимит в коде: прод 12 мин, DEV 4 мин.
 5. Этап 5: загрузить фоны «Открытки» в R2 (`--remote` — только вы) и указать час каждой открытки.
 6. Этап 6b: разрешить Workers AI (эмбеддинги) после 4 недель данных; стоимость и лимит назовём до пробы.
-7. Ответить на вопросы §13 (у всех есть рекомендация и безопасное значение по умолчанию).
+7. Вопросы §13 отвечены 31.10.2026.
 
 ---
 
@@ -468,24 +468,25 @@ Agent assignment and parallelism: backend-core leads stages 0, 1, 3, 4a, P, 5 (c
 
 ---
 
-## 13. Open owner questions (recommendation first; the default in brackets is what the code does until you answer)
-1. **«ждёт владельца» — Хранение текстов комментариев.** В `RUBRICS_SCHEDULER.md` записано 10 дней (ваша цитата «на всякий случай»), в задании — 7 дней и вопрос открыт. Рекомендую 10 дней, как в документе: 04 «Первым угадал» нужен текст 3 часа, темам — до суток. [10 дней, одна константа]
-2. Хотфикс в цепочке патча: версии одной семьи (`7.41`, `7.41a`…) в пределах 5 дней от первой — один пост; буквенная версия с правками героев позже 5 дней — новая цепочка. Рекомендую так. [так]
-3. 03 «Нерф или баф?»: шуток «не еби мозги» 5, а повтор разрешён только через 6 постов — добавьте 2 строки. [до тех пор повторяется самая давняя]
-4. 08 «Валв-тайм» при сдвиге на 1–2 дня раньше: картинка показывает реальное число дней (28–30). Рекомендую да; иначе метка пропускается. [реальное число]
-5. 31 «Открытка»: час каждой открытки; рекомендую 11:00 МСК по умолчанию, 00:05 только для Нового года по вашему желанию; две открытки на одну дату — выходит большой праздник. [11:00; большой праздник]
-6. 12 «Гайд на героя»: среди героев, ещё не получивших гайд, — случайный из 5 самых популярных. Рекомендую да. [да]
-7. 09 «Оцениваем» без нашего новостного поста: отсчитывать 1–5 дней от даты анонса. Рекомендую да. [да]
-8. 14 «Объясни как дебилу»: после патча, затронувшего механику с ручными цифрами, запись пропускается до вашей проверки (список приходит в бот, «Проверено» в карточке). Рекомендую да. [без ответа — такие записи молчат 7 дней после каждого патча]
-9. 04 подсказка через 1,5 ч: дописывать её в подпись загадки (без нового поста) или отдельным коротким постом. Рекомендую дописывать в подпись. [без подсказки, обычный ответ]
-10. Обучение: после 4 недель советов отдых и часы меняются сами (лучшая рубрика — чаще, слабая — реже; часы шагом в час), с выключателем. Рекомендую да. [только советы]
-11. Ваши правила для Telegram-текстов и одобренные «Учитывать» применяются к подписям рубрик, которые пишет ИИ. Рекомендую да. [да]
-12. В понедельничном отчёте переименовать старую строку «🏷 Рубрики · Учу фидить…» в «🎬 Форматы видео», чтобы «Рубрики» был один. Рекомендую да. [да]
-13. Канал рубрик на проде: выбирается в окне включения, подставлен канал автопубликации. Рекомендую так. [подставлен]
-14. Вид «Неделя» в Календаре: рекомендую не делать сейчас (Месяц + Список покрывают). [нет]
-15. Служебная страница `/__catalog` (только DEV) для проверки редких состояний: рекомендую сделать; иначе исправим строку в `docs/design/README.md`. [сделать]
-16. Объём интерфейса v1: без ручной правки отдыха, без кнопки «Пропустить слот», «Рубрики» в «Ещё» на телефоне. Рекомендую так. [так]
-17. Подписи статусов как в «Публикациях» («Опубликовано», «Требует проверки», «Публикуется») вместо макета («Отправлено»…). Рекомендую да. [да]
+## 13. Owner answers (31.10.2026; these win over area files and earlier defaults)
+1. Comment texts are kept 10 days (one constant).
+2. Patch-chain hotfixes: one family (`7.41`, `7.41a`…) within 5 days of the first is one post; a letter version with hero changes later than 5 days starts a new chain.
+3. 03 «Нерф или баф?»: add three jokes to `DONT_BOTHER_JOKES` — «Отъебись, у меня семейный ужин с отцами», «Ебал я ваши патчи вместе с Валвом», «Хуй знает, я сейчас сру» (8 in the bank, the 6-post repeat rule holds).
+4. 08 «Валв-тайм» moved 1–2 days earlier: the picture shows the real day count.
+5. 31 «Открытка»: the owner sets each card's hour himself later (card setting); two cards never share a date, so no collision rule.
+6. 12 «Гайд на героя»: a random hero among the 5 most popular without a guide.
+7. 09 «Оцениваем» without our news post: count 1–5 days from the announcement date.
+8. 14 «Объясни как дебилу»: no hand-typed numbers — every number comes from Valve's live data like `on-lane.ts`; no manual «Проверено» step.
+9. 04: no hint at 1.5 h; the plain answer only.
+10. Learning: after 4 weeks of advice, rest and hours change on their own (with a switch).
+11. The owner's Telegram text rules and approved «Учитывать» do NOT apply to rubric captions; rubrics keep their own rules.
+12. Monday report: rename «🏷 Рубрики · Учу фидить…» to «🎬 Форматы видео».
+13. Prod rubric channel: chosen in the enable dialog, the autopublish channel prefilled.
+14. No «Неделя» view; Месяц + Список.
+15. No `/__catalog`. Rare-state checks live in `/lab` (DEV and local only): sub-routes `/lab/<type>` with a submenu in the side menu, reachable straight from the admin; layout by the designer/analyst.
+16. «Рубрики» is built to the maximum, a finished product from the start: manual rest edit, «Пропустить слот» and whatever else the analyst finds necessary (analyst lists it before the screens); no «v1 minimum».
+17. Slot status labels as in «Публикации» («Опубликовано», «Требует проверки», «Публикуется»).
+
 Owner actions (not questions): prod migrations 0117–0123 before each main PR; `AUDIENCE_HASH_KEY` on both environments; bot admin of the discussion group; «Подключить бота» after stage 2; the switch and channel at stage 4; the BROWSER deploy at stage P; greeting backgrounds to R2 at stage 5; Workers AI trial approval at 6b. Defaults A1–A6 (§7) stand unless vetoed.
 
 ---
