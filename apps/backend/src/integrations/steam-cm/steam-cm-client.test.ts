@@ -95,12 +95,26 @@ describe('readSteamAppInfo', () => {
     expect(apps[0]?.appId).toBe(570);
   });
 
+  it('asks Steam’s mirror for the server list when Akamai refuses the Worker (30.10.2026: HTTP 403 Access Denied)', async () => {
+    const asked: string[] = [];
+    const refusedMain = (async (url: string) => {
+      asked.push(new URL(url).host);
+      return url.startsWith('https://api.steampowered.com/')
+        ? new Response('Access Denied', { status: 403 })
+        : directory(url);
+    }) as unknown as typeof fetch;
+    const manager = fakeManager();
+    const apps = await readSteamAppInfo([570], { fetchImpl: refusedMain, openSocket: async () => manager.socket });
+    expect(apps[0]?.appId).toBe(570);
+    expect(asked).toEqual(['api.steampowered.com', 'community.steam-api.com']);
+  });
+
   it('names the step and Steam’s status when the server list fails twice', async () => {
     const down = (async () => new Response('Service Unavailable', { status: 503 })) as unknown as typeof fetch;
     await expect(readSteamAppInfo([570], { fetchImpl: down })).rejects.toMatchObject({
       code: 'STEAM_CM_DIRECTORY',
       status: 503,
-      detail: expect.stringContaining('дважды подряд; список серверов')
+      detail: expect.stringContaining('дважды подряд; зеркало community.steam-api.com: список серверов')
     });
   });
 

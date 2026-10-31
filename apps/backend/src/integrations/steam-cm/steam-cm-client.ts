@@ -7,6 +7,9 @@ import { readErrorDetail } from '../../platform/error-detail';
 // Dota 2 (570) gives its public branch's build, Dota 2 Staging (2305270) only its change number (its info needs a token).
 
 const DIRECTORY = 'https://api.steampowered.com/ISteamDirectory/GetCMListForConnect/v1/?cellid=0&cmtype=websockets';
+/** Steam's own mirror of the Web API (30.10.2026: answers while Akamai refuses api.steampowered.com to a Worker). */
+const MIRROR_DIRECTORY =
+  'https://community.steam-api.com/ISteamDirectory/GetCMListForConnect/v1/?cellid=0&cmtype=websockets';
 export const STEAM_CM_TIMEOUT_MS = 12_000;
 const PROTO = 0x80000000;
 const EMSG = {
@@ -226,11 +229,34 @@ async function workerSocket(url: string, fetchImpl: typeof fetch, signal: AbortS
   };
 }
 
-/** The connection managers a Worker can reach: WebSocket ones on port 443. */
+/**
+ * The connection managers a Worker can reach: WebSocket ones on port 443. Akamai in front of api.steampowered.com now and
+ * then refuses a Cloudflare egress address (30.10.2026: HTTP 403 «Access Denied» twice in a row while the API answered
+ * from elsewhere), so a refused or unreachable list is asked once of Steam's own mirror before the run fails.
+ */
 async function connectionManagers(fetchImpl: typeof fetch, signal: AbortSignal): Promise<string[]> {
+  try {
+    return await managersFrom(DIRECTORY, fetchImpl, signal);
+  } catch (error) {
+    if (!(error instanceof SteamCmError) || signal.aborted) throw error;
+    try {
+      return await managersFrom(MIRROR_DIRECTORY, fetchImpl, signal);
+    } catch (again) {
+      if (!(again instanceof SteamCmError)) throw again;
+      throw new SteamCmError(
+        again.code,
+        // The mirror first: the owner's alert is cut at 300 characters, and the main address's refusal is the known part.
+        `зеркало ${new URL(MIRROR_DIRECTORY).host}: ${again.detail ?? again.code}; основной адрес: ${error.detail ?? error.code}`,
+        again.status ?? error.status
+      );
+    }
+  }
+}
+
+async function managersFrom(directory: string, fetchImpl: typeof fetch, signal: AbortSignal): Promise<string[]> {
   let response: Response;
   try {
-    response = await fetchImpl(DIRECTORY, { signal });
+    response = await fetchImpl(directory, { signal });
   } catch {
     throw new SteamCmError(
       'STEAM_CM_DIRECTORY',

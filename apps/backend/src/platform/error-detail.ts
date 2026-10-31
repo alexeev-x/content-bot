@@ -31,11 +31,23 @@ export function redactSecrets(text: string): string {
   return result;
 }
 
+const ENTITIES: Record<string, string> = { amp: '&', lt: '<', gt: '>', quot: '"', apos: "'", nbsp: ' ' };
+
+// Error pages (Akamai's «Access Denied») encode every symbol as `&#58;`: decoded, the line is a third as long.
+function decodeEntities(text: string): string {
+  return text.replace(/&(#x?[0-9a-f]{1,6}|[a-z]{2,5});/gi, (whole, name: string) => {
+    if (name.startsWith('#')) {
+      const code = name[1] === 'x' || name[1] === 'X' ? Number.parseInt(name.slice(2), 16) : Number(name.slice(1));
+      return Number.isInteger(code) && code > 31 && code < 0x110000 ? String.fromCodePoint(code) : whole;
+    }
+    return ENTITIES[name.toLowerCase()] ?? whole;
+  });
+}
+
 /** One redacted, whitespace-collapsed line of at most `max` characters. */
 export function boundDetail(text: string, max = ERROR_DETAIL_MAX): string {
   const line = redactSecrets(
-    text
-      .replace(/<[^>]*>/g, ' ')
+    decodeEntities(text.replace(/<[^>]*>/g, ' '))
       .replace(/\s+/g, ' ')
       .trim()
   );
