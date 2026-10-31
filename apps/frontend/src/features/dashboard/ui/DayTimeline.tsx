@@ -9,7 +9,16 @@ import { Link, useNavigate } from '@tanstack/react-router';
 import type { CSSProperties } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
 import { formatClock } from '../../../shared/lib/clock';
-import { Button, Icon, type IconName, Skeleton, statusMeta, type StatusGroup, Tooltip } from '../../../shared/ui';
+import {
+  Button,
+  EmptyState,
+  Icon,
+  type IconName,
+  Skeleton,
+  statusMeta,
+  type StatusGroup,
+  Tooltip
+} from '../../../shared/ui';
 import { activityView, groupByTime } from '../model/activity-view';
 import { dayPercent, placeMarkers } from '../model/timeline';
 import { avatarLetter, toneStyle } from '../model/tone';
@@ -112,6 +121,8 @@ export function DayTimeline({
     (items?.filter((item) => item.status === 'failed' || item.status === 'unknown').length ?? 0) +
     (rubricSlots ?? []).filter((slot) => slotTone(slot.state).group === 'failed').length;
   const eventCount = eventGroups.reduce((sum, group) => sum + group.length, 0);
+  // A day with nothing planned and nothing logged: one calm state instead of an empty scale.
+  const quiet = empty && (!showEvents || eventCount === 0);
   return (
     <Widget
       id="line"
@@ -125,60 +136,123 @@ export function DayTimeline({
       }
     >
       <div className={shell.body}>
-        <div
-          className={styles.chart}
-          data-events={showEvents || undefined}
-          style={{ '--lanes': LANES, '--now': `${nowPercent}%` } as CSSProperties}
-        >
-          {phone ? null : (
-            <div className={styles.labels} aria-hidden="true">
-              <span className={styles.labelPub}>{copy.line.lanePublications}</span>
-              {showEvents ? <span className={styles.labelEvents}>{copy.activity.lane}</span> : null}
-            </div>
-          )}
-          <div className={styles.plot}>
-            {HOURS.map((hour) => (
-              <span
-                key={hour}
-                className={styles.tick}
-                data-minor={hour % 6 !== 0 || undefined}
-                style={{ insetInlineStart: `${(hour / 24) * 100}%` }}
-                aria-hidden="true"
-              >
-                <span className={styles.tickLabel}>{String(hour).padStart(2, '0')}</span>
+        {quiet ? (
+          <EmptyState
+            size="compact"
+            icon="calendar"
+            title={copy.line.empty}
+            action={
+              <Button size="sm" variant="secondary" icon="plus" onPress={onNewPost}>
+                {copy.line.schedule}
+              </Button>
+            }
+          />
+        ) : (
+          <div
+            className={styles.chart}
+            data-events={showEvents || undefined}
+            style={{ '--lanes': LANES, '--now': `${nowPercent}%` } as CSSProperties}
+          >
+            {phone ? null : (
+              <div className={styles.labels} aria-hidden="true">
+                <span className={styles.labelPub}>{copy.line.lanePublications}</span>
+                {showEvents ? <span className={styles.labelEvents}>{copy.activity.lane}</span> : null}
+              </div>
+            )}
+            <div className={styles.plot}>
+              {HOURS.map((hour) => (
+                <span
+                  key={hour}
+                  className={styles.tick}
+                  data-minor={hour % 6 !== 0 || undefined}
+                  style={{ insetInlineStart: `${(hour / 24) * 100}%` }}
+                  aria-hidden="true"
+                >
+                  <span className={styles.tickLabel}>{String(hour).padStart(2, '0')}</span>
+                </span>
+              ))}
+              <span className={styles.past} aria-hidden="true" />
+              <span className={styles.track} aria-hidden="true" />
+              <span className={styles.trackDone} aria-hidden="true" />
+              {showEvents ? <span className={styles.eventsTrack} aria-hidden="true" /> : null}
+              <span className={styles.now} aria-hidden="true">
+                <span className={styles.nowLabel}>{formatClock(now.toISOString(), timezone)}</span>
               </span>
-            ))}
-            <span className={styles.past} aria-hidden="true" />
-            <span className={styles.track} aria-hidden="true" />
-            <span className={styles.trackDone} aria-hidden="true" />
-            {showEvents ? <span className={styles.eventsTrack} aria-hidden="true" /> : null}
-            <span className={styles.now} aria-hidden="true">
-              <span className={styles.nowLabel}>{formatClock(now.toISOString(), timezone)}</span>
-            </span>
-            {/* While loading, the scale stays empty: placeholder dots sat where no publication was and jumped away. */}
-            {items === undefined ? null : (
-              <ul className={styles.markers} aria-label={copy.line.title}>
-                {markers.map(({ item: entry, percent, lane }) => {
-                  if (entry.kind === 'slot') {
-                    const { slot } = entry;
-                    const tone = slotTone(slot.state);
-                    const clock = formatClock(slot.at, timezone);
-                    const reason = rubricSlotReason(slot.code);
-                    const status = copy.line.slotStatus(copy.line.slotStates[slot.state], reason);
-                    const title = RUBRIC_TITLES[slot.rubricKey];
+              {/* While loading, the scale stays empty: placeholder dots sat where no publication was and jumped away. */}
+              {items === undefined ? null : (
+                <ul className={styles.markers} aria-label={copy.line.title}>
+                  {markers.map(({ item: entry, percent, lane }) => {
+                    if (entry.kind === 'slot') {
+                      const { slot } = entry;
+                      const tone = slotTone(slot.state);
+                      const clock = formatClock(slot.at, timezone);
+                      const reason = rubricSlotReason(slot.code);
+                      const status = copy.line.slotStatus(copy.line.slotStates[slot.state], reason);
+                      const title = RUBRIC_TITLES[slot.rubricKey];
+                      return (
+                        <li
+                          key={slot.slotId}
+                          className={styles.markerSlot}
+                          data-lane={lane}
+                          style={
+                            {
+                              insetInlineStart: percent + '%',
+                              '--lane': lane,
+                              ...toneStyle(tone.group)
+                            } as CSSProperties
+                          }
+                        >
+                          <Tooltip
+                            content={
+                              <span className={styles.tip}>
+                                <strong>{copy.line.rubric(title)}</strong>
+                                <span>
+                                  {clock} · {status}
+                                </span>
+                              </span>
+                            }
+                          >
+                            <AriaButton
+                              className={styles.marker}
+                              data-rubric="slot"
+                              aria-label={copy.line.slotMarker(title, clock, status)}
+                              onPress={() => void navigate({ to: '/rubrics' })}
+                            >
+                              {phone ? (
+                                <Icon name={tone.icon} size={16} />
+                              ) : (
+                                <>
+                                  <span className={styles.letter}>{copy.line.rubricLetter}</span>
+                                  <span className={styles.badge}>
+                                    <Icon name={tone.icon} size={10} />
+                                  </span>
+                                </>
+                              )}
+                            </AriaButton>
+                          </Tooltip>
+                        </li>
+                      );
+                    }
+                    const { item } = entry;
+                    const meta = statusMeta(item.status);
+                    const clock = formatClock(item.scheduledAt, timezone);
+                    const byAi = item.postOrigin ? copy.line.byAi(meta.label, item.postOrigin.source) : meta.label;
+                    const rubric = item.rubricKey == null ? null : RUBRIC_TITLES[item.rubricKey];
+                    const status = rubric === null ? byAi : copy.line.rubric(rubric) + ' · ' + byAi;
                     return (
                       <li
-                        key={slot.slotId}
+                        key={item.publicationId}
                         className={styles.markerSlot}
                         data-lane={lane}
                         style={
-                          { insetInlineStart: percent + '%', '--lane': lane, ...toneStyle(tone.group) } as CSSProperties
+                          { insetInlineStart: `${percent}%`, '--lane': lane, ...toneStyle(meta.group) } as CSSProperties
                         }
                       >
                         <Tooltip
                           content={
                             <span className={styles.tip}>
-                              <strong>{copy.line.rubric(title)}</strong>
+                              <strong>{item.postTitle}</strong>
+                              <span>{item.destinationName}</span>
                               <span>
                                 {clock} · {status}
                               </span>
@@ -187,17 +261,19 @@ export function DayTimeline({
                         >
                           <AriaButton
                             className={styles.marker}
-                            data-rubric="slot"
-                            aria-label={copy.line.slotMarker(title, clock, status)}
-                            onPress={() => void navigate({ to: '/rubrics' })}
+                            data-rubric={rubric === null ? undefined : 'post'}
+                            aria-label={copy.line.marker(item.postTitle, item.destinationName, clock, status)}
+                            onPress={() => onOpenPublication(item.publicationId)}
                           >
                             {phone ? (
-                              <Icon name={tone.icon} size={16} />
+                              <Icon name={meta.icon} size={16} />
                             ) : (
                               <>
-                                <span className={styles.letter}>{copy.line.rubricLetter}</span>
+                                <span className={styles.letter}>
+                                  {rubric === null ? avatarLetter(item.destinationName) : copy.line.rubricLetter}
+                                </span>
                                 <span className={styles.badge}>
-                                  <Icon name={tone.icon} size={10} />
+                                  <Icon name={meta.icon} size={10} />
                                 </span>
                               </>
                             )}
@@ -205,111 +281,63 @@ export function DayTimeline({
                         </Tooltip>
                       </li>
                     );
-                  }
-                  const { item } = entry;
-                  const meta = statusMeta(item.status);
-                  const clock = formatClock(item.scheduledAt, timezone);
-                  const byAi = item.postOrigin ? copy.line.byAi(meta.label, item.postOrigin.source) : meta.label;
-                  const rubric = item.rubricKey == null ? null : RUBRIC_TITLES[item.rubricKey];
-                  const status = rubric === null ? byAi : copy.line.rubric(rubric) + ' · ' + byAi;
-                  return (
-                    <li
-                      key={item.publicationId}
-                      className={styles.markerSlot}
-                      data-lane={lane}
-                      style={
-                        { insetInlineStart: `${percent}%`, '--lane': lane, ...toneStyle(meta.group) } as CSSProperties
-                      }
-                    >
-                      <Tooltip
-                        content={
-                          <span className={styles.tip}>
-                            <strong>{item.postTitle}</strong>
-                            <span>{item.destinationName}</span>
-                            <span>
-                              {clock} · {status}
+                  })}
+                </ul>
+              )}
+              {showEvents ? (
+                <ul className={styles.events} aria-label={copy.activity.lane}>
+                  {eventGroups.map((group) => {
+                    // The dot shows the most serious event of its group (an error before a routine edit).
+                    const events = group.map((point) => point.event);
+                    const lead = events.find((event) => event.category === 'errors') ?? events[events.length - 1];
+                    if (!lead) return null;
+                    const view = activityView(lead);
+                    const clock = formatClock(lead.at, timezone);
+                    return (
+                      <li
+                        key={lead.id}
+                        className={styles.eventSlot}
+                        style={
+                          { insetInlineStart: `${group[0]?.percent ?? 0}%`, ...toneStyle(view.tone) } as CSSProperties
+                        }
+                      >
+                        <Tooltip
+                          content={
+                            <span className={styles.tip}>
+                              {events
+                                .slice(-3)
+                                .reverse()
+                                .map((event) => (
+                                  <span key={event.id}>
+                                    {formatClock(event.at, timezone)} · {activityView(event).text}
+                                    {event.actor === 'autopublish' || event.actor === 'ai'
+                                      ? ` · ${copy.activity.aiShort}`
+                                      : ''}
+                                  </span>
+                                ))}
+                              {events.length > 3 ? <span>{copy.activity.andMore(events.length - 3)}</span> : null}
                             </span>
-                          </span>
-                        }
-                      >
-                        <AriaButton
-                          className={styles.marker}
-                          data-rubric={rubric === null ? undefined : 'post'}
-                          aria-label={copy.line.marker(item.postTitle, item.destinationName, clock, status)}
-                          onPress={() => onOpenPublication(item.publicationId)}
+                          }
                         >
-                          {phone ? (
-                            <Icon name={meta.icon} size={16} />
-                          ) : (
-                            <>
-                              <span className={styles.letter}>
-                                {rubric === null ? avatarLetter(item.destinationName) : copy.line.rubricLetter}
-                              </span>
-                              <span className={styles.badge}>
-                                <Icon name={meta.icon} size={10} />
-                              </span>
-                            </>
-                          )}
-                        </AriaButton>
-                      </Tooltip>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
-            {showEvents ? (
-              <ul className={styles.events} aria-label={copy.activity.lane}>
-                {eventGroups.map((group) => {
-                  // The dot shows the most serious event of its group (an error before a routine edit).
-                  const events = group.map((point) => point.event);
-                  const lead = events.find((event) => event.category === 'errors') ?? events[events.length - 1];
-                  if (!lead) return null;
-                  const view = activityView(lead);
-                  const clock = formatClock(lead.at, timezone);
-                  return (
-                    <li
-                      key={lead.id}
-                      className={styles.eventSlot}
-                      style={
-                        { insetInlineStart: `${group[0]?.percent ?? 0}%`, ...toneStyle(view.tone) } as CSSProperties
-                      }
-                    >
-                      <Tooltip
-                        content={
-                          <span className={styles.tip}>
-                            {events
-                              .slice(-3)
-                              .reverse()
-                              .map((event) => (
-                                <span key={event.id}>
-                                  {formatClock(event.at, timezone)} · {activityView(event).text}
-                                  {event.actor === 'autopublish' || event.actor === 'ai'
-                                    ? ` · ${copy.activity.aiShort}`
-                                    : ''}
-                                </span>
-                              ))}
-                            {events.length > 3 ? <span>{copy.activity.andMore(events.length - 3)}</span> : null}
-                          </span>
-                        }
-                      >
-                        <AriaButton
-                          className={styles.eventDot}
-                          aria-label={copy.activity.eventDot(group.length, view.text, clock)}
-                          onPress={() => onOpenActivity([...events].reverse())}
-                        >
-                          <Icon name={view.icon} size={12} />
-                          {group.length > 1 ? <span className={styles.eventCount}>{group.length}</span> : null}
-                        </AriaButton>
-                      </Tooltip>
-                    </li>
-                  );
-                })}
-              </ul>
-            ) : null}
+                          <AriaButton
+                            className={styles.eventDot}
+                            aria-label={copy.activity.eventDot(group.length, view.text, clock)}
+                            onPress={() => onOpenActivity([...events].reverse())}
+                          >
+                            <Icon name={view.icon} size={12} />
+                            {group.length > 1 ? <span className={styles.eventCount}>{group.length}</span> : null}
+                          </AriaButton>
+                        </Tooltip>
+                      </li>
+                    );
+                  })}
+                </ul>
+              ) : null}
+            </div>
           </div>
-        </div>
+        )}
         {items ? <p className={styles.sr}>{copy.line.summary(total)}</p> : null}
-        {empty ? (
+        {quiet ? null : empty ? (
           <div className={styles.hint}>
             <p className={styles.hintText}>{copy.line.empty}</p>
             <Button size="sm" variant="secondary" icon="plus" onPress={onNewPost}>
@@ -318,18 +346,22 @@ export function DayTimeline({
           </div>
         ) : items ? (
           <ul className={styles.stats} aria-label={copy.line.statsLabel}>
-            <li className={styles.stat}>
-              <strong>{total}</strong> {copy.line.statPublications(total)}
-            </li>
-            <li className={styles.stat} style={toneStyle('done')} data-tone="done">
-              <strong>{sent}</strong> {copy.line.statSent}
-            </li>
+            {total > 0 ? (
+              <li className={styles.stat}>
+                <strong>{total}</strong> {copy.line.statPublications(total)}
+              </li>
+            ) : null}
+            {sent > 0 ? (
+              <li className={styles.stat} style={toneStyle('done')} data-tone="done">
+                <strong>{sent}</strong> {copy.line.statSent}
+              </li>
+            ) : null}
             {problems > 0 ? (
               <li className={styles.stat} style={toneStyle('failed')} data-tone="failed">
                 <strong>{problems}</strong> {copy.line.statProblems(problems)}
               </li>
             ) : null}
-            {showEvents ? (
+            {showEvents && eventCount > 0 ? (
               <li className={styles.stat}>
                 <strong>{eventCount}</strong> {copy.line.statEvents(eventCount)}
               </li>

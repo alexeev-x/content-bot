@@ -55,21 +55,6 @@
   content: '·';
   margin-inline-end: var(--space-2);
 }
-.emptyMark {
-  display: grid;
-  place-items: center;
-  width: 48px;
-  height: 48px;
-  border-radius: var(--radius-pill);
-  background: var(--color-accent-soft);
-  color: var(--color-accent-text);
-}
-.emptyTitle {
-  margin: 0;
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-medium);
-}
-
 .heroLoading {
   cursor: default;
   animation: heroPulse 1.8s ease-in-out infinite;

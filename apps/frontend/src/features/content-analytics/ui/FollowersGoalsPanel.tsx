@@ -9,7 +9,7 @@ import { useQuery } from '@tanstack/react-query';
 import { type CSSProperties, useState } from 'react';
 import { Controller, useForm } from 'react-hook-form';
 import { z } from 'zod';
-import { AreaChart, Banner, Button, Dialog, Icon, Panel, TextField } from '../../../shared/ui';
+import { AreaChart, Banner, Button, Dialog, Icon, Panel, TextField, Track } from '../../../shared/ui';
 import { contentGoalsQueryOptions, useSaveContentGoal } from '../api/content-analytics-queries';
 import { formatCount, formatDay, formatDelta, PLATFORM_LABEL } from '../model/format';
 import { followersStats, PLATFORMS } from '../model/report';
@@ -159,21 +159,12 @@ function GoalProgress({ goal }: { goal: ContentGoalDto }) {
           : `при темпе ${formatDelta(goal.perWeek)} в неделю — к ${formatDay(goal.forecastDay)}`;
   return (
     <>
-      <span className={styles.numbers}>
-        <strong>{formatCount(goal.followers)}</strong> из {formatCount(goal.target)}
-        <span className={styles.percent}>{Math.round(share * 100)}%</span>
-      </span>
-      <meter
-        className={styles.srOnly}
-        min={0}
-        max={goal.target}
-        value={Math.min(goal.followers ?? 0, goal.target)}
-        aria-label={`${PLATFORM_LABEL[goal.platform]}: ${formatCount(goal.followers)} из ${formatCount(goal.target)}`}
+      <Track
+        label={`${formatCount(goal.followers)} из ${formatCount(goal.target)}`}
+        value={`${Math.round(share * 100)}%`}
+        share={share * 100}
+        valueText={`${PLATFORM_LABEL[goal.platform]}: ${Math.round(share * 100)}% цели`}
       />
-      {/* The drawn bar; the meter above carries the value for assistive technology. */}
-      <span className={styles.track} aria-hidden="true">
-        <span className={styles.fill} style={{ '--share': share } as CSSProperties} />
-      </span>
       <span className={styles.pace}>
         {goal.reached
           ? 'Цель достигнута'

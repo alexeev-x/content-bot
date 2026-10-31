@@ -2,7 +2,7 @@ import type { DashboardPublicationDto } from '@alexeev/contracts';
 import { Link } from '@tanstack/react-router';
 import { Button as AriaButton } from 'react-aria-components';
 import { formatClock } from '../../../shared/lib/clock';
-import { Button, Icon, Skeleton } from '../../../shared/ui';
+import { Button, EmptyState, Icon, Skeleton } from '../../../shared/ui';
 import { nextPublication, otherDay, untilShort } from '../model/format';
 import { avatarLetter } from '../model/tone';
 import { copy } from './copy';
@@ -57,15 +57,16 @@ export function NextUp({ today, upcoming, now, timezone, onOpenPublication, onNe
             </div>
           </>
         ) : !next ? (
-          <div className={shell.emptyBlock}>
-            <span className={styles.emptyMark} aria-hidden="true">
-              <Icon name="clock" size={24} />
-            </span>
-            <p className={styles.emptyTitle}>{copy.next.empty}</p>
-            <Button icon="plus" onPress={onNewPost}>
-              {copy.next.create}
-            </Button>
-          </div>
+          <EmptyState
+            size="compact"
+            icon="clock"
+            title={copy.next.empty}
+            action={
+              <Button size="sm" icon="plus" onPress={onNewPost}>
+                {copy.next.create}
+              </Button>
+            }
+          />
         ) : (
           <AriaButton
             className={styles.hero}
