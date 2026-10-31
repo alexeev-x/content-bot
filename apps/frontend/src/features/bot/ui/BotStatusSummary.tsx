@@ -211,8 +211,9 @@ export function BotStatusSummary() {
           </>
         )}
 
-        {/* Anything but a working connection needs the full panel: what is missing and the connect button. */}
-        {state === 'connected' ? null : <BotConnection hideState />}
+        {/* Anything but a working connection needs the full panel; a working one keeps «Переподключить», since only
+            reconnecting registers new update kinds with Telegram (31.10.2026: channel posts for the scheduler's gap). */}
+        <BotConnection hideState />
       </div>
     </Panel>
   );
