@@ -14,10 +14,13 @@ import {
   Drawer,
   EmptyState,
   ErrorState,
+  FilterButton,
   Menu,
   Panel,
   PageHeader,
   Pagination,
+  Radio,
+  RadioGroup,
   SearchField,
   SegmentedControl,
   SelectionBar,
@@ -378,6 +381,7 @@ function Details({
 export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin, onOpenPost, timezone }: Props) {
   const narrow = useMediaQuery('(max-width: 859px)');
   const [searchInput, setSearchInput] = useState(searchState.search ?? '');
+  const [filtersOpen, setFiltersOpen] = useState(false);
   const [selected, setSelected] = useState<Set<string>>(() => new Set());
   const [attachOpen, setAttachOpen] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<DeleteTarget[] | null>(null);
@@ -616,14 +620,37 @@ export function MediaLibrary({ searchState, onSearchState, onCreatePost, onLogin
                       onChange={setSearchInput}
                     />
                   </div>
-                  {/* One filter row on every screen: the usage choice is a compact select next to the search. */}
-                  <Select
-                    label="Использование"
-                    inlineLabel
-                    options={USAGE_OPTIONS}
-                    value={filters.usage}
-                    onChange={(value) => applyUsage(value as MediaLibraryUsageFilter)}
-                  />
+                  {/* Phone: the usage choice hides behind one «Фильтры» button (the count shows when it is on). */}
+                  {narrow ? (
+                    <>
+                      <FilterButton count={filters.usage === 'all' ? 0 : 1} onPress={() => setFiltersOpen(true)} />
+                      <Drawer variant="bottom" title="Фильтры" isOpen={filtersOpen} onOpenChange={setFiltersOpen}>
+                        <RadioGroup
+                          label="Использование"
+                          variant="rows"
+                          value={filters.usage}
+                          onChange={(value) => {
+                            applyUsage(value as MediaLibraryUsageFilter);
+                            setFiltersOpen(false);
+                          }}
+                        >
+                          {USAGE_OPTIONS.map((option) => (
+                            <Radio key={option.id} value={option.id}>
+                              {option.label}
+                            </Radio>
+                          ))}
+                        </RadioGroup>
+                      </Drawer>
+                    </>
+                  ) : (
+                    <Select
+                      label="Использование"
+                      inlineLabel
+                      options={USAGE_OPTIONS}
+                      value={filters.usage}
+                      onChange={(value) => applyUsage(value as MediaLibraryUsageFilter)}
+                    />
+                  )}
                   {narrow ? null : (
                     <div className={styles.toolbarEnd}>
                       <SegmentedControl
@@ -810,14 +837,18 @@ export function MediaPageSkeleton() {
                     isDisabled
                   />
                 </div>
-                <Select
-                  label="Использование"
-                  inlineLabel
-                  options={USAGE_OPTIONS}
-                  value="all"
-                  isDisabled
-                  onChange={() => {}}
-                />
+                {narrow ? (
+                  <FilterButton count={0} isDisabled onPress={() => {}} />
+                ) : (
+                  <Select
+                    label="Использование"
+                    inlineLabel
+                    options={USAGE_OPTIONS}
+                    value="all"
+                    isDisabled
+                    onChange={() => {}}
+                  />
+                )}
                 {narrow ? null : (
                   <div className={styles.toolbarEnd}>
                     <SegmentedControl
