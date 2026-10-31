@@ -54,27 +54,19 @@ function NavLink({
   item,
   incidentsCount,
   onNavigate,
-  iconOnly = false,
-  expanded
+  iconOnly = false
 }: {
   item: NavItem;
   incidentsCount: number;
-  onNavigate?: () => void;
+  onNavigate?: (event: React.MouseEvent<HTMLAnchorElement>) => void;
   /** Collapsed sidebar: the label stays for assistive tech and moves into a tooltip. */
   iconOnly?: boolean;
-  /** An item with a submenu: whether the branch is open (a chevron shows it). */
-  expanded?: boolean;
 }) {
   const link = (
     <Link to={target(item)} activeOptions={{ exact: item.exact ?? false }} className={styles.link} onClick={onNavigate}>
       <Icon name={item.icon} size={20} />
       <span className={iconOnly ? styles.linkLabelHidden : styles.linkLabel}>{item.label}</span>
       {item.badge === 'incidents' && incidentsCount > 0 ? <NavBadge count={incidentsCount} /> : null}
-      {expanded === undefined || iconOnly ? null : (
-        <span className={styles.chevron} aria-hidden="true">
-          <Icon name={expanded ? 'chevron-down' : 'chevron-right'} size={16} />
-        </span>
-      )}
     </Link>
   );
   return iconOnly ? (
@@ -88,18 +80,41 @@ function NavLink({
 
 function SidebarNav({ incidentsCount, collapsed }: { incidentsCount: number; collapsed: boolean }) {
   const pathname = useRouterState({ select: (state) => state.location.pathname });
-  // A submenu opens like a tree branch: only while one of its pages is open, so a click on the item opens it.
-  const isOpen = (item: NavItem) => pathname === item.to || pathname.startsWith(`${item.to}/`);
+  // A submenu opens like a tree branch: while one of its pages is open, unless the owner folded it (a click on the item
+  // inside its own section, or the chevron, folds and unfolds it; owner 31.10.2026).
+  const [folded, setFolded] = useState<Record<string, boolean>>({});
+  const inside = (item: NavItem) => pathname === item.to || pathname.startsWith(`${item.to}/`);
+  const isOpen = (item: NavItem) => folded[item.to] ?? inside(item);
+  const toggle = (item: NavItem) => setFolded((current) => ({ ...current, [item.to]: !isOpen(item) }));
   return (
     <nav aria-label={ru.nav.label} className={styles.nav}>
       {NAV_ITEMS.filter((item) => !item.pinned).map((item) => (
         <Fragment key={item.to}>
-          <NavLink
-            item={item}
-            incidentsCount={incidentsCount}
-            iconOnly={collapsed}
-            {...(item.children === undefined ? {} : { expanded: isOpen(item) })}
-          />
+          {item.children === undefined || collapsed ? (
+            <NavLink item={item} incidentsCount={incidentsCount} iconOnly={collapsed} />
+          ) : (
+            <div className={styles.branch}>
+              <NavLink
+                item={item}
+                incidentsCount={incidentsCount}
+                onNavigate={(event) => {
+                  if (inside(item)) {
+                    event.preventDefault();
+                    toggle(item);
+                  } else setFolded((current) => ({ ...current, [item.to]: true }));
+                }}
+              />
+              <IconButton
+                className={styles.branchToggle}
+                size="sm"
+                showTooltip={false}
+                icon={isOpen(item) ? 'chevron-down' : 'chevron-right'}
+                label={`${isOpen(item) ? 'Свернуть' : 'Развернуть'} «${item.label}»`}
+                aria-expanded={isOpen(item)}
+                onPress={() => toggle(item)}
+              />
+            </div>
+          )}
           {item.children !== undefined && !collapsed && isOpen(item) ? (
             <ul className={styles.subnav} aria-label={item.label}>
               {item.children.map((child) => (

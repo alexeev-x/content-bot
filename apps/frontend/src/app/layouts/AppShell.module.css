@@ -153,10 +153,17 @@
 .link[aria-current='page'] svg {
   color: var(--color-accent-text);
 }
-.chevron {
-  display: inline-flex;
-  margin-left: auto;
-  color: var(--color-text-muted);
+.branch {
+  position: relative;
+}
+.branch > .link {
+  padding-right: calc(var(--space-3) + var(--size-button-sm));
+}
+.branchToggle {
+  position: absolute;
+  top: 50%;
+  right: var(--space-1);
+  transform: translateY(-50%);
 }
 /* The lab's pages under «Тестирование»: quieter rows indented to the item's label, a hairline on the left. */
 .subnav {
