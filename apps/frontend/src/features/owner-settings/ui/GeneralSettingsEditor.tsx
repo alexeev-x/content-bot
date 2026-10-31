@@ -4,7 +4,6 @@ import { useNow } from '../../../shared/lib/use-now';
 import { ru } from '../../../shared/lib/ru';
 import { Banner, Button, ErrorState, Icon, Panel, Skeleton, VisuallyHidden } from '../../../shared/ui';
 import { type SettingsPatch, useGeneralSettings } from '../model/use-general-settings';
-import { AutopublishActivity } from './AutopublishActivity';
 import { AutopublishPanel, type AutopublishTab } from './AutopublishPanel';
 import styles from './GeneralSettingsEditor.module.css';
 import { TimezoneField, TimezoneFieldSkeleton } from './TimezoneField';
@@ -141,7 +140,6 @@ export function GeneralSettingsEditor({ channels = [], rubricsTab, initialAutopu
             {...(rubricsTab === undefined ? {} : { rubrics: rubricsTab })}
             {...(initialAutopublishTab === undefined ? {} : { initialTab: initialAutopublishTab })}
           />
-          <AutopublishActivity />
         </>
       )}
       <output className={styles.status}>{STATUS_TEXT[status]}</output>

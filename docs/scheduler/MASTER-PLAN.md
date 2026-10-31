@@ -176,7 +176,7 @@ Design: no FK to posts/publications (lifecycle purges posts); every `ON CONFLICT
 
 **0122 `rubric_learning`** (stage 8): analytics `rubric_learning_state` (singleton), `rubric_learning_log` (UNIQUE week_key, kind, subject) — `area-backend-analytics.md` §5.3 — plus scheduler-owned `rubric_hour_slots (grp TEXT CHECK IN ('wd','we','mon','tue','wed','thu','fri','sat','sun'), slot_index INTEGER CHECK IN (0,1), minute_of_day INTEGER CHECK BETWEEN 480 AND 1350, default_minute INTEGER NOT NULL, source CHECK IN ('default','learned','manual'), revision, changed_at, PRIMARY KEY (grp, slot_index)) WITHOUT ROWID` seeded wd/we × {750, 1140}.
 
-**0126 `drop_content_rubrics`** (0125 is `channel_posts`, the owner's direct posts) (stage 9, contract phase; 0123 went to the stage 10 journal, 0124 to the slots time index): drops `content_post_rubrics`, `content_rubrics` (0089) only after prod runs the release without the code (d1-migration rule 9); `content_items.tags` stays unless proven unused.
+**0127 `drop_content_rubrics`** (0125 is `channel_posts`, the owner's direct posts; 0126 the audit_log index for publication kinds; also drops `posts.title_in_message`, unused since the old post format was removed 31.10.2026) (stage 9, contract phase; 0123 went to the stage 10 journal, 0124 to the slots time index): drops `content_post_rubrics`, `content_rubrics` (0089) only after prod runs the release without the code (d1-migration rule 9); `content_items.tags` stays unless proven unused.
 
 Deploy-without-migration behaviour: 0117 missing ⇒ shim keeps publishing, scheduler `SCHEMA_BEHIND`; 0118 missing ⇒ audience branch swallows «no such table», owner commands unaffected; 0119+ missing ⇒ scheduler off this tick, endpoints 503 `MIGRATION_PENDING`; 0121/0122 missing ⇒ analytics steps skip, endpoints 503.
 
@@ -430,9 +430,9 @@ Common for every stage: work on `develop` or `feat/…` from it; agents commit w
 
 ### Stage 9 — cleanup (R2)
 - [ ] Remove the 0117 V0 shim after the owner confirms prod has 0117 (first release after).
-- [ ] `migrations/0126_drop_content_rubrics.sql` only after prod runs without manual-rubric code; owner applies on prod after the code-removal release.
+- [ ] `migrations/0127_drop_content_rubrics.sql` only after prod runs without manual-rubric code; owner applies on prod after the code-removal release.
 - [x] `docs/RUBRICS_SCHEDULER.md` status «built» (31.10.2026); the `docs/backend/publishing.md` shim note stays with the shim.
-- Notes (31.10.2026): the shim removal and `0126_drop_content_rubrics.sql` wait for the owner (prod has 0117; the release without manual-rubric code is live) — d1-migration rule 9.
+- Notes (31.10.2026): the shim removal and `0127_drop_content_rubrics.sql` wait for the owner (prod has 0117; the release without manual-rubric code is live) — d1-migration rule 9.
 
 ### Stage 10 — the DEV week-long test (owner, 31.10.2026; migration 0123)
 - [x] The rehearsal posts to the channel the owner picks in «Рубрики», like production (`RUBRIC_REHEARSAL_DESTINATION_ID`/`_CHAT_ID` and the `REHEARSAL_DESTINATION` lock removed).
@@ -499,7 +499,7 @@ Agent assignment and parallelism: backend-core leads stages 0, 1, 3, 4a, P, 5 (c
 16. «Рубрики» is built to the maximum, a finished product from the start: manual rest edit, «Пропустить слот» and whatever else the analyst finds necessary (analyst lists it before the screens); no «v1 minimum».
 17. Slot status labels as in «Публикации» («Опубликовано», «Требует проверки», «Публикуется»).
 
-Owner actions (not questions): prod migrations 0117–0126 before each main PR; `AUDIENCE_HASH_KEY` on both environments; bot admin of the discussion group; «Подключить бота» after stage 2; the switch and channel at stage 4; the BROWSER deploy at stage P; greeting backgrounds to R2 at stage 5; Workers AI trial approval at 6b. Defaults A1–A6 (§7) stand unless vetoed.
+Owner actions (not questions): prod migrations 0117–0127 before each main PR; `AUDIENCE_HASH_KEY` on both environments; bot admin of the discussion group; «Подключить бота» after stage 2; the switch and channel at stage 4; the BROWSER deploy at stage P; greeting backgrounds to R2 at stage 5; Workers AI trial approval at 6b. Defaults A1–A6 (§7) stand unless vetoed.
 
 ---
 
