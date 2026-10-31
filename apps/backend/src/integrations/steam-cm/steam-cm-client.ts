@@ -245,7 +245,8 @@ async function connectionManagers(fetchImpl: typeof fetch, signal: AbortSignal):
       if (!(again instanceof SteamCmError)) throw again;
       throw new SteamCmError(
         again.code,
-        `${error.detail ?? error.code}; зеркало ${new URL(MIRROR_DIRECTORY).host}: ${again.detail ?? again.code}`,
+        // The mirror first: the owner's alert is cut at 300 characters, and the main address's refusal is the known part.
+        `зеркало ${new URL(MIRROR_DIRECTORY).host}: ${again.detail ?? again.code}; основной адрес: ${error.detail ?? error.code}`,
         again.status ?? error.status
       );
     }

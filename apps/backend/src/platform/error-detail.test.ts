@@ -41,6 +41,12 @@ describe('boundDetail', () => {
     expect(out.length).toBeLessThanOrEqual(300);
     expect(out).not.toContain('<');
   });
+
+  it("decodes an error page's entities", () => {
+    expect(
+      boundDetail('access &quot;http&#58;&#47;&#47;api&#46;example&#46;com&#47;&quot; Reference&#32;&#35;18')
+    ).toBe('access "http://api.example.com/" Reference #18');
+  });
 });
 
 describe('detailFromBody', () => {

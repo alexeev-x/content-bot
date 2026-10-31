@@ -114,7 +114,7 @@ describe('readSteamAppInfo', () => {
     await expect(readSteamAppInfo([570], { fetchImpl: down })).rejects.toMatchObject({
       code: 'STEAM_CM_DIRECTORY',
       status: 503,
-      detail: expect.stringContaining('дважды подряд; список серверов')
+      detail: expect.stringContaining('дважды подряд; зеркало community.steam-api.com: список серверов')
     });
   });
 
