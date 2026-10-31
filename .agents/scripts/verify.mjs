@@ -63,8 +63,12 @@ export function planSteps(files, { existingFiles = files, versionBumps = [], dep
   const contracts = files.some((f) => f.startsWith('apps/contracts/'));
   const backend = contracts || files.some((f) => f.startsWith('apps/backend/'));
   const frontend = contracts || files.some((f) => f.startsWith('apps/frontend/'));
-  if (pretty.length) steps.push(['format', ['npx', 'prettier', '--check', '--ignore-unknown', ...pretty]]);
-  if (lintable.length) steps.push(['lint', ['npx', 'oxlint', '--no-error-on-unmatched-pattern', ...lintable]]);
+  // Windows cuts a command line at ~8 K characters: past that many paths, check the whole tree instead (31.10.2026).
+  const tooMany = (list) => list.join(' ').length > 6000;
+  if (pretty.length)
+    steps.push(['format', ['npx', 'prettier', '--check', '--ignore-unknown', ...(tooMany(pretty) ? ['.'] : pretty)]]);
+  if (lintable.length)
+    steps.push(['lint', ['npx', 'oxlint', '--no-error-on-unmatched-pattern', ...(tooMany(lintable) ? [] : lintable)]]);
   if (files.some((f) => INSTRUCTIONS.test(f))) {
     steps.push(
       ['docs', ['npm', 'run', 'check:docs']],
