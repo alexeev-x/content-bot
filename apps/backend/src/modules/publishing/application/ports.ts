@@ -10,6 +10,7 @@ import type {
   PostMediaDto,
   PostPoll,
   PostSendOptions,
+  PublicationKind,
   PublicationAnalyticsQuery,
   PublicationAnalyticsReportDto,
   PublicationDto,
@@ -332,6 +333,8 @@ export interface PublicationRecord {
   job: JobSnapshot;
   /** True once the owner deleted the post; the publication stays as history. */
   postDeleted?: boolean;
+  /** The owner-facing type, derived by the read paths; absent on a record built without a read. */
+  kind?: PublicationKind;
   /** Its place in a series (migration 0098); null or absent for a single publication. */
   series?: {
     id: string;
@@ -387,6 +390,7 @@ export interface NewPublicationSeries {
 export interface ListPublicationsQuery {
   status?: PublicationStatus;
   statusGroup?: 'errors';
+  kind?: PublicationKind;
   postId?: string;
   destinationId?: string;
   q?: string;

@@ -1,3 +1,4 @@
+import { publicationKindSchema } from '@alexeev/contracts';
 import { z } from 'zod';
 
 export const publicationViewSchema = z.enum(['all', 'upcoming', 'recent', 'errors']);
@@ -9,6 +10,7 @@ const publicationsSearchShape = z.object({
   view: publicationViewSchema.optional().catch(undefined),
   period: publicationPeriodSchema.optional().catch(undefined),
   q: z.string().trim().max(200).optional().catch(undefined),
+  kind: publicationKindSchema.optional().catch(undefined),
   from: z.iso.datetime().optional().catch(undefined),
   to: z.iso.datetime().optional().catch(undefined),
   post: z.uuid().optional().catch(undefined),

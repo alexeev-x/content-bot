@@ -74,6 +74,7 @@ const publication = (id: string, postId: string, destinationId: string, status: 
   postRevision: 0,
   destinationId,
   status,
+  kind: 'post',
   scheduledAt: at,
   timezone: 'Europe/Moscow',
   revision: 0,
@@ -133,7 +134,13 @@ const publications = [
     'unknown',
     '2026-10-04T09:00:00.000Z'
   )
-].map((item) => (item.status === 'unknown' ? { ...item, revision: 4, lastErrorCode: 'SEND_UNCONFIRMED' } : item));
+].map((item) =>
+  item.status === 'unknown'
+    ? { ...item, revision: 4, lastErrorCode: 'SEND_UNCONFIRMED' }
+    : item.status === 'sent'
+      ? { ...item, kind: 'rubric', rubric: { key: 'on_lane' } }
+      : item
+);
 
 const HOUR_MS = 3_600_000;
 const uuid = (group: string, n: number) => `55555555-5555-4555-8555-${group}${String(n).padStart(8, '0')}`;
@@ -1278,6 +1285,7 @@ export async function mockApi(page: Page): Promise<void> {
     const items = store.filter(
       (item) =>
         (!params.get('status') || item['status'] === params.get('status')) &&
+        (!params.get('kind') || item['kind'] === params.get('kind')) &&
         (!params.get('postId') || item['postId'] === params.get('postId'))
     );
     const statusCounts = { ...NO_COUNTS };

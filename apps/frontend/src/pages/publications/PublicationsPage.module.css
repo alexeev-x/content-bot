@@ -19,3 +19,9 @@
 }
 
 /* The counter slot is always reserved (up to three digits and parentheses, tabular), so a tab does not change width as numbers load. */
+
+.filters {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+}

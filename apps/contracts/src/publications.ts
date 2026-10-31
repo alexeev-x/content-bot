@@ -51,6 +51,13 @@ const timezoneSchema = z
     return canonical;
   });
 
+/**
+ * What the owner sees as a publication's type, derived on the server (first match wins): rubric (a scheduler slot owns
+ * it), news (the automatic publishing created it), series, poll, else post.
+ */
+export const publicationKindSchema = z.enum(['rubric', 'news', 'post', 'poll', 'series']);
+export type PublicationKind = z.infer<typeof publicationKindSchema>;
+
 export const publicationSchema = z.object({
   id: z.uuid(),
   postId: z.uuid(),
@@ -58,6 +65,7 @@ export const publicationSchema = z.object({
   postRevision: revisionSchema,
   destinationId: z.uuid(),
   status: publicationStatusSchema,
+  kind: publicationKindSchema,
   scheduledAt: z.iso.datetime(),
   timezone: z.string(),
   externalMessageId: z.string().optional(),
@@ -249,7 +257,7 @@ export const resolveUnknownPublicationInputSchema = z.discriminatedUnion('outcom
 export type ResolveUnknownPublicationInput = z.infer<typeof resolveUnknownPublicationInputSchema>;
 export type ResolveUnknownOutcome = ResolveUnknownPublicationInput['outcome'];
 
-// GET /api/v1/publications?status|statusGroup&postId&destinationId&q&from&to&order&cursor|page&limit → 200 PublicationPageDto,
+// GET /api/v1/publications?status|statusGroup&kind&postId&destinationId&q&from&to&order&cursor|page&limit → 200 PublicationPageDto,
 // latest scheduledAt first. totalCount reflects every supplied filter. statusCounts reflects all nine statuses
 // after applying postId/destinationId/q/from/to but deliberately ignores `status`/`statusGroup`, so tabs can show counts.
 // statusGroup=errors returns failed + unknown and cannot be combined with status.
@@ -260,6 +268,8 @@ export const listPublicationsQuerySchema = offsetPageQuerySchema
     status: publicationStatusSchema.optional(),
     /** A server-side grouping for the operator's Errors tab. Mutually exclusive with status. */
     statusGroup: z.enum(['errors']).optional(),
+    /** Only publications of this type; it narrows totalCount and statusCounts too. */
+    kind: publicationKindSchema.optional(),
     postId: z.uuid().optional(),
     destinationId: z.uuid().optional(),
     q: z.string().trim().min(1).max(200).optional(),

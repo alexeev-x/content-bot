@@ -21,7 +21,7 @@ import { buildQuery, DEFAULT_PAGE_SIZE } from '../../../shared/api/query-string'
 
 export type PublicationFilters = Pick<
   z.input<typeof listPublicationsQuerySchema>,
-  'status' | 'statusGroup' | 'postId' | 'destinationId' | 'q' | 'from' | 'to' | 'order'
+  'status' | 'statusGroup' | 'kind' | 'postId' | 'destinationId' | 'q' | 'from' | 'to' | 'order'
 >;
 export type CreatePublicationBody = z.input<typeof createPublicationInputSchema>;
 export type CreatePublicationSeriesBody = z.input<typeof createPublicationSeriesInputSchema>;
@@ -40,6 +40,7 @@ export function listPublications(
   const query = buildQuery({
     status: filters.status,
     statusGroup: filters.statusGroup,
+    kind: filters.kind,
     postId: filters.postId,
     destinationId: filters.destinationId,
     q: filters.q,

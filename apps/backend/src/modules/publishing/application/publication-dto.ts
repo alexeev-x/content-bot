@@ -20,6 +20,8 @@ export function toPublicationDto(record: PublicationRecord, now: number): Public
     createdAt: new Date(record.createdAt).toISOString(),
     updatedAt: new Date(record.updatedAt).toISOString(),
     postDeleted: record.postDeleted === true,
+    // A record written just now has no derived kind: a series member is a series, anything else a plain post.
+    kind: record.kind ?? (record.series == null ? 'post' : 'series'),
     series:
       record.series == null
         ? null

@@ -95,6 +95,7 @@ export const publication = (overrides: Partial<PublicationDto> = {}): Publicatio
   postRevision: 1,
   destinationId: ids.destination,
   status: 'scheduled',
+  kind: 'post',
   scheduledAt: '2026-10-07T09:00:00.000Z',
   timezone: 'Europe/Moscow',
   revision: 0,

@@ -1,5 +1,11 @@
 import { completeIdempotencyStatement, ownsClaimSql } from '../../../platform/idempotency/d1-idempotency-store';
-import { type PostMediaDto, type PublicationStatus, postEntityListSchema, postMediaSchema } from '@alexeev/contracts';
+import {
+  type PostMediaDto,
+  type PublicationKind,
+  type PublicationStatus,
+  postEntityListSchema,
+  postMediaSchema
+} from '@alexeev/contracts';
 import { AppError } from '../../../shared/app-error';
 import type {
   ListPublicationsQuery,
@@ -38,6 +44,28 @@ interface PublicationRow {
   previous_done_at: number | null;
   chain_gap_ms: number | null;
 }
+
+// What the owner sees as the publication's type, first match wins: a rubric slot owns it, the automatic publishing
+// created it, it is part of a series, its post is a poll, else a plain post. Pure SQL so the list filter and the
+// column come from one expression (the uncorrelated rubric set is built once per statement; the audit lookup rides
+// audit_log_publication_create_idx). It reads the scheduler's table and the audit log directly, like the posts
+// lookups here. The column is read only for the rows of one page or one publication (`withKinds`), so the plain
+// list queries never pay for it; only a `kind` filter puts the expression into the page query.
+const AUTOPUBLISH_ACTOR = 'autopublish'; // = AUTOPUBLISH_ACTOR in app/workflows/autopublish-source-event.ts
+const KIND_SQL = `(CASE
+  WHEN p.id IN (
+    SELECT rs.publication_id FROM rubric_slots rs
+     WHERE rs.publication_id IS NOT NULL AND rs.kind <> 'poll_close' AND rs.status <> 'superseded'
+    UNION ALL
+    SELECT bj.value FROM rubric_slots bs, json_each(bs.build_json, '$.publications') bj
+     WHERE bs.build_json IS NOT NULL AND bs.kind <> 'poll_close' AND bs.status <> 'superseded'
+  ) THEN 'rubric'
+  WHEN EXISTS (SELECT 1 FROM audit_log ka WHERE ka.entity_id = p.id AND ka.entity_type = 'publication'
+                 AND ka.action = 'publication.create' AND ka.actor_telegram_id = '${AUTOPUBLISH_ACTOR}') THEN 'news'
+  WHEN p.series_id IS NOT NULL OR p.series_position IS NOT NULL THEN 'series'
+  WHEN (SELECT kr.kind FROM post_revisions kr WHERE kr.post_id = p.post_id AND kr.revision = p.post_revision) = 'poll'
+    THEN 'poll'
+  ELSE 'post' END)`;
 
 const PUBLICATION_COLUMNS = `p.id, p.post_id, p.post_revision, p.destination_id, p.scheduled_at, p.timezone,
   p.revision, p.external_message_id, p.external_message_ids, p.last_error_code, p.created_at, p.updated_at,
@@ -156,6 +184,21 @@ interface SnapshotMediaRow {
   position: number;
 }
 
+async function withKinds(db: D1Database, records: PublicationRecord[]): Promise<PublicationRecord[]> {
+  if (records.length === 0) return records;
+  const { results } = await db
+    .prepare(
+      `SELECT p.id AS id, ${KIND_SQL} AS kind FROM publications p WHERE p.id IN (SELECT value FROM json_each(?1))`
+    )
+    .bind(JSON.stringify(records.map((record) => record.id)))
+    .all<{ id: string; kind: PublicationKind }>();
+  const kinds = new Map(results.map((row) => [row.id, row.kind]));
+  return records.map((record) => {
+    const kind = kinds.get(record.id);
+    return kind === undefined ? record : { ...record, kind };
+  });
+}
+
 // What was sent, read from the revision the publication references (never edited after approval). Only
 // publications of a deleted post need it: a live post is read through the posts API. A media file that
 // retention already removed is simply missing from the list.
@@ -255,6 +298,10 @@ export function listPublicationsSql(query: ListPublicationsQuery): { sql: string
     if (condition.usesNow) bindings.push(query.now);
   }
   if (query.statusGroup === 'errors') conditions.push("j.status IN ('failed', 'unknown')");
+  if (query.kind !== undefined) {
+    conditions.push(`${KIND_SQL} = ?`);
+    bindings.push(query.kind);
+  }
   if (query.from !== undefined) {
     conditions.push(`${scheduledAt} >= ?`);
     bindings.push(query.from);
@@ -316,6 +363,10 @@ function publicationSummarySql(
     if (condition.usesNow) bindings.push(query.now);
   }
   if (includeStatus && query.statusGroup === 'errors') conditions.push("j.status IN ('failed', 'unknown')");
+  if (query.kind !== undefined) {
+    conditions.push(`${KIND_SQL} = ?`);
+    bindings.push(query.kind);
+  }
   const where = conditions.length === 0 ? '' : ` WHERE ${conditions.join(' AND ')}`;
   if (includeStatus) {
     return {
@@ -736,7 +787,7 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
 
     async findById(id) {
       const row = await selectOne(id).first<PublicationRow>();
-      return row === null ? null : ((await withPostSnapshots(db, [toRecord(row)]))[0] ?? null);
+      return row === null ? null : ((await withKinds(db, await withPostSnapshots(db, [toRecord(row)])))[0] ?? null);
     },
 
     async history(id, limit) {
@@ -791,7 +842,10 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
       for (const row of countRows) statusCounts[row.public_status] = row.count;
       const totalCount = ((results[1]?.results ?? []) as Array<{ count: number }>)[0]?.count ?? 0;
       return {
-        items: await withPostSnapshots(db, ((results[0]?.results ?? []) as PublicationRow[]).map(toRecord)),
+        items: await withKinds(
+          db,
+          await withPostSnapshots(db, ((results[0]?.results ?? []) as PublicationRow[]).map(toRecord))
+        ),
         totalCount,
         statusCounts
       };
