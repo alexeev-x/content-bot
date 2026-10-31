@@ -78,8 +78,6 @@ export interface PostRevisionSource {
     revision: number
   ): Promise<{
     title: string;
-    /** False for a post created without a title: only the body is sent (owner, 16.10.2026). */
-    titleInMessage: boolean;
     body: string;
     entities: PostEntity[];
     kind: PostKind;

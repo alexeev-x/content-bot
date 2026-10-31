@@ -139,11 +139,7 @@ export function PostEditor({
   const isPoll = editor.kind === 'poll';
   // Nothing to send: a text post needs text or at least one file (owner, 18.10.2026: say so, not a dead button).
   const missingContent = !isPoll && editor.body.trim() === '' && (baseline?.media.length ?? 0) === 0;
-  const publishBlocked =
-    (isPoll ? editor.pollIssue !== null : missingContent) ||
-    (editor.hasTitle && editor.title.trim().length === 0) ||
-    editor.mixed ||
-    editor.overflow > 0;
+  const publishBlocked = (isPoll ? editor.pollIssue !== null : missingContent) || editor.mixed || editor.overflow > 0;
   // The editor keeps its own copy of the post; the mark is read from the server copy, which polls while it is set
   // (QA 23.10.2026: from the copy the lock never lifted without a reload).
   const live = useQuery({ ...postQueryOptions(baseline?.id ?? ''), enabled: picturesPending(baseline) });
@@ -203,8 +199,6 @@ export function PostEditor({
     <PostFields
       control={editor.form.control}
       setValue={editor.form.setValue}
-      title={editor.title}
-      hasTitle={editor.hasTitle}
       body={editor.body}
       entities={editor.entities}
       isReadOnly={editor.readOnly}
@@ -235,7 +229,7 @@ export function PostEditor({
   const previewPanel = (
     <>
       <PostPreview
-        title={editor.hasTitle ? editor.title : ''}
+        title=""
         body={editor.body}
         entities={editor.entities}
         length={editor.length}
@@ -590,8 +584,6 @@ export function PostEditor({
                 <PostFields
                   control={editor.form.control}
                   setValue={editor.form.setValue}
-                  title={editor.title}
-                  hasTitle={editor.hasTitle}
                   body={editor.body}
                   entities={editor.entities}
                   isReadOnly={editor.readOnly || isArchived}

@@ -26,12 +26,6 @@ export type PostStatus = z.infer<typeof postStatusSchema>;
 export const POST_TITLE_MAX = 200;
 export const POST_BODY_MAX = 4096;
 
-const titleSchema = z
-  .string()
-  .trim()
-  .min(1, { error: 'Title is required' })
-  .max(POST_TITLE_MAX)
-  .refine(cleanText(false), { error: 'Title contains forbidden characters' });
 // Tabs and line breaks are allowed in the body; other control characters are not.
 const bodySchema = z
   .string()
@@ -58,6 +52,7 @@ export { postOriginSchema, type PostOriginDto } from './post-origin';
 
 export const postSchema = z.object({
   id: z.uuid(),
+  /** The studio name, taken by the server from the start of the body (or the poll question); never part of the message. */
   title: z.string(),
   body: z.string(),
   /** Telegram entities of `body` (UTF-16 offsets), in the normal form of `normalizeEntities`; empty for plain text. */
@@ -73,11 +68,6 @@ export const postSchema = z.object({
   publicationSummary: postPublicationSummarySchema,
   /** Set by GET /posts and GET /posts/{id}; null — written by the owner. Absent in other responses. */
   origin: postOriginSchema.nullable().optional(),
-  /**
-   * Whether `title` goes out as the bold first line of the message. False for posts created without a title
-   * (owner, 16.10.2026): `title` is then only the studio name, taken from the start of the body. Fixed at creation.
-   */
-  titleInMessage: z.boolean().default(true),
   /** Fixed at creation. A poll post keeps `body` empty and has no media; its name is taken from the question. */
   kind: postKindSchema.default('text'),
   /** The poll of a `kind: 'poll'` post (a draft may be incomplete, see `pollIssue`); null for a text post. */
@@ -103,14 +93,13 @@ export type PostDto = z.infer<typeof postSchema>;
 // Errors: VALIDATION_ERROR 400 (body, missing key, or details.reason ENTITIES_* when the entity list does not
 // fit the body) or 413 (request over 32 KB), CONFLICT 409 (details.reason IDEMPOTENCY_KEY_REUSED | IN_FLIGHT),
 // UNAUTHORIZED 401, FORBIDDEN 403.
-// `title` is optional (owner, 16.10.2026: no title field in the studio). Without it the post has no title in its
-// message: the server names it after the start of the body for lists and search, and only the body is sent.
-// `kind: 'poll'` (owner, 18.10.2026) creates a poll post: `poll` defaults to EMPTY_POLL, and a title, body or entities
+// There is no title field (owner, 31.10.2026: the old title-first-line format is removed): the server names the post
+// after the start of the body for lists and search, and only the body is sent.
+// `kind: 'poll'` (owner, 18.10.2026) creates a poll post: `poll` defaults to EMPTY_POLL, and a body or entities
 // are VALIDATION_ERROR (details.reason KIND_MISMATCH), as is a poll on a text post. `sendOptions` defaults to
 // DEFAULT_SEND_OPTIONS.
 export const createPostInputSchema = z
   .strictObject({
-    title: titleSchema.optional(),
     body: bodySchema.default(''),
     entities: postEntityListSchema.default([]),
     kind: postKindSchema.default('text'),
@@ -118,7 +107,7 @@ export const createPostInputSchema = z
     sendOptions: postSendOptionsSchema.optional()
   })
   .superRefine((input, ctx) => {
-    const hasText = input.title !== undefined || input.body !== '' || input.entities.length > 0;
+    const hasText = input.body !== '' || input.entities.length > 0;
     if ((input.kind === 'poll' && hasText) || (input.kind === 'text' && input.poll !== undefined)) {
       ctx.addIssue({ code: 'custom', message: 'KIND_MISMATCH', path: ['kind'] });
     }
@@ -131,16 +120,15 @@ export type CreatePostInput = z.infer<typeof createPostInputSchema>;
 // `entities` replaces the whole list. A new `body` must come with its `entities` (send [] for plain text):
 // offsets of the old list would point into other text, so a body alone is VALIDATION_ERROR with
 // details.reason ENTITIES_REQUIRED, never a silent keep. `entities` alone is allowed (formatting change)
-// and is checked against the stored body by the server. A title-only update keeps both.
+// and is checked against the stored body by the server.
 // `poll` replaces the whole poll of a poll post; `sendOptions` replaces all send options of any post. A poll on a text
-// post, or a title, body or entities on a poll post, is VALIDATION_ERROR with details.reason KIND_MISMATCH (the kind
+// post, or a body or entities on a poll post, is VALIDATION_ERROR with details.reason KIND_MISMATCH (the kind
 // lives only on the server, so the route decides it).
 // Errors: VALIDATION_ERROR 400 (details.reason ENTITIES_REQUIRED | ENTITIES_* | KIND_MISMATCH) or 413 (request over
 // 32 KB), NOT_FOUND 404, CONFLICT 409 (details.reason STALE_REVISION | NOT_EDITABLE), UNAUTHORIZED 401, FORBIDDEN 403.
 export const updatePostInputSchema = z
   .strictObject({
     revision: revisionSchema,
-    title: titleSchema.optional(),
     body: bodySchema.optional(),
     entities: postEntityListSchema.optional(),
     poll: postPollSchema.optional(),
@@ -148,7 +136,6 @@ export const updatePostInputSchema = z
   })
   .refine(
     (input) =>
-      input.title !== undefined ||
       input.body !== undefined ||
       input.entities !== undefined ||
       input.poll !== undefined ||

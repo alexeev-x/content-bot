@@ -116,8 +116,7 @@ export function usePostEditor({
   // No title field (owner, 16.10.2026): a new post is created without one and sends only its text. Only an older
   // post that was given a title keeps it (and the field) — it still goes out as the bold first line.
   const kind: PostKind = baseline?.kind ?? createKind;
-  const hasTitle = baseline?.kind !== 'poll' && baseline?.titleInMessage === true;
-  const sentTitle = hasTitle ? title : '';
+  const sentTitle = '';
 
   const base = valuesOf(baseline);
   const basePoll = baseline?.poll ?? EMPTY_POLL;
@@ -229,7 +228,6 @@ export function usePostEditor({
           id: baseline.id,
           input: {
             revision: baseline.revision,
-            ...(hasTitle && submitted.title !== base.title ? { title: submitted.title } : {}),
             // The server refuses a body without its entities, and offsets only mean something next to their text.
             ...(textChanged && baseline.kind === 'text' ? { body: submitted.body, entities: submitted.entities } : {}),
             ...(baseline.kind === 'poll' && !samePoll(sent.poll, basePoll) ? { poll: sent.poll } : {})
@@ -290,7 +288,6 @@ export function usePostEditor({
           ...(baseline.kind === 'poll'
             ? { poll: sent.poll }
             : {
-                ...(hasTitle ? { title: submitted.title } : {}),
                 body: submitted.body,
                 entities: submitted.entities
               })
@@ -393,7 +390,6 @@ export function usePostEditor({
     dirty,
     readOnly,
     changeKey,
-    hasTitle,
     kind,
     poll,
     setPoll,

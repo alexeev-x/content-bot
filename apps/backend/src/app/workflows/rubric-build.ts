@@ -270,7 +270,7 @@ async function storePosts(
   const created = await createPost(postDeps(), {
     actor: RUBRIC_ACTOR,
     idempotencyKey: `rubric:${slot.id}:${slot.attempt}:post`,
-    input: { kind: 'text', title: RUBRIC_TITLES[rubric], body: built.text, entities: built.entities },
+    input: { kind: 'text', body: built.text, entities: built.entities },
     ...(built.richSource === null ? {} : { richHtml: built.richSource })
   });
   let revision = created.revision;
@@ -300,7 +300,7 @@ async function storeFollowUp(
     {
       actor: RUBRIC_ACTOR,
       idempotencyKey: `rubric:${slot.id}:${slot.attempt}:follow-up`,
-      input: { kind: 'text', title: `${RUBRIC_TITLES[rubric]}: ответ`, body: followUp.text, entities: [] }
+      input: { kind: 'text', body: followUp.text, entities: [] }
     }
   );
   let revision = created.revision;

@@ -52,7 +52,7 @@ describe('a due job is sent once and recorded', () => {
     const created = await api.request('/api/v1/posts', {
       method: 'POST',
       headers: { 'idempotency-key': 'album-draft' },
-      json: { title: 'Album', body: '' }
+      json: { body: '' }
     });
     expect(created.status).toBe(201);
     const draft = postSchema.parse(await created.json());
@@ -111,7 +111,7 @@ describe('a due job is sent once and recorded', () => {
     const created = await api.request('/api/v1/posts', {
       method: 'POST',
       headers: { 'idempotency-key': 'long-caption-draft' },
-      json: { title: 'Title', body: 'x'.repeat(1024) }
+      json: { body: 'x'.repeat(1025) }
     });
     const draft = postSchema.parse(await created.json());
     const bytes = new Uint8Array([
@@ -174,7 +174,7 @@ describe('a due job is sent once and recorded', () => {
     expect((await publicationOf(publicationId)).last_error_code).toBe('TELEGRAM_MEDIA_TOO_LARGE');
   });
 
-  it('sends the plain text with a bold title entity to the destination and marks everything in D1', async () => {
+  it('sends the plain text, with no title line or entity, to the destination and marks everything in D1', async () => {
     const { publicationId, jobId, chatId } = await seedDueJob(api);
     const transport = fakeTransport(SENT);
 
@@ -184,7 +184,7 @@ describe('a due job is sent once and recorded', () => {
       {
         chatId,
         text: 'Patch 7.40\n\nBody text',
-        entities: [{ type: 'bold', offset: 0, length: 'Patch 7.40'.length }]
+        entities: []
       }
     ]);
     const job = await jobOf(publicationId);
@@ -279,8 +279,9 @@ describe('a due job is sent once and recorded', () => {
     expect(transport.calls).toEqual([
       {
         chatId: '-1001',
-        text: 'Tom & Jerry <b>\n\n1 < 2 > 0 && "quoted" <script>',
-        entities: [{ type: 'bold', offset: 0, length: 'Tom & Jerry <b>'.length }]
+        // No title line (owner, 31.10.2026: the old format is gone): the message is the body alone.
+        text: '1 < 2 > 0 && "quoted" <script>',
+        entities: []
       }
     ]);
   });
@@ -635,7 +636,7 @@ describe('what Telegram answers', () => {
     expect(job.status).toBe('succeeded');
     expect((await publicationOf(publicationId)).external_message_id).toBe('321');
     expect(sender.requests[0]?.other).toEqual({
-      entities: [{ type: 'bold', offset: 0, length: 'Patch 7.40'.length }],
+      entities: [],
       disable_notification: false,
       protect_content: false,
       link_preview_options: { is_disabled: true }
@@ -853,45 +854,6 @@ describe('refusals before the send', () => {
     expect(await attemptsOf(jobId)).toMatchObject([{ outcome: 'skipped', error_code: 'DESTINATION_DISABLED' }]);
     expect(await incidentsOf(jobId)).toMatchObject([{ kind: 'publish_failed', code: 'DESTINATION_DISABLED' }]);
     expect((await publicationOf(publicationId)).last_error_code).toBe('DESTINATION_DISABLED');
-  });
-
-  it('content over 4096 characters after parsing fails the job without sending', async () => {
-    const created = await api.request('/api/v1/posts', {
-      method: 'POST',
-      headers: { 'idempotency-key': 'long-post' },
-      json: { title: 'T'.repeat(100), body: 'x'.repeat(4096) }
-    });
-    expect(created.status).toBe(201);
-    const draft = (await created.json()) as { id: string; revision: number };
-    const approved = await api.request(`/api/v1/posts/${draft.id}/approve`, {
-      method: 'POST',
-      json: { revision: draft.revision }
-    });
-    expect(approved.status).toBe(200);
-    const destination = await seedDestination(api);
-    const scheduled = await api.request('/api/v1/publications', {
-      method: 'POST',
-      headers: { 'idempotency-key': 'long-pub' },
-      json: {
-        postId: draft.id,
-        revision: draft.revision + 1,
-        destinationId: destination.id,
-        scheduledAt: new Date(START).toISOString(),
-        timezone: 'Europe/Moscow'
-      }
-    });
-    expect(scheduled.status).toBe(202);
-    const publicationId = ((await scheduled.json()) as { id: string }).id;
-    const transport = fakeTransport(SENT);
-
-    await tickWith(transport).run();
-
-    expect(transport.calls).toHaveLength(0);
-    const job = await jobOf(publicationId);
-    expect(job).toMatchObject({ status: 'failed', send_started_at: null });
-    expect(await attemptsOf(job.id)).toMatchObject([{ outcome: 'skipped', error_code: 'CONTENT_INVALID' }]);
-    expect(await incidentsOf(job.id)).toMatchObject([{ code: 'CONTENT_INVALID' }]);
-    expect(JSON.parse((await incidentsOf(job.id))[0]?.details ?? '{}')).toEqual({ attempt: 1, reason: 'too_long' });
   });
 });
 

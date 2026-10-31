@@ -30,7 +30,7 @@ export async function updatePost(
   if (input.body !== undefined && input.entities === undefined) throw entitiesIssue('ENTITIES_REQUIRED');
   // The kind is fixed at creation and only the server knows it. It is read only when the change names a field that
   // belongs to one kind; the write below is guarded by the revision, and the kind never changes, so the read stays true.
-  const touchesText = input.title !== undefined || input.body !== undefined || input.entities !== undefined;
+  const touchesText = input.body !== undefined || input.entities !== undefined;
   const current = touchesText || input.poll !== undefined ? await deps.repo.findById(id) : null;
   if (current !== null) {
     if (current.kind === 'poll' && touchesText) throw kindMismatch('A poll post has no title, body or entities');
@@ -59,7 +59,6 @@ export async function updatePost(
   const updated = await deps.repo.update({
     id,
     expectedRevision: input.revision,
-    title: input.title,
     body: input.body,
     entities: input.entities,
     poll: input.poll,

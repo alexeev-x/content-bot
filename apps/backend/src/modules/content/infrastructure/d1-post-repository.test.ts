@@ -60,7 +60,6 @@ describe('create guard', () => {
       record: {
         id: crypto.randomUUID(),
         title: 'T',
-        titleInMessage: true,
         body: '',
         entities: [],
         kind: 'text',
@@ -112,7 +111,6 @@ describe('findRevision', () => {
 
     expect(await repo.findRevision(id, 0)).toEqual({
       title: 'Old',
-      titleInMessage: true,
       body: 'Old body',
       entities: [],
       kind: 'text',
@@ -123,7 +121,6 @@ describe('findRevision', () => {
     });
     expect(await repo.findRevision(id, 1)).toEqual({
       title: 'New',
-      titleInMessage: true,
       body: 'Newer body',
       entities: [],
       kind: 'text',

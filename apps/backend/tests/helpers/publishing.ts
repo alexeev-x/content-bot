@@ -17,7 +17,8 @@ export async function seedApprovedPost(api: Api, title = 'Patch 7.40'): Promise<
   const created = await api.request('/api/v1/posts', {
     method: 'POST',
     headers: { 'idempotency-key': nextKey() },
-    json: { title, body: 'Body text' }
+    // The studio name is the body's first line, so the title leads the text.
+    json: { body: `${title}\n\nBody text` }
   });
   expect(created.status).toBe(201);
   const draft = postSchema.parse(await created.json());
@@ -33,7 +34,7 @@ export async function seedDraftPost(api: Api): Promise<PostDto> {
   const created = await api.request('/api/v1/posts', {
     method: 'POST',
     headers: { 'idempotency-key': nextKey() },
-    json: { title: 'Draft', body: 'Body text' }
+    json: { body: 'Draft\n\nBody text' }
   });
   expect(created.status).toBe(201);
   return postSchema.parse(await created.json());

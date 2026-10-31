@@ -16,7 +16,6 @@ describe('duplicating a post (owner, 16.10.2026: no title)', () => {
     const bodies: unknown[] = [];
     const source = post({
       title: 'Если бы тиммейтов можно было денаить',
-      titleInMessage: false,
       body: 'Если бы тиммейтов можно было денаить))'
     });
     server.use(
@@ -28,19 +27,5 @@ describe('duplicating a post (owner, 16.10.2026: no title)', () => {
     const { result } = renderHook(() => useDuplicatePost(), { wrapper: createWrapper() });
     await result.current.mutateAsync(source);
     expect(bodies).toEqual([{ body: source.body, entities: [] }]);
-  });
-
-  it('keeps the title of an older post that has one', async () => {
-    const bodies: unknown[] = [];
-    const source = post({ title: 'Старый заголовок', titleInMessage: true, body: 'Текст' });
-    server.use(
-      http.post('*/api/v1/posts', async ({ request }) => {
-        bodies.push(await request.json());
-        return HttpResponse.json(post({ ...source, id: '00000000-0000-4000-8000-0000000000f2' }), { status: 201 });
-      })
-    );
-    const { result } = renderHook(() => useDuplicatePost(), { wrapper: createWrapper() });
-    await result.current.mutateAsync(source);
-    expect(bodies).toEqual([{ title: 'Старый заголовок', body: 'Текст', entities: [] }]);
   });
 });

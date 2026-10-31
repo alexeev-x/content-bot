@@ -199,10 +199,15 @@ async function dispatchJob(deps: DispatchDeps, jobId: string, budget: TickBudget
     if (revision.media.length > RICH_MEDIA_MAX) return refuse('TELEGRAM_MEDIA_UNSUPPORTED', 'rich_media_over_limit');
     richHtml = expanded;
   }
-  const message =
+  const formatted =
     poll === null && richHtml === null
       ? formatPublicationText(revision)
       : { ok: true as const, text: '', entities: [] };
+  // A media-only post has no text and no title line: its pictures go out without a caption (approval allows it).
+  const message =
+    !formatted.ok && formatted.reason === 'EMPTY' && revision.media.length > 0
+      ? { ok: true as const, text: '', entities: [] }
+      : formatted;
   if (!message.ok) return refuse('CONTENT_INVALID', message.reason.toLowerCase());
   const media = revision.media;
   // An album and a caption have Telegram's classic limits; a rich message carries up to 50 media in its own blocks.

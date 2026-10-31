@@ -75,7 +75,7 @@ export function PostPublishPage({ id }: Props) {
 
   const post = query.data;
   // Exactly what the dispatcher sends: an untitled post goes out as its body alone.
-  const sentTitle = post.titleInMessage ? post.title : '';
+  const sentTitle = '';
   const length = messageLength(sentTitle, post.body);
   const limit = post.media.length > 0 ? 1024 : 4096;
   const isPoll = post.kind === 'poll';

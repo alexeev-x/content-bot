@@ -362,8 +362,7 @@ describe('normalizeEntities splits partially overlapping free styles', () => {
 
 describe('createPostInputSchema', () => {
   it('defaults entities to none', () => {
-    expect(createPostInputSchema.parse({ title: 'T', body: 'x' })).toEqual({
-      title: 'T',
+    expect(createPostInputSchema.parse({ body: 'x' })).toEqual({
       body: 'x',
       entities: [],
       kind: 'text'
@@ -372,7 +371,6 @@ describe('createPostInputSchema', () => {
 
   it('accepts partially overlapping free styles by splitting them', () => {
     const parsed = createPostInputSchema.parse({
-      title: 'T',
       body: 'abcdef',
       entities: [bold(0, 4), entity('italic', 2, 4)]
     });
@@ -381,15 +379,15 @@ describe('createPostInputSchema', () => {
   });
 
   it('returns the normal form', () => {
-    const parsed = createPostInputSchema.parse({ title: 'T', body: 'abcdef', entities: [bold(3, 3), bold(0, 3)] });
+    const parsed = createPostInputSchema.parse({ body: 'abcdef', entities: [bold(3, 3), bold(0, 3)] });
 
     expect(parsed.entities).toEqual([bold(0, 6)]);
   });
 
   it('checks the entities against the body with UTF-16 units', () => {
-    const fits = createPostInputSchema.safeParse({ title: 'T', body: '😀', entities: [bold(0, 2)] });
-    const tooLong = createPostInputSchema.safeParse({ title: 'T', body: '😀', entities: [bold(0, 3)] });
-    const split = createPostInputSchema.safeParse({ title: 'T', body: '😀😀', entities: [bold(1, 2)] });
+    const fits = createPostInputSchema.safeParse({ body: '😀', entities: [bold(0, 2)] });
+    const tooLong = createPostInputSchema.safeParse({ body: '😀', entities: [bold(0, 3)] });
+    const split = createPostInputSchema.safeParse({ body: '😀😀', entities: [bold(1, 2)] });
 
     expect(fits.success).toBe(true);
     expect(tooLong.error?.issues[0]).toMatchObject({ message: 'ENTITIES_OUT_OF_RANGE', path: ['entities', 0] });
@@ -399,7 +397,7 @@ describe('createPostInputSchema', () => {
   it('refuses 101 entities before looking at the body', () => {
     const many = Array.from({ length: 101 }, (_, i) => bold(i * 2, 1));
 
-    expect(createPostInputSchema.safeParse({ title: 'T', body: 'x'.repeat(250), entities: many }).success).toBe(false);
+    expect(createPostInputSchema.safeParse({ body: 'x'.repeat(250), entities: many }).success).toBe(false);
   });
 });
 
@@ -421,12 +419,16 @@ describe('updatePostInputSchema', () => {
     });
   });
 
-  it('accepts a title alone and entities alone (the server checks those against the stored body)', () => {
-    expect(updatePostInputSchema.safeParse({ revision: 0, title: 'T' }).success).toBe(true);
+  it('accepts entities alone (the server checks those against the stored body)', () => {
     expect(updatePostInputSchema.parse({ revision: 0, entities: [bold(5, 5), bold(0, 5)] }).entities).toEqual([
       bold(0, 10)
     ]);
     expect(updatePostInputSchema.safeParse({ revision: 0, entities: [] }).success).toBe(true);
+  });
+
+  it('has no title field: the old title-first-line format is gone (owner, 31.10.2026)', () => {
+    expect(updatePostInputSchema.safeParse({ revision: 0, title: 'T' }).success).toBe(false);
+    expect(createPostInputSchema.safeParse({ title: 'T', body: 'x' }).success).toBe(false);
   });
 
   it('still refuses an update that changes nothing', () => {

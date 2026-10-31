@@ -84,7 +84,7 @@ describe('POST /auth/telegram', () => {
       method: 'POST',
       token: dto.accessToken,
       headers: { 'idempotency-key': 'k1' },
-      json: { title: 'From the Mini App', body: '' }
+      json: { body: 'From the Mini App' }
     });
     expect(postSchema.parse(await created.json()).title).toBe('From the Mini App');
   });

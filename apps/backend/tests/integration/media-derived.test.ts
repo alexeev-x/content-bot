@@ -68,7 +68,7 @@ async function draftWith(bytes: Uint8Array, contentType: string, fileName: strin
   const created = await api.request('/api/v1/posts', {
     method: 'POST',
     headers: { 'idempotency-key': nextKey() },
-    json: { title: 'Media post', body: 'Body' }
+    json: { body: 'Media post\n\nBody' }
   });
   const post = postSchema.parse(await created.json());
   const response = await api.request(`/api/v1/posts/${post.id}/media?revision=${post.revision}&fileName=${fileName}`, {

@@ -5,6 +5,7 @@ import { runDispatchNow } from '../../src/app/workflows/dispatch-now';
 import { runRubricBuild } from '../../src/app/workflows/rubric-build';
 import { afterSlotSent } from '../../src/app/workflows/rubric-after-send';
 import { releaseSlot } from '../../src/app/workflows/rubric-release';
+import { postNameFromBody } from '../../src/modules/content/domain/post-name';
 import { closePoll } from '../../src/app/workflows/rubric-poll-close';
 import { testDb } from '../helpers/db';
 import { fakeTransport, type FakeTransport, SENT } from '../helpers/dispatch';
@@ -296,6 +297,10 @@ describe('the rubric scheduler', () => {
     expect(job).toBeDefined();
     await runRubricBuild(container(), { slotId: first.id, attempt: job?.attempt ?? 0 }, 'test');
     expect((await slots()).find((slot) => slot.id === first.id)?.status).toBe('ready');
+    // A built post has no title of its own: its studio name is only the start of its body (owner, 31.10.2026).
+    const built = await testDb().prepare('SELECT title, body FROM posts').all<{ title: string; body: string }>();
+    expect(built.results.length).toBeGreaterThan(0);
+    for (const post of built.results) expect(post.title).toBe(postNameFromBody(post.body));
 
     clock.set(first.slot_at - 60_000);
     await tick();
