@@ -39,6 +39,7 @@ export const copy = {
         ? 'Пост написал и опубликовал ИИ сам, без вашего одобрения. Видно только вам.'
         : 'Пост написал ИИ-редактор, одобрили вы. Видно только вам.',
     aiShort: 'ИИ',
+    rubric: 'Рубрика',
     allInChannel: (title: string) => `Канал: ${title}`,
     unknownChannel: 'Канал недоступен',
     noMessage: '—',
@@ -243,6 +244,8 @@ export const copy = {
     textTab: 'Текст',
     post: 'Пост',
     openPost: 'Открыть пост',
+    rubric: 'Рубрика',
+    openRubric: 'Открыть рубрику',
     postDeleted: 'Пост удалён',
     channel: 'Канал',
     scheduledAt: 'Запланировано на',

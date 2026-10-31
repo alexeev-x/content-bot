@@ -54,6 +54,20 @@ export async function readRubricDay(
   };
 }
 
+/** Which of the publications are rubric posts: one batched query. Before migration 0119 there is no table: none are. */
+export async function readRubricOfPublications(
+  container: Pick<Container, 'rubricSlots'>,
+  publicationIds: string[]
+): Promise<Map<string, RubricKey>> {
+  const rows = await container.rubricSlots.rubricOfPublications(publicationIds).catch((error: unknown) => {
+    if (error instanceof Error && /no such table/i.test(error.message)) return new Map<string, string>();
+    throw error;
+  });
+  const found = new Map<string, RubricKey>();
+  for (const [id, key] of rows) if (RUBRIC_META[key as RubricKey]) found.set(id, key as RubricKey);
+  return found;
+}
+
 export async function readRehearsal(
   container: Pick<Container, 'rubricRehearsal' | 'schedulerEnv' | 'clock'>
 ): Promise<RubricRehearsalDto> {

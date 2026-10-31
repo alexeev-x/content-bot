@@ -43,8 +43,11 @@ export function PublicationPipeline({ status }: Props) {
                 size={14}
               />
             </span>
-            <span className={styles.label}>{label}</span>
-            <VisuallyHidden>{`, ${STATE_TEXT[step.state]}`}</VisuallyHidden>
+            {/* The state is inside the label so the pair reads «Очередь, выполнено» as one line, never split across rows. */}
+            <span className={styles.label}>
+              {label}
+              <VisuallyHidden>{`, ${STATE_TEXT[step.state]}`}</VisuallyHidden>
+            </span>
           </li>
         );
       })}

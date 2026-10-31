@@ -183,6 +183,8 @@ export interface SlotRepository {
   /** Slots with `slot_at` in `[from, to)`, every status, oldest first (≤ 500). */
   between(from: number, to: number): Promise<SlotRow[]>;
   byId(id: string): Promise<SlotRow | null>;
+  /** Which rubric owns each publication (a slot's own, or one of a series in `build.publications`); ≤ 100 ids. */
+  rubricOfPublications(publicationIds: string[]): Promise<Map<string, string>>;
   /** The rubric's newest slots, every status. */
   ofRubric(rubricKey: string, limit: number): Promise<SlotRow[]>;
   /** How many of the rubric's slots took a turn (sent or on their way): the bank's turn counter. */

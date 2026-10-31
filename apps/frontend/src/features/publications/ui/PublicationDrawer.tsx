@@ -1,5 +1,5 @@
 import { seriesLabel } from '../model/series-label';
-import type { PublicationDto, ResolveUnknownOutcome } from '@alexeev/contracts';
+import { type PublicationDto, type ResolveUnknownOutcome, RUBRIC_TITLES } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { Link } from '@tanstack/react-router';
 import { useState, type ReactNode } from 'react';
@@ -264,6 +264,13 @@ function PublicationBody({ publication, postTitle, postBody, destinationTitle, c
             </Link>
           )}
         </Fact>
+        {publication.rubric ? (
+          <Fact term={copy.drawer.rubric}>
+            <Link to="/rubrics" search={{ rubric: publication.rubric.key }} className={styles.link}>
+              {RUBRIC_TITLES[publication.rubric.key]}
+            </Link>
+          </Fact>
+        ) : null}
         {confirmedId ? (
           <Fact term={copy.drawer.message}>
             {href ? (
