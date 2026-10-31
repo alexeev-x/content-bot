@@ -1,16 +1,16 @@
 import { useQuery } from '@tanstack/react-query';
+import type { ReactNode } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import {
   Banner,
   Button,
   ErrorState,
+  Icon,
   IconBadge,
   IconButton,
   LinkButton,
   Panel,
   Skeleton,
-  StatGrid,
-  StatTile,
   StatusBadge,
   useToast
 } from '../../../shared/ui';
@@ -22,6 +22,38 @@ import { botCopy } from './copy';
 import styles from './BotStatusSummary.module.css';
 
 const copy = botCopy;
+
+type RowTone = 'done' | 'retry' | 'failed' | 'muted';
+
+/** One «key — value» line; the icon and the text carry the state, the tone only tints the icon. */
+function StatusRow({
+  label,
+  icon,
+  tone,
+  meta,
+  children
+}: {
+  label: string;
+  icon: 'link' | 'clock' | 'check-circle' | 'alert' | 'channel';
+  tone: RowTone;
+  meta?: string;
+  children: ReactNode;
+}) {
+  return (
+    <div className={styles.fact}>
+      <dt className={styles.factKey}>
+        <span className={styles.factIcon} data-tone={tone}>
+          <Icon name={icon} size={16} />
+        </span>
+        {label}
+      </dt>
+      <dd className={styles.factValue}>
+        {children}
+        {meta ? <span className={styles.factMeta}>{meta}</span> : null}
+      </dd>
+    </div>
+  );
+}
 
 /** The card before its data exists, in the loaded card's shape, without a request. */
 export function BotStatusSkeleton() {
@@ -48,22 +80,17 @@ export function BotStatusSkeleton() {
             {copy.card.openChat}
           </Button>
         </div>
-        <StatGrid minTile="md">
-          <StatTile label={copy.card.address} value={<Skeleton width={120} height="1lh" />} icon="link" tone="muted" />
-          <StatTile
-            label={copy.card.pending}
-            value={<Skeleton width={32} height="1lh" />}
-            meta={copy.card.pendingMeta}
-            icon="clock"
-            tone="muted"
-          />
-          <StatTile
-            label={copy.card.lastError}
-            value={<Skeleton width={64} height="1lh" />}
-            icon="check-circle"
-            tone="muted"
-          />
-        </StatGrid>
+        <dl className={styles.facts}>
+          <StatusRow label={copy.card.address} tone="muted" icon="link">
+            <Skeleton width={120} height="1lh" />
+          </StatusRow>
+          <StatusRow label={copy.card.pending} tone="muted" icon="clock">
+            <Skeleton width={32} height="1lh" />
+          </StatusRow>
+          <StatusRow label={copy.card.lastError} tone="muted" icon="check-circle">
+            <Skeleton width={64} height="1lh" />
+          </StatusRow>
+        </dl>
       </output>
     </Panel>
   );
@@ -134,50 +161,48 @@ export function BotStatusSummary() {
         ) : null}
 
         {webhook !== null ? (
-          <StatGrid minTile="md">
-            <StatTile
-              label={copy.card.address}
-              value={
-                webhook.url === null
-                  ? copy.card.addressNone
-                  : webhook.pointsHere
-                    ? copy.card.addressHere
-                    : copy.card.addressOther
-              }
-              icon="link"
-              tone={webhook.pointsHere ? 'done' : 'retry'}
-            />
-            <StatTile
+          <dl className={styles.facts}>
+            <StatusRow label={copy.card.address} icon="link" tone={webhook.pointsHere ? 'done' : 'retry'}>
+              {webhook.url === null
+                ? copy.card.addressNone
+                : webhook.pointsHere
+                  ? copy.card.addressHere
+                  : copy.card.addressOther}
+            </StatusRow>
+            <StatusRow
               label={copy.card.pending}
-              value={webhook.pendingUpdateCount}
-              meta={copy.card.pendingMeta}
               icon="clock"
               tone={webhook.pendingUpdateCount > 0 ? 'retry' : 'done'}
-            />
-            <StatTile
+              meta={copy.card.pendingMeta}
+            >
+              {webhook.pendingUpdateCount}
+            </StatusRow>
+            <StatusRow
               label={copy.card.lastError}
-              value={webhook.lastErrorAt === null ? copy.card.noError : formatLocalDateTime(webhook.lastErrorAt)}
               icon={webhook.lastErrorAt === null ? 'check-circle' : 'alert'}
               tone={webhook.lastErrorAt === null ? 'done' : 'failed'}
-            />
-          </StatGrid>
+            >
+              {webhook.lastErrorAt === null ? copy.card.noError : formatLocalDateTime(webhook.lastErrorAt)}
+            </StatusRow>
+          </dl>
         ) : null}
 
         {status.audience === undefined ? null : (
           <>
-            <StatGrid minTile="md">
-              <StatTile
+            <dl className={styles.facts}>
+              <StatusRow
                 label={copy.audience.label}
-                value={copy.audience.state[status.audience.state]}
+                icon="channel"
+                tone={status.audience.state === 'ok' ? 'done' : 'retry'}
                 meta={copy.audience.meta(
                   status.audience.updates24h.reactions,
                   status.audience.updates24h.polls,
                   status.audience.updates24h.comments
                 )}
-                icon="channel"
-                tone={status.audience.state === 'ok' ? 'done' : 'retry'}
-              />
-            </StatGrid>
+              >
+                {copy.audience.state[status.audience.state]}
+              </StatusRow>
+            </dl>
             {status.audience.state === 'ok' ? null : (
               <Banner tone="warning" title={copy.audience.state[status.audience.state]}>
                 {copy.audience.fix[status.audience.state]}

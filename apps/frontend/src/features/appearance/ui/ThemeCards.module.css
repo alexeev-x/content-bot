@@ -129,3 +129,28 @@
 .card[data-selected] .check {
   opacity: 1;
 }
+
+/* Phone: always two columns that may shrink (min-width 0); the hint is cut at two lines instead of growing the card. */
+@media (max-width: 599px) {
+  .group {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .card {
+    min-width: 0;
+  }
+  .caption {
+    gap: var(--space-1);
+    padding: var(--space-2);
+  }
+  .hint {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+  }
+  .check {
+    width: 18px;
+    height: 18px;
+  }
+}
