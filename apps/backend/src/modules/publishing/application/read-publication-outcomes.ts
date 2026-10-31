@@ -55,12 +55,26 @@ export async function findPublicationByPost(
 export async function listRecentPublications(
   deps: { repo: PublicationOutcomesRepository; now: number },
   since: number
-): Promise<{ at: number; status: PublicationStatus; postKind: 'text' | 'poll'; hasMedia: boolean; postId: string }[]> {
+): Promise<
+  {
+    at: number;
+    status: PublicationStatus;
+    postKind: 'text' | 'poll';
+    hasMedia: boolean;
+    postId: string;
+    destinationId: string;
+    actor: string | null;
+    seriesPosition: number | null;
+  }[]
+> {
   return (await deps.repo.recent(since)).map((row) => ({
     at: row.scheduledAt,
     status: projectPublicationStatus(row.job, deps.now),
     postKind: row.postKind,
     hasMedia: row.hasMedia,
-    postId: row.postId
+    postId: row.postId,
+    destinationId: row.destinationId,
+    actor: row.actor,
+    seriesPosition: row.seriesPosition
   }));
 }

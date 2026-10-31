@@ -44,12 +44,42 @@ export interface ConstraintContext {
   pace?: Pace;
 }
 
-export function violations(
+/**
+ * Where a slot goes when the owner has just posted by hand (owner, 31.10.2026): `at` itself while no owner post sits
+ * within the gap before it, else the first time after the owner's post (and the posts it then runs into) that fits
+ * every rule on the same Moscow day; null when the day has no room, so the slot yields.
+ */
+export function shiftedAt(
   candidate: ChannelPost & { rubric: string },
   occupants: readonly ChannelPost[],
   context: ConstraintContext
+): number | null {
+  const gapMs = context.pace?.gapMs ?? GAP_MS;
+  const owners = occupants.filter(
+    (post) => post.owner === true && post.at <= candidate.at && candidate.at - post.at < gapMs
+  );
+  if (owners.length === 0) return candidate.at;
+  const day = mskDayIndex(candidate.at);
+  let at = Math.max(...owners.map((post) => post.at)) + gapMs;
+  for (let round = 0; round < 8; round += 1) {
+    if (mskDayIndex(at) !== day) return null;
+    const found = violations({ ...candidate, at }, occupants, context);
+    if (found.length === 0) return at;
+    if (found.some((violation) => violation !== 'GAP')) return null;
+    const blockers = occupants.filter((post) => Math.abs(post.at - at) < gapMs);
+    at = Math.max(at, ...blockers.map((post) => post.at + gapMs));
+  }
+  return null;
+}
+
+export function violations(
+  candidate: ChannelPost & { rubric: string },
+  allOccupants: readonly ChannelPost[],
+  context: ConstraintContext
 ): Violation[] {
   const found: Violation[] = [];
+  // The owner's own posts (owner, 31.10.2026) only keep the gap: they never use up the day's limits or the runs.
+  const occupants = allOccupants.filter((post) => post.owner !== true);
   const pace = context.pace;
   const dayPostsMax = pace?.dayPosts ?? DAY_POSTS_MAX;
   const dayRubricsMax = pace?.dayRubrics ?? DAY_RUBRICS_MAX;
@@ -66,7 +96,7 @@ export function violations(
   const newsToday = sameDay.length - rubricsToday.length;
   if (newsToday >= HEAVY_DAY_NEWS && (rubricsToday.length > 0 || candidate.weight !== 'L')) found.push('HEAVY_DAY');
 
-  if (occupants.some((post) => Math.abs(post.at - candidate.at) < gapMs)) found.push('GAP');
+  if (allOccupants.some((post) => Math.abs(post.at - candidate.at) < gapMs)) found.push('GAP');
 
   if (candidate.interactive) {
     const interactive = occupants.filter((post) => post.interactive);

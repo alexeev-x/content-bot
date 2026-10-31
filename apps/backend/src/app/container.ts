@@ -15,9 +15,11 @@ import { latestPatchPublishedAt, recentDotaItems } from '../modules/dota';
 import {
   createD1BreakerRepository,
   createD1BetRepository,
+  createD1ChannelPostRepository,
   createD1LearnedSettings,
   readHourSlots,
   type BetRepository,
+  type ChannelPostRepository,
   type BreakerRepository,
   createD1NoticeRepository,
   createD1SchedulerSettingsRepository,
@@ -230,6 +232,8 @@ export interface Container {
   rubricNotices: NoticeRepository;
   rubricBreakers: BreakerRepository;
   rubricBets: BetRepository;
+  /** The owner's posts sent straight to the channel (migration 0125). */
+  rubricChannelPosts: ChannelPostRepository;
   /** The rubric analytics (migration 0121): scores, comment themes, the Monday block, and their sources. */
   rubricScores: ScoreRepository;
   rubricThemes: ThemesRepository;
@@ -646,6 +650,9 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
       if (token === '') throw new AppError('UNAVAILABLE', 'Telegram bot is not configured');
       return createTelegramPollStopper(createTelegramApi(token));
     },
+    get rubricChannelPosts() {
+      return createD1ChannelPostRepository(db());
+    },
     get rubricBets() {
       return createD1BetRepository(db());
     },
@@ -775,7 +782,12 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     get statsMatches(): StratzMatchesApi | null {
       if (overrides.statsMatches !== undefined) return overrides.statsMatches;
       const access = stratzAccess(env.STRATZ_TOKEN, env.STATS_BRIDGE_URL, env.STATS_DIRECT);
-      return access === null ? null : createStratzMatches(access);
+      return access === null
+        ? null
+        : createStratzMatches({
+            token: access.token,
+            ...(access.bridgeUrl === undefined ? {} : { bridgeUrl: access.bridgeUrl })
+          });
     },
     get statsSnapshot() {
       return env.STATS_SNAPSHOT ?? null;
@@ -786,7 +798,11 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
       return access === null
         ? null
         : {
-            stratz: createStratzApi({ ...access, cache: edgeTextCache('stratz', STRATZ_CACHE_SECONDS) }),
+            stratz: createStratzApi({
+              token: access.token,
+              ...(access.bridgeUrl === undefined ? {} : { bridgeUrl: access.bridgeUrl }),
+              cache: edgeTextCache('stratz', STRATZ_CACHE_SECONDS)
+            }),
             openDota: createOpenDotaApi({ bridgeUrl: access.bridgeUrl, spareBridgeUrl: access.spareBridgeUrl })
           };
     },

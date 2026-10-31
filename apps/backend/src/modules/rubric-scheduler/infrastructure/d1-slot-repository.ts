@@ -80,6 +80,7 @@ const COUNTING = COUNTING_STATUSES.map((status) => `'${status}'`).join(', ');
 /** The columns a transition may set, and how each is stored. */
 const SETTERS: Record<string, { column: string; value: (value: unknown) => string | number | null }> = {
   nextActionAt: { column: 'next_action_at', value: (value) => value as number },
+  slotAt: { column: 'slot_at', value: (value) => value as number },
   deadlineAt: { column: 'deadline_at', value: (value) => value as number },
   leaseUntil: { column: 'lease_until', value: (value) => value as number | null },
   attempt: { column: 'attempt', value: (value) => value as number },

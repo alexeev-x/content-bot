@@ -23,11 +23,11 @@ Planning only: nothing below is built. This file is the one ordered plan the tea
 - 6 — оставшиеся рубрики с ИИ и разовыми фактами: 05, 09, 11, 12, 13, 14, 20, 21. Без миграции. 6b — проверка похожести по смыслу не раньше чем через 4 недели данных.
 - 7 — аналитика рубрик, темы комментариев, блок «Рубрики» в понедельничном отчёте. Миграция 0121.
 - 8 — обучение отдыха и часов (4 недели только советы). Миграция 0122.
-- 9 — уборка: временная страховка 0117 и старые таблицы ручных рубрик (0125).
+- 9 — уборка: временная страховка 0117 и старые таблицы ручных рубрик (0126).
 - 10 — недельный тест на DEV: все рубрики за неделю, нарочные сбои, журнал «Репетиция» в /lab. Миграция 0123 (только DEV пишет в неё).
 
 **Что делаете вы (агенты этого не делают).**
-1. Перед каждым PR develop→main с новой миграцией — применить её на проде: Actions → «D1 migrations» → production (0117, 0118, 0119, 0120, 0121, 0122, 0123, 0124 — индекс слотов, позже 0125). Без 0117 на проде публикации шли бы без защиты (есть временная страховка), без остальных — раздел пишет «не применена миграция».
+1. Перед каждым PR develop→main с новой миграцией — применить её на проде: Actions → «D1 migrations» → production (0117, 0118, 0119, 0120, 0121, 0122, 0123, 0124 — индекс слотов, позже 0126). Без 0117 на проде публикации шли бы без защиты (есть временная страховка), без остальных — раздел пишет «не применена миграция».
 2. После этапа 2: сделать бота админом группы обсуждения канала (или выключить privacy в BotFather), задать секрет `AUDIENCE_HASH_KEY` на DEV и проде, нажать «Подключить бота» один раз.
 3. Этап 4 (прод): включить «Автопубликация рубрик» в разделе «Рубрики» и выбрать канал (подставлен канал автопубликации).
 4. Этап P: деплой с привязкой Browser Rendering на проде (правку `wrangler.jsonc` делают агенты, деплой — ваш PR); дневной лимит в коде: прод 12 мин, DEV 4 мин.
@@ -176,7 +176,7 @@ Design: no FK to posts/publications (lifecycle purges posts); every `ON CONFLICT
 
 **0122 `rubric_learning`** (stage 8): analytics `rubric_learning_state` (singleton), `rubric_learning_log` (UNIQUE week_key, kind, subject) — `area-backend-analytics.md` §5.3 — plus scheduler-owned `rubric_hour_slots (grp TEXT CHECK IN ('wd','we','mon','tue','wed','thu','fri','sat','sun'), slot_index INTEGER CHECK IN (0,1), minute_of_day INTEGER CHECK BETWEEN 480 AND 1350, default_minute INTEGER NOT NULL, source CHECK IN ('default','learned','manual'), revision, changed_at, PRIMARY KEY (grp, slot_index)) WITHOUT ROWID` seeded wd/we × {750, 1140}.
 
-**0125 `drop_content_rubrics`** (stage 9, contract phase; 0123 went to the stage 10 journal, 0124 to the slots time index): drops `content_post_rubrics`, `content_rubrics` (0089) only after prod runs the release without the code (d1-migration rule 9); `content_items.tags` stays unless proven unused.
+**0126 `drop_content_rubrics`** (0125 is `channel_posts`, the owner's direct posts) (stage 9, contract phase; 0123 went to the stage 10 journal, 0124 to the slots time index): drops `content_post_rubrics`, `content_rubrics` (0089) only after prod runs the release without the code (d1-migration rule 9); `content_items.tags` stays unless proven unused.
 
 Deploy-without-migration behaviour: 0117 missing ⇒ shim keeps publishing, scheduler `SCHEMA_BEHIND`; 0118 missing ⇒ audience branch swallows «no such table», owner commands unaffected; 0119+ missing ⇒ scheduler off this tick, endpoints 503 `MIGRATION_PENDING`; 0121/0122 missing ⇒ analytics steps skip, endpoints 503.
 
@@ -430,9 +430,9 @@ Common for every stage: work on `develop` or `feat/…` from it; agents commit w
 
 ### Stage 9 — cleanup (R2)
 - [ ] Remove the 0117 V0 shim after the owner confirms prod has 0117 (first release after).
-- [ ] `migrations/0125_drop_content_rubrics.sql` only after prod runs without manual-rubric code; owner applies on prod after the code-removal release.
+- [ ] `migrations/0126_drop_content_rubrics.sql` only after prod runs without manual-rubric code; owner applies on prod after the code-removal release.
 - [x] `docs/RUBRICS_SCHEDULER.md` status «built» (31.10.2026); the `docs/backend/publishing.md` shim note stays with the shim.
-- Notes (31.10.2026): the shim removal and `0125_drop_content_rubrics.sql` wait for the owner (prod has 0117; the release without manual-rubric code is live) — d1-migration rule 9.
+- Notes (31.10.2026): the shim removal and `0126_drop_content_rubrics.sql` wait for the owner (prod has 0117; the release without manual-rubric code is live) — d1-migration rule 9.
 
 ### Stage 10 — the DEV week-long test (owner, 31.10.2026; migration 0123)
 - [x] The rehearsal posts to the channel the owner picks in «Рубрики», like production (`RUBRIC_REHEARSAL_DESTINATION_ID`/`_CHAT_ID` and the `REHEARSAL_DESTINATION` lock removed).
@@ -499,7 +499,7 @@ Agent assignment and parallelism: backend-core leads stages 0, 1, 3, 4a, P, 5 (c
 16. «Рубрики» is built to the maximum, a finished product from the start: manual rest edit, «Пропустить слот» and whatever else the analyst finds necessary (analyst lists it before the screens); no «v1 minimum».
 17. Slot status labels as in «Публикации» («Опубликовано», «Требует проверки», «Публикуется»).
 
-Owner actions (not questions): prod migrations 0117–0125 before each main PR; `AUDIENCE_HASH_KEY` on both environments; bot admin of the discussion group; «Подключить бота» after stage 2; the switch and channel at stage 4; the BROWSER deploy at stage P; greeting backgrounds to R2 at stage 5; Workers AI trial approval at 6b. Defaults A1–A6 (§7) stand unless vetoed.
+Owner actions (not questions): prod migrations 0117–0126 before each main PR; `AUDIENCE_HASH_KEY` on both environments; bot admin of the discussion group; «Подключить бота» after stage 2; the switch and channel at stage 4; the BROWSER deploy at stage P; greeting backgrounds to R2 at stage 5; Workers AI trial approval at 6b. Defaults A1–A6 (§7) stand unless vetoed.
 
 ---
 

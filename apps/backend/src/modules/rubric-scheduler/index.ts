@@ -1,5 +1,5 @@
 export { plan, seedLastSent, stableHash, missingNeeds, type PlanInput } from './domain/plan';
-export { violations, fitsSlot } from './domain/constraints';
+export { violations, fitsSlot, shiftedAt } from './domain/constraints';
 export type {
   ChannelPost,
   ForecastSlot,
@@ -26,6 +26,7 @@ export {
 export type {
   ForecastSources,
   NewSlot,
+  ChannelPostRepository,
   NoticeRepository,
   RubricSettingRow,
   SchedulerSettings,
@@ -43,6 +44,7 @@ export { FORECAST_DAYS, type Forecast, readForecast } from './application/read-f
 export { planSlots, type PlanSlotsInput, seedRubricSettings } from './application/plan-slots';
 export { createD1SchedulerSettingsRepository } from './infrastructure/d1-settings-repository';
 export { createD1SlotRepository } from './infrastructure/d1-slot-repository';
+export { createD1ChannelPostRepository } from './infrastructure/d1-channel-post-repository';
 export { createD1NoticeRepository } from './infrastructure/d1-notice-repository';
 export { createD1BreakerRepository } from './infrastructure/d1-breaker-repository';
 export { createD1BetRepository } from './infrastructure/d1-bet-repository';

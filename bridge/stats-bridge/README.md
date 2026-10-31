@@ -34,7 +34,7 @@ function every path is rewritten to (`vercel.json`, region Frankfurt). The Worke
 unreachable, a host error page without the bridge's `x-stats-bridge: 1` mark (asleep, suspended), or the bridge's own
 `BRIDGE_DAY_TRAFFIC` refusal — and never on a source's own answer
 (`apps/backend/src/integrations/stats-bridge/spare-bridge-fetch.ts`). Never a third bridge and never in turns: STRATZ
-allows one token two addresses per 15 minutes. On Vercel the bridge packs at brotli 5, since the plan counts active CPU
+allows one token two addresses per 15 minutes, so only OpenDota ever falls back to the spare; STRATZ calls stay on Render (owner, 31.10.2026). On Vercel the bridge packs at brotli 5, since the plan counts active CPU
 (4 h a month). Risk: Vercel functions may leave from more than one address; if STRATZ then refuses (403), the collector
 pauses for 30 minutes and tries again.
 

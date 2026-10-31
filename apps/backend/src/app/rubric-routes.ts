@@ -8,8 +8,7 @@ import {
   updateRubricSchedulerInputSchema
 } from '@alexeev/contracts';
 import { Hono } from 'hono';
-import { listRecentPublications } from '../modules/publishing';
-import { type ChannelPost, readForecast } from '../modules/rubric-scheduler';
+import { readForecast } from '../modules/rubric-scheduler';
 import { getOwnerOperationsSettings, saveOwnerOperationsSettings } from '../modules/settings';
 import { AppError } from '../shared/app-error';
 import type { Container } from './container';
@@ -18,6 +17,7 @@ import { rateLimit } from './rate-limit';
 import { rubricCapabilities, rubricDescriptors } from './rubric-catalog';
 import type { LabSwitches } from './rubric-scheduler/locks';
 import { readCalendar, readRubricList, readSchedulerStatus, readSlotDetail } from './rubric-scheduler/read-models';
+import { channelPosts } from './rubric-scheduler/channel-posts';
 import { skipSlot, updateRubric, updateScheduler } from './rubric-scheduler/owner-actions';
 import { type SchedulerEnv, schedulerMode } from './rubric-scheduler/runtime';
 import { readRehearsal, readRubricHistory } from './rubric-scheduler/read-history';
@@ -30,7 +30,6 @@ const READS_PER_MINUTE = 60;
 const MINUTE_MS = 60_000;
 const MAX_BODY_BYTES = 1024;
 const CALENDAR_SPAN_DAYS = 42;
-const LIVE: readonly string[] = ['scheduled', 'queued', 'preparing', 'sending', 'retry_wait', 'sent', 'unknown'];
 
 const iso = (ms: number) => new Date(ms).toISOString();
 
@@ -62,17 +61,12 @@ async function computeForecast(container: Container, env: SchedulerEnv): Promise
       rubrics: rubricDescriptors,
       capabilities: rubricCapabilities(env),
       latestPatchAt: () => container.latestPatchAt(),
-      // Every publication counts, news and ours: the daily caps and the gaps are over the whole channel.
-      channelPosts: async (since) =>
-        (await listRecentPublications({ repo: container.publicationOutcomes, now }, since))
-          .filter((row) => LIVE.includes(row.status))
-          .map((row): ChannelPost => ({
-            at: row.at,
-            weight: row.hasMedia ? 'V' : 'L',
-            rubric: null,
-            interactive: row.postKind === 'poll',
-            family: null
-          }))
+      // The channel as the tick sees it: the news counts, the owner's posts only keep the gap.
+      channelPosts: async (since) => {
+        const id = (await container.rubricSchedulerSettings.read()).destinationId;
+        const destination = id === null ? null : await container.destinations.findById(id);
+        return destination === null ? [] : channelPosts(container, destination, new Set(), now, since);
+      }
     }
   });
   return {

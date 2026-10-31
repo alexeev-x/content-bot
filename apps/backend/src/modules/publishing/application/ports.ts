@@ -641,11 +641,22 @@ export interface PublicationOutcomeRow {
   jobUpdatedAt: number;
 }
 
+/** A recent publication with who made it and where it goes: the scheduler tells the owner's posts from its own. */
+export type RecentPublicationRow = PublicationOutcomeRow & {
+  postKind: 'text' | 'poll';
+  hasMedia: boolean;
+  destinationId: string;
+  /** Who created the publication (audit log); null when that row is gone. */
+  actor: string | null;
+  /** Place in a series (1 = first); null for a single publication. */
+  seriesPosition: number | null;
+};
+
 export interface PublicationOutcomesRepository {
   /** At most 20 ids; unknown ids are absent. */
   outcomes(ids: readonly string[]): Promise<PublicationOutcomeRow[]>;
   /** The newest publication of a post to a channel, or null. */
   latestForPost(postId: string, destinationId: string): Promise<PublicationOutcomeRow | null>;
   /** Publications scheduled at or after `since`, newest first, at most 200. */
-  recent(since: number): Promise<(PublicationOutcomeRow & { postKind: 'text' | 'poll'; hasMedia: boolean })[]>;
+  recent(since: number): Promise<RecentPublicationRow[]>;
 }

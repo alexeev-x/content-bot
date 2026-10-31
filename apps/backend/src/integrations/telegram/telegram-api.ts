@@ -129,7 +129,7 @@ export interface BotCommandDescription {
 }
 
 /** The updates the webhook asks for. */
-export type TelegramUpdateKind = 'message' | 'callback_query' | 'poll' | 'message_reaction_count';
+export type TelegramUpdateKind = 'message' | 'callback_query' | 'poll' | 'message_reaction_count' | 'channel_post';
 
 // What registering the bot needs. Answers stay `unknown`: the caller parses what it relies on.
 // `deleteMyCommands` takes a scope and a language because Telegram keeps one list per pair, and a

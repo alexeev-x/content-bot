@@ -60,6 +60,8 @@ export interface ChannelPost {
   rubric: string | null;
   interactive: boolean;
   family: string | null;
+  /** The owner's own post (by hand, in the studio or straight to the channel): it only keeps the gap. */
+  owner?: boolean;
 }
 
 export type Violation =
