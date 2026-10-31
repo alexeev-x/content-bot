@@ -102,7 +102,7 @@ describe('RubricsAnalytics', () => {
     renderPage();
     expect((await screen.findAllByText('×1,6')).length).toBeGreaterThan(0);
     expect(screen.getAllByText('лучшая').length).toBeGreaterThan(0);
-    expect(await screen.findByText('чаще: 18 дн. — заходит лучше обычного')).toBeTruthy();
+    expect(await screen.findByText((text) => text.includes('отдых 20 → 18 дн.'))).toBeTruthy();
     await userEvent.click(screen.getByRole('switch', { name: 'Менять отдых и часы самому после 4 недель' }));
     await expect.poll(() => applyEnabled).toBe(false);
   });

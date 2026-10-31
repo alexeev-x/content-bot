@@ -116,6 +116,11 @@ export const analyticsCopy = {
     restDays: (days: number) => `отдых ${days} дн.`,
     source: { learned: 'выучен', manual: 'ваш' },
     few: 'мало данных',
+    nothingYet: (scored: number) =>
+      `Обучение начнётся, когда наберётся данных: оценено ${scored} постов из нужных 12. Пока планировщик ничего не меняет.`,
+    restChange: (from: number, to: number) => `отдых ${from} → ${to} дн.`,
+    hourChange: (from: string, to: string) => `${from} → ${to}`,
+    advises: 'советует',
     keep: 'оставить',
     advice: (to: number, reason: 'better' | 'worse') =>
       reason === 'better' ? `чаще: ${to} дн. — заходит лучше обычного` : `реже: ${to} дн. — заходит хуже обычного`,

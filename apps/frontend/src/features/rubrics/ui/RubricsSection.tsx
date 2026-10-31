@@ -38,7 +38,11 @@ export function RubricsSection() {
           </div>
         </TabPanel>
         <TabPanel id="rubrics">
-          <RubricList openKey={openRubric} onOpenKeyChange={setOpenRubric} />
+          <RubricList
+            openKey={openRubric}
+            onOpenKeyChange={setOpenRubric}
+            onOpenAnalytics={() => setTab('analytics')}
+          />
         </TabPanel>
         <TabPanel id="analytics">
           <RubricsAnalytics />

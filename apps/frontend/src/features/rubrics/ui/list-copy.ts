@@ -11,6 +11,18 @@ export const listCopy = {
     off: 'Выключены'
   },
   switchLabel: (title: string) => `Рубрика «${title}»: включить`,
+  dash: '—',
+  restsUntil: (when: string) => `отдыхает до ${when}`,
+  sortLabel: 'Порядок',
+  sorts: { next: 'По следующему выходу', title: 'По названию', stale: 'Давно не выходили' },
+  columns: {
+    rubric: 'Рубрика',
+    format: 'Формат',
+    last: 'Последний выход',
+    next: 'Следующий',
+    state: 'Состояние',
+    switch: 'Включена'
+  },
   never: 'ещё не выходила',
   last: (when: string) => `был ${when}`,
   next: (when: string) => `следующий ${when}`,
@@ -25,6 +37,7 @@ export const listCopy = {
     decrement: 'Меньше на день',
     increment: 'Больше на день',
     save: 'Сохранить',
+    analytics: 'Аналитика рубрики',
     close: 'Закрыть',
     blockers: 'Что мешает',
     rest: 'Отдых между постами',

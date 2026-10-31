@@ -1,4 +1,4 @@
-import { RUBRIC_TITLES, type RubricSlotDto } from '@alexeev/contracts';
+import { RUBRIC_TITLES, rubricSlotReason, type RubricSlotDetailDto, type RubricSlotDto } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
@@ -8,12 +8,14 @@ import {
   DetailRow,
   DetailSection,
   DetailSheet,
+  Disclosure,
   ErrorState,
   Skeleton,
+  StatusPill,
   useToast
 } from '../../../shared/ui';
 import { rubricSlotQueryOptions, useSkipRubricSlot } from '../api/rubrics-queries';
-import { mskWhen } from '../model/msk';
+import { mskTime, mskWhen } from '../model/msk';
 import { calendarCopy } from './calendar-copy';
 import { rubricsCopy as copy } from './copy';
 import { SlotState } from './SlotState';
@@ -21,6 +23,23 @@ import styles from './RubricsPage.module.css';
 
 // History, rehearsal and the rare-state list still import the slot's state and drawer from here.
 export { SlotState };
+
+const OUTCOME_GROUP = { ok: 'done', failed: 'failed', skipped: 'muted', degraded: 'retry' } as const;
+const OUTCOME_ICON = { ok: 'check-circle', failed: 'x-circle', skipped: 'minus-circle', degraded: 'retry' } as const;
+
+/** Codes, steps and provider messages once each, for debugging only; the owner reads the sentence above. */
+function technicalLines(slot: RubricSlotDetailDto): string[] {
+  const lines: string[] = [];
+  if (slot.detail !== null) {
+    lines.push(`${slot.detail.code}${slot.detail.step === null ? '' : ` · шаг ${slot.detail.step}`}`);
+  }
+  for (const attempt of slot.attempts) {
+    if (attempt.code === null && attempt.message === null) continue;
+    const line = [attempt.step, attempt.code, attempt.message].filter((part) => part !== null).join(' · ');
+    if (!lines.includes(line)) lines.push(line);
+  }
+  return lines;
+}
 
 const SKIPPABLE: readonly RubricSlotDto['state'][] = ['planned', 'building', 'ready'];
 
@@ -31,6 +50,7 @@ export function SlotDrawer({ id, onClose }: { id: string; onClose: () => void })
   const toast = useToast();
   const [confirming, setConfirming] = useState(false);
   const data = slot.data;
+  const technical = data === undefined ? [] : technicalLines(data);
   const title = data === undefined ? '' : RUBRIC_TITLES[data.rubricKey];
   return (
     <DetailSheet
@@ -58,12 +78,11 @@ export function SlotDrawer({ id, onClose }: { id: string; onClose: () => void })
       ) : (
         <>
           <DetailSection label={calendarCopy.sections.slot}>
-            <DetailRow label={copy.slots.reason}>{slot.data.reason.text}</DetailRow>
-            {slot.data.detail === null ? null : (
-              <DetailRow label={copy.slots.states[slot.data.state]}>
-                {copy.slots.problem(slot.data.detail.code, slot.data.detail.step)}
-              </DetailRow>
-            )}
+            <DetailRow label={copy.slots.reason}>
+              {slot.data.detail === null
+                ? slot.data.reason.text
+                : (rubricSlotReason(slot.data.detail.code) ?? slot.data.reason.text)}
+            </DetailRow>
             {slot.data.candidates.length > 1 ? (
               <DetailRow label={copy.slots.fallbacks}>
                 {slot.data.candidates
@@ -76,19 +95,31 @@ export function SlotDrawer({ id, onClose }: { id: string; onClose: () => void })
               {slot.data.attempts.length === 0 ? (
                 copy.slots.noAttempts
               ) : (
-                <ol className={styles.attempts}>
+                <ol className={styles.steps}>
                   {slot.data.attempts.map((attempt) => (
-                    <li key={`${attempt.attempt}:${attempt.step}`}>
-                      {mskWhen(attempt.at)} · {RUBRIC_TITLES[attempt.rubricKey]} · {attempt.step} ·{' '}
-                      {copy.slots.outcomes[attempt.outcome]}
-                      {attempt.code === null ? '' : ` · ${attempt.code}`}
-                      {attempt.message === null ? null : <span className={styles.message}>{attempt.message}</span>}
+                    <li key={`${attempt.attempt}:${attempt.step}`} className={styles.stepRow}>
+                      <span className={styles.stepTime}>{mskTime(attempt.at)}</span>
+                      <span className={styles.stepName}>{copy.slots.stepNames[attempt.step] ?? attempt.step}</span>
+                      <StatusPill
+                        label={copy.slots.outcomes[attempt.outcome]}
+                        group={OUTCOME_GROUP[attempt.outcome]}
+                        icon={OUTCOME_ICON[attempt.outcome]}
+                      />
                     </li>
                   ))}
                 </ol>
               )}
             </DetailRow>
           </DetailSection>
+          {technical.length === 0 ? null : (
+            <Disclosure id="slot-technical" title={copy.slots.technical}>
+              <ul className={styles.technical}>
+                {technical.map((line) => (
+                  <li key={line}>{line}</li>
+                ))}
+              </ul>
+            </Disclosure>
+          )}
         </>
       )}
       {data === undefined ? null : (

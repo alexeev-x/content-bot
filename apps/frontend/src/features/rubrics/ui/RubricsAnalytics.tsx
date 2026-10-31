@@ -16,6 +16,7 @@ import {
 } from '../../../shared/ui';
 import { rubricCommentsQueryOptions, rubricCompareQueryOptions, rubricPostsQueryOptions } from '../api/rubrics-queries';
 import { mskWhen } from '../model/msk';
+import { isListedRubric } from '../model/rubric-filter';
 import { analyticsCopy as copy, times } from './analytics-copy';
 import { RubricsHours, RubricsLearning } from './RubricsLearning';
 import styles from './RubricsAnalytics.module.css';
@@ -95,7 +96,7 @@ function Comparison({ onOpen }: { onOpen: (rubric: RubricKey) => void }) {
   const [days, setDays] = useState<7 | 30 | 90>(30);
   const query = useQuery(rubricCompareQueryOptions(days));
   const data = query.data;
-  const rows = data?.rows.filter((row) => row.posts > 0) ?? [];
+  const rows = data?.rows.filter((row) => row.posts > 0 && isListedRubric(row.rubric)) ?? [];
   return (
     <Panel
       title={copy.compareTitle}
@@ -205,7 +206,7 @@ function InsideRubric({ rubric, onRubric }: { rubric: RubricKey; onRubric: (rubr
           <Select
             label={copy.rubricLabel}
             inlineLabel
-            options={RUBRIC_KEYS.map((key) => ({ id: key, label: RUBRIC_TITLES[key] }))}
+            options={RUBRIC_KEYS.filter(isListedRubric).map((key) => ({ id: key, label: RUBRIC_TITLES[key] }))}
             value={rubric}
             onChange={(id) => onRubric(id as RubricKey)}
           />
@@ -250,17 +251,19 @@ function InsideRubric({ rubric, onRubric }: { rubric: RubricKey; onRubric: (rubr
               ))}
             </section>
           ) : null}
-          <DataTable
-            aria-label={copy.postsTitle}
-            columns={columns}
-            rows={data?.posts ?? []}
-            getRowId={(row) => row.messageId}
-            isLoading={query.isPending}
-            loadingRows={4}
-            flush
-            density="compact"
-            emptyState={<EmptyState size="compact" title={copy.noUsual} icon="chart" />}
-          />
+          {/* No posts: the one muted line above says so; an empty table with a header only adds height. */}
+          {data !== undefined && data.posts.length === 0 ? null : (
+            <DataTable
+              aria-label={copy.postsTitle}
+              columns={columns}
+              rows={data?.posts ?? []}
+              getRowId={(row) => row.messageId}
+              isLoading={query.isPending}
+              loadingRows={4}
+              flush
+              density="compact"
+            />
+          )}
         </div>
       )}
     </Panel>
@@ -297,23 +300,25 @@ function Comments() {
             <EmptyState size="compact" icon="chart" title={copy.noComments} />
           ) : null}
           <ul className={styles.sliceRows}>
-            {data.rubrics.map((row) => (
-              <li key={row.rubric} className={styles.commentRow}>
-                <strong>{RUBRIC_TITLES[row.rubric]}</strong>
-                <span className={styles.muted}>
-                  {row.comments} комм. · {times(row.xComments)} ·{' '}
-                  {Object.entries(row.kinds)
-                    .filter(([, count]) => count > 0)
-                    .sort((a, b) => b[1] - a[1])
-                    .map(([kind, count]) => `${copy.kinds[kind as keyof typeof copy.kinds]} ${count}`)
-                    .join(', ')}
-                </span>
-                {row.topics.length > 0 ? (
-                  <span>{row.topics.map((topic) => `${topic.label} (${topic.count})`).join(' · ')}</span>
-                ) : null}
-                {row.quote === null ? null : <q className={styles.quote}>{row.quote}</q>}
-              </li>
-            ))}
+            {data.rubrics
+              .filter((row) => isListedRubric(row.rubric))
+              .map((row) => (
+                <li key={row.rubric} className={styles.commentRow}>
+                  <strong>{RUBRIC_TITLES[row.rubric]}</strong>
+                  <span className={styles.muted}>
+                    {row.comments} комм. · {times(row.xComments)} ·{' '}
+                    {Object.entries(row.kinds)
+                      .filter(([, count]) => count > 0)
+                      .sort((a, b) => b[1] - a[1])
+                      .map(([kind, count]) => `${copy.kinds[kind as keyof typeof copy.kinds]} ${count}`)
+                      .join(', ')}
+                  </span>
+                  {row.topics.length > 0 ? (
+                    <span>{row.topics.map((topic) => `${topic.label} (${topic.count})`).join(' · ')}</span>
+                  ) : null}
+                  {row.quote === null ? null : <q className={styles.quote}>{row.quote}</q>}
+                </li>
+              ))}
           </ul>
         </div>
       )}
