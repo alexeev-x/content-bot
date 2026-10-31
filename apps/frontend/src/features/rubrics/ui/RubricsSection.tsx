@@ -1,3 +1,4 @@
+import type { RubricKey } from '@alexeev/contracts';
 import { useState } from 'react';
 import { Tab, TabList, TabPanel, Tabs } from '../../../shared/ui';
 import { mskDay } from '../model/msk';
@@ -15,6 +16,7 @@ export function RubricsSection() {
   // Taken once per mount: the page shows «today» as it was when opened.
   const [today] = useState(() => mskDay(new Date().toISOString()));
   const [tab, setTab] = useState('calendar');
+  const [openRubric, setOpenRubric] = useState<RubricKey | null>(null);
   return (
     <div className={styles.page}>
       <SchedulerPanel />
@@ -26,11 +28,17 @@ export function RubricsSection() {
         </TabList>
         <TabPanel id="calendar">
           <div className={styles.page}>
-            <RubricsForecast today={today} onOpenRubric={() => setTab('rubrics')} />
+            <RubricsForecast
+              today={today}
+              onOpenRubric={(key) => {
+                setOpenRubric(key);
+                setTab('rubrics');
+              }}
+            />
           </div>
         </TabPanel>
         <TabPanel id="rubrics">
-          <RubricList />
+          <RubricList openKey={openRubric} onOpenKeyChange={setOpenRubric} />
         </TabPanel>
         <TabPanel id="analytics">
           <RubricsAnalytics />

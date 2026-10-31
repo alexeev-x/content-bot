@@ -90,13 +90,21 @@ function RubricRow({ item, today, onOpen }: { item: RubricItemDto; today: string
 }
 
 /** «Рубрики» → Рубрики: every rubric with its state, last and next post and the on/off switch; a row opens its drawer. */
-export function RubricList() {
+type Props = {
+  /** The rubric whose drawer is open: owned by the section so the calendar can open one (optional). */
+  openKey?: RubricItemDto['key'] | null;
+  onOpenKeyChange?: (key: RubricItemDto['key'] | null) => void;
+};
+
+export function RubricList({ openKey: controlledKey, onOpenKeyChange }: Props = {}) {
   const list = useQuery(rubricListQueryOptions());
   // Taken once per mount, like the calendar: «today» as it was when the page opened.
   const [today] = useState(() => mskDay(new Date().toISOString()));
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<RubricFilter>('all');
-  const [openKey, setOpenKey] = useState<RubricItemDto['key'] | null>(null);
+  const [ownKey, setOwnKey] = useState<RubricItemDto['key'] | null>(null);
+  const openKey = controlledKey === undefined ? ownKey : controlledKey;
+  const setOpenKey = (key: RubricItemDto['key'] | null) => (onOpenKeyChange ?? setOwnKey)(key);
   if (list.isPending)
     return (
       <Panel title={copy.list.caption}>
