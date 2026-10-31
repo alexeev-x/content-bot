@@ -15,6 +15,7 @@ import { DotaSummary } from '../features/dota-profile';
 import { Dashboard, DateChip, type PageBindings, type SourceRow, useDashboardQuery } from '../features/dashboard';
 import { destinationsInfiniteQueryOptions } from '../features/destinations';
 import { MediaPanel, MediaThumb } from '../features/media';
+import { SlotDrawer } from '../features/rubrics';
 import { PublicationDrawer, publicationQueryOptions } from '../features/publications';
 import { useOwnerTimezoneState } from '../features/owner-settings';
 import { utcOffsetLabel } from '../shared/lib/owner-timezone';
@@ -38,6 +39,7 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
   const now = useNow();
   const dashboard = useDashboardQuery(pollMs, timezone, timezoneKnown);
   const zoneNote = `${timezone}, ${utcOffsetLabel(now, timezone)}`;
+  const [openSlotId, setOpenSlotId] = useState<string | undefined>(undefined);
   const [openMedia, setOpenMedia] = useState<{ id: string; fileName: string } | null>(null);
   const phone = useMediaQuery('(max-width: 859px)');
   const destinations = useInfiniteQuery(destinationsInfiniteQueryOptions({ enabled: true }));
@@ -118,6 +120,7 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
     timezone,
     timezoneKnown,
     onOpenPublication: (id) => openPublication(id),
+    onOpenRubricSlot: setOpenSlotId,
     onOpenDay: (day) => void navigate({ to: '/publications', search: { from: day.from, to: day.to } }),
     onNewPost: () => void navigate({ to: '/posts/new' }),
     onPublishDraft: (id) => void navigate({ to: '/posts/$id/publish', params: { id } }),
@@ -173,6 +176,7 @@ export function DashboardPage({ pollMs, openPublicationId, onOpenPublicationChan
         onOpen={openAnalyticsItem}
         timezone={timezone}
       />
+      {openSlotId === undefined ? null : <SlotDrawer id={openSlotId} onClose={() => setOpenSlotId(undefined)} />}
       <PublicationDrawer
         timezone={timezone}
         publicationId={openPublicationId ?? null}

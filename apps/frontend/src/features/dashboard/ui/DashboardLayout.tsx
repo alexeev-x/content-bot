@@ -38,6 +38,8 @@ function renderWidget(item: LayoutItem, env: Omit<WidgetEnv, 'phone'>, phone: bo
           timezone={timezone}
           phone={phone}
           onOpenPublication={env.onOpenPublication}
+          onOpenRubricSlot={env.onOpenRubricSlot}
+          onOpenDay={env.onOpenDay}
           onNewPost={env.onNewPost}
           events={env.dayEvents}
           onOpenActivity={env.onOpenActivity}

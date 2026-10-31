@@ -44,6 +44,7 @@ export const copy = {
   line: {
     title: 'Лента дня',
     all: 'Все публикации',
+    allOfDay: 'Все публикации дня',
     empty: 'На сегодня ничего не запланировано',
     schedule: 'Запланировать',
     stat: (total: number, sent: number) =>
