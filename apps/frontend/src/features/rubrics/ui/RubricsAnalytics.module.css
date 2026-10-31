@@ -85,11 +85,147 @@
   font-style: italic;
 }
 
-.heatScroll {
-  overflow-x: auto;
+/* Comparison: three columns (rubric, ×usual, posts); the rest opens under the row. */
+.cHead,
+.cMain {
+  display: grid;
+  grid-template-columns: var(--space-4) minmax(0, 1fr) 6.5rem 4.5rem;
+  align-items: center;
+  column-gap: var(--space-3);
+  padding-inline: var(--space-3);
+}
+
+.cHead {
+  padding-block: var(--space-2);
+  border-block-end: 1px solid var(--color-border-subtle);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+}
+
+.cHead > :first-child {
+  grid-column: 2;
+}
+
+.cHead > :nth-child(2),
+.cHead > :nth-child(3) {
+  text-align: end;
+}
+
+.cList {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.cItem + .cItem {
+  border-block-start: 1px solid var(--color-border-subtle);
+}
+
+.cMain {
+  inline-size: 100%;
+  min-block-size: var(--size-target);
+  padding-block: var(--space-2);
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  cursor: pointer;
+}
+
+.cMain:hover {
+  background: var(--color-surface-2);
+}
+
+.cMain:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: calc(var(--focus-ring-width) * -1);
+}
+
+.cChevron {
+  color: var(--color-text-muted);
+  transition: transform var(--motion-fast) ease-out;
+}
+
+.cMain[aria-expanded='true'] .cChevron {
+  transform: rotate(90deg);
+}
+
+.cName {
+  font-weight: var(--font-weight-medium);
+  overflow-wrap: anywhere;
+}
+
+.cX {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-semibold);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.cPosts {
+  color: var(--color-text-muted);
+  font-variant-numeric: tabular-nums;
+  text-align: end;
+}
+
+.cDetails {
+  display: grid;
+  gap: var(--space-3);
+  justify-items: start;
+  padding: var(--space-2) var(--space-3) var(--space-3);
+  padding-inline-start: calc(var(--space-3) + var(--space-4) + var(--space-3));
+}
+
+.cDetails[hidden] {
+  display: none;
+}
+
+.cParts {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-5);
+  margin: 0;
+}
+
+.cPart {
+  display: grid;
+  gap: 2px;
+}
+
+.cPart dd {
+  margin: 0;
+  font-variant-numeric: tabular-nums;
+}
+
+@media (max-width: 599px) {
+  .cHead,
+  .cMain {
+    grid-template-columns: var(--space-4) minmax(0, 1fr) auto 3rem;
+  }
+
+  .cDetails {
+    padding-inline-start: var(--space-3);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .cChevron {
+    transition: none;
+  }
+}
+
+/* Hours: seven day columns share the full width; no horizontal scroll at any size. */
+.heatBox {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  container-type: inline-size;
 }
 
 .heat {
+  inline-size: 100%;
+  table-layout: fixed;
   border-collapse: separate;
   border-spacing: 2px;
   font-size: var(--font-size-sm);
@@ -97,8 +233,8 @@
 }
 
 .heat caption {
-  caption-side: bottom;
-  padding-block-start: var(--space-2);
+  caption-side: top;
+  padding-block-end: var(--space-2);
   text-align: start;
 }
 
@@ -108,12 +244,39 @@
   font-weight: 500;
 }
 
+.heat tbody th {
+  inline-size: 4.5rem;
+  text-align: start;
+  white-space: nowrap;
+}
+
+.heatSub {
+  display: block;
+  font-weight: 400;
+  white-space: nowrap;
+}
+
 .heat td {
-  min-inline-size: 36px;
   block-size: 28px;
   border-radius: var(--radius-1);
   background: var(--color-surface-2, transparent);
   text-align: center;
+}
+
+@media (max-width: 599px) {
+  .heatBox {
+    padding: var(--space-3);
+  }
+
+  .heat tbody th {
+    inline-size: 4.25rem;
+    font-size: var(--font-size-xs);
+    white-space: normal;
+  }
+
+  .heat td {
+    block-size: 44px;
+  }
 }
 
 .heat td[data-tone='high'] {

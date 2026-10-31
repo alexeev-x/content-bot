@@ -62,6 +62,8 @@ export const analyticsCopy = {
   postsTitle: 'Посты',
   postStatus: { scored: 'посчитан', pending: 'дозревает', missing: 'без данных' },
   openPost: 'Открыть в Telegram',
+  openRubric: 'Разобрать рубрику ниже',
+  noComments: 'Комментариев по рубрикам пока нет',
   views24: (views: number | null) => (views === null ? '—' : `${views} просм.`),
   commentsTitle: 'Что пишут в комментариях',
   commentsState: {
@@ -87,6 +89,15 @@ export const analyticsCopy = {
   heatNote:
     'Медиана оценки постов рубрик по дню недели и часу (МСК). Пустая клетка — постов не было; число без «×» — постов меньше трёх.',
   heatCaption: 'День недели × час по Москве',
+  heatCaptionBands: 'День недели × время суток по Москве; в клетке средняя оценка по постам',
+  heatEmpty: 'Оценённых постов по часам пока нет',
+  heatEmptyHint: 'Клетки появятся, когда у рубрик будут посты старше суток.',
+  bands: [
+    { id: 'morning', label: 'Утро', from: 8, to: 11 },
+    { id: 'day', label: 'День', from: 12, to: 15 },
+    { id: 'evening', label: 'Вечер', from: 16, to: 19 },
+    { id: 'night', label: 'Ночь', from: 20, to: 23 }
+  ] as const,
   heatDay: 'День',
   heatCell: (n: number, x: string, trial: boolean) => `Постов: ${n} · ${x}${trial ? ' · был пробный час' : ''}`,
   learning: {

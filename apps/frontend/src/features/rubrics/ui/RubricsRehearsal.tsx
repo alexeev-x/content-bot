@@ -2,7 +2,7 @@ import { RUBRIC_TITLES, rubricSlotReason, type RubricRehearsalDto } from '@alexe
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
-import { ErrorState, Panel, Skeleton, StatusPill, Switch, type StatusGroup } from '../../../shared/ui';
+import { EmptyState, ErrorState, Panel, Skeleton, StatusPill, Switch, type StatusGroup } from '../../../shared/ui';
 import { rubricRehearsalQueryOptions } from '../api/rubrics-queries';
 import { mskWhen } from '../model/msk';
 import { rubricsCopy } from './copy';
@@ -52,34 +52,45 @@ export function RubricsRehearsal() {
   const data = journal.data;
   if (!data.active)
     return (
-      <Panel title="Репетиция не идёт">
-        <div className={styles.panelBody}>
-          <p className={styles.meta}>
-            Включите «Автопубликация рубрик» в разделе «Рубрики» и выберите тестовый канал: начнётся недельный тест.
-          </p>
-        </div>
+      <Panel title="Репетиция">
+        <EmptyState
+          size="compact"
+          icon="clock"
+          title="Репетиция не идёт"
+          hint="Включите «Автопубликация рубрик» в разделе «Рубрики» и выберите тестовый канал: начнётся недельный тест."
+        />
       </Panel>
     );
   const items = onlyBad ? data.items.filter((item) => item.verdict === 'bad') : data.items;
   return (
     <div className={styles.stack}>
       <Panel title="Итог">
-        <div className={styles.panelBody}>
-          <p className={styles.meta}>
-            {data.startedAt === null ? 'Ещё ни одного слота.' : `Тест идёт с ${mskWhen(data.startedAt)} МСК.`} Как
-            задумано: {data.counts.ok} · не так: {data.counts.bad} · не в счёт: {data.counts.void} · ждут итога:{' '}
-            {data.counts.pending}
-          </p>
-          <Switch isSelected={onlyBad} onChange={setOnlyBad}>
-            Только «Не так»
-          </Switch>
-        </div>
+        {data.startedAt === null ? (
+          <EmptyState
+            size="compact"
+            icon="clock"
+            title="Ещё ни одного слота"
+            hint="Итог появится после первого слота теста."
+          />
+        ) : (
+          <div className={styles.panelBody}>
+            <p className={styles.meta}>
+              Тест идёт с {mskWhen(data.startedAt)} МСК. Как задумано: {data.counts.ok} · не так: {data.counts.bad} · не
+              в счёт: {data.counts.void} · ждут итога: {data.counts.pending}
+            </p>
+            <Switch isSelected={onlyBad} onChange={setOnlyBad}>
+              Только «Не так»
+            </Switch>
+          </div>
+        )}
       </Panel>
       <Panel title="Слоты">
         {items.length === 0 ? (
-          <div className={styles.panelBody}>
-            <p className={styles.meta}>{onlyBad ? 'Всё как задумано.' : 'Слотов ещё нет.'}</p>
-          </div>
+          <EmptyState
+            size="compact"
+            icon={onlyBad ? 'check-circle' : 'clock'}
+            title={onlyBad ? 'Всё как задумано' : 'Слотов ещё нет'}
+          />
         ) : (
           <ul className={styles.slotRows}>
             {items.map((item) => {

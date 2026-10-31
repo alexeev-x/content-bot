@@ -1,11 +1,13 @@
 import { RUBRIC_KEYS, RUBRIC_TITLES, type RubricCompare, type RubricKey, type RubricPosts } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useId, useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import {
+  Button,
   DataTable,
   EmptyState,
   ErrorState,
+  Icon,
   Panel,
   SegmentedControl,
   Select,
@@ -43,70 +45,57 @@ function Mark({ row }: { row: CompareRow }) {
   );
 }
 
-/** Rubric against rubric, each against the channel's usual post. A row opens the rubric below. */
+function CompareItem({ row, onOpen }: { row: CompareRow; onOpen: (rubric: RubricKey) => void }) {
+  const [isOpen, setOpen] = useState(false);
+  const detailsId = useId();
+  const parts: [string, number | null][] = [
+    [copy.columns.prev, row.xPrev],
+    [copy.columns.views, row.parts.views],
+    [copy.columns.reactions, row.parts.reactions],
+    [copy.columns.comments, row.parts.comments],
+    [copy.columns.votes, row.parts.votes]
+  ];
+  return (
+    <li className={styles.cItem}>
+      <button
+        type="button"
+        className={styles.cMain}
+        aria-expanded={isOpen}
+        aria-controls={detailsId}
+        onClick={() => setOpen((value) => !value)}
+      >
+        <Icon name="chevron-right" size={16} className={styles.cChevron} />
+        <span className={styles.rubricCell}>
+          <span className={styles.cName}>{RUBRIC_TITLES[row.rubric]}</span>
+          <Mark row={row} />
+        </span>
+        <span className={styles.cX}>{row.enough ? times(row.x) : '—'}</span>
+        <span className={styles.cPosts}>{row.posts}</span>
+      </button>
+      <div id={detailsId} className={styles.cDetails} hidden={!isOpen}>
+        {row.reason !== null && row.enough ? <p className={styles.muted}>{copy.reason(row.reason)}</p> : null}
+        <dl className={styles.cParts}>
+          {parts.map(([label, value]) => (
+            <div key={label} className={styles.cPart}>
+              <dt className={styles.muted}>{label}</dt>
+              <dd>{times(value)}</dd>
+            </div>
+          ))}
+        </dl>
+        <Button variant="secondary" onPress={() => onOpen(row.rubric)}>
+          {copy.openRubric}
+        </Button>
+      </div>
+    </li>
+  );
+}
+
+/** Rubric against rubric, each against the channel's usual post: three columns, the rest opens under the row. */
 function Comparison({ onOpen }: { onOpen: (rubric: RubricKey) => void }) {
   const [days, setDays] = useState<7 | 30 | 90>(30);
   const query = useQuery(rubricCompareQueryOptions(days));
-  const columns = [
-    {
-      id: 'rubric',
-      header: copy.columns.rubric,
-      isRowHeader: true,
-      cell: (row: CompareRow) => (
-        <span className={styles.rubricCell}>
-          <span>{RUBRIC_TITLES[row.rubric]}</span>
-          {row.reason !== null && row.enough ? <span className={styles.muted}>{copy.reason(row.reason)}</span> : null}
-        </span>
-      )
-    },
-    { id: 'posts', header: copy.columns.posts, align: 'end' as const, width: 80, cell: (row: CompareRow) => row.posts },
-    {
-      id: 'x',
-      header: copy.columns.x,
-      align: 'end' as const,
-      width: 110,
-      cell: (row: CompareRow) => <strong>{times(row.x)}</strong>
-    },
-    {
-      id: 'prev',
-      header: copy.columns.prev,
-      align: 'end' as const,
-      width: 130,
-      cell: (row: CompareRow) => times(row.xPrev)
-    },
-    {
-      id: 'views',
-      header: copy.columns.views,
-      align: 'end' as const,
-      cell: (row: CompareRow) => times(row.parts.views)
-    },
-    {
-      id: 'reactions',
-      header: copy.columns.reactions,
-      align: 'end' as const,
-      cell: (row: CompareRow) => times(row.parts.reactions)
-    },
-    {
-      id: 'comments',
-      header: copy.columns.comments,
-      align: 'end' as const,
-      cell: (row: CompareRow) => times(row.parts.comments)
-    },
-    {
-      id: 'votes',
-      header: copy.columns.votes,
-      align: 'end' as const,
-      cell: (row: CompareRow) => times(row.parts.votes)
-    },
-    {
-      id: 'mark',
-      header: '',
-      width: 130,
-      compactSlot: 'trailing' as const,
-      cell: (row: CompareRow) => <Mark row={row} />
-    }
-  ];
   const data = query.data;
+  const rows = data?.rows.filter((row) => row.posts > 0) ?? [];
   return (
     <Panel
       title={copy.compareTitle}
@@ -120,7 +109,7 @@ function Comparison({ onOpen }: { onOpen: (rubric: RubricKey) => void }) {
         />
       }
       footer={
-        data === undefined ? undefined : (
+        data === undefined || rows.length === 0 ? undefined : (
           <span className={styles.muted}>
             {copy.channelLine(data.channel.baselinePosts, data.channel.viewsMedian24)} ·{' '}
             {copy.coverage(data.coverage.scored, data.coverage.pending, data.coverage.missing)}
@@ -130,19 +119,25 @@ function Comparison({ onOpen }: { onOpen: (rubric: RubricKey) => void }) {
     >
       {query.isError ? (
         failure(query.error, () => void query.refetch())
+      ) : query.isPending ? (
+        <div className={styles.body}>
+          <Skeleton width="100%" height={160} />
+        </div>
+      ) : rows.length === 0 ? (
+        <EmptyState size="compact" icon="chart" title={copy.empty} hint={copy.emptyHint} />
       ) : (
-        <DataTable
-          aria-label={copy.compareTitle}
-          columns={columns}
-          rows={data?.rows ?? []}
-          getRowId={(row) => row.rubric}
-          isLoading={query.isPending}
-          loadingRows={5}
-          flush
-          density="compact"
-          onRowAction={(id) => onOpen(id as RubricKey)}
-          emptyState={<EmptyState title={copy.empty} description={copy.emptyHint} icon="chart" />}
-        />
+        <>
+          <div className={styles.cHead} aria-hidden="true">
+            <span>{copy.columns.rubric}</span>
+            <span>{copy.columns.x}</span>
+            <span>{copy.columns.posts}</span>
+          </div>
+          <ul className={styles.cList} aria-label={copy.compareTitle}>
+            {rows.map((row) => (
+              <CompareItem key={row.rubric} row={row} onOpen={onOpen} />
+            ))}
+          </ul>
+        </>
       )}
     </Panel>
   );
@@ -264,7 +259,7 @@ function InsideRubric({ rubric, onRubric }: { rubric: RubricKey; onRubric: (rubr
             loadingRows={4}
             flush
             density="compact"
-            emptyState={<EmptyState title={copy.noUsual} icon="chart" />}
+            emptyState={<EmptyState size="compact" title={copy.noUsual} icon="chart" />}
           />
         </div>
       )}
@@ -298,6 +293,9 @@ function Comments() {
       ) : (
         <div className={styles.body}>
           {data.state === 'ok' ? null : <p className={styles.muted}>{copy.commentsState[data.state]}</p>}
+          {data.rubrics.length === 0 && data.state === 'ok' ? (
+            <EmptyState size="compact" icon="chart" title={copy.noComments} />
+          ) : null}
           <ul className={styles.sliceRows}>
             {data.rubrics.map((row) => (
               <li key={row.rubric} className={styles.commentRow}>
