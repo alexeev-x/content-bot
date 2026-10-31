@@ -12,15 +12,23 @@ const revisionSchema = z.number().int().nonnegative();
 /** What stops the scheduler now; locks are state, never errors. */
 export const rubricLockSchema = z.enum([
   'NOT_HERE',
-  'NOT_BUILT',
   'SCHEMA',
   'SWITCHED_OFF',
+  'LAB_MASTER_OFF',
   'LAB_OFF',
   'NO_DESTINATION',
   'DESTINATION_DISABLED',
   'PUBLISHING_OFF'
 ]);
 export type RubricLock = z.infer<typeof rubricLockSchema>;
+
+/**
+ * What the owner can press to lift a lock; null where only text helps (a server setting, a missing migration).
+ * POST /api/v1/rubrics/dev-enable (no body) does ENABLE_LAB_MASTER and ENABLE_LAB_JOB at once, on DEV only: it answers the
+ * new status, and 404 NOT_FOUND (reason NOT_HERE) elsewhere. Errors: UNAUTHORIZED 401, FORBIDDEN 403, RATE_LIMIT 429.
+ */
+export const rubricLockFixSchema = z.enum(['ENABLE_RUBRICS', 'PICK_CHANNEL', 'ENABLE_LAB_JOB', 'ENABLE_LAB_MASTER']);
+export type RubricLockFix = z.infer<typeof rubricLockFixSchema>;
 
 /**
  * GET /api/v1/rubrics/status. `live`: production posts to the chosen channel; `rehearsal`: DEV posts to the test channel
@@ -30,11 +38,13 @@ export const rubricSchedulerStatusSchema = z.object({
   mode: z.enum(['live', 'rehearsal', 'unavailable', 'forecast_only']),
   enabled: z.boolean(),
   effective: z.enum(['running', 'switched_off', 'locked', 'unavailable']),
-  locks: z.array(z.object({ code: rubricLockSchema })).max(20),
+  locks: z.array(z.object({ code: rubricLockSchema, fix: rubricLockFixSchema.nullable().default(null) })).max(20),
   /** The channel the rubrics go to (the test channel in rehearsal). */
   destination: z.object({ id: z.uuid(), title: z.string() }).nullable().default(null),
   liveSlots: z.number().int().nonnegative().default(0),
   next: z.object({ rubricKey: rubricKeySchema, at: z.iso.datetime() }).nullable().default(null),
+  /** What «Старт» would release first: `next` while slots exist, else the forecast's first slot; for the confirm copy. */
+  firstSlot: z.object({ rubricKey: rubricKeySchema, at: z.iso.datetime() }).nullable().default(null),
   lastPlanAt: z.iso.datetime().nullable().default(null),
   /** Browser Rendering used by today's builds against the daily cap (Moscow day). */
   browserBudget: z.object({ usedMs: z.number().int().nonnegative(), capMs: z.number().int().positive() }).optional(),

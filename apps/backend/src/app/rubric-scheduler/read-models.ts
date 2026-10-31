@@ -13,7 +13,7 @@ import type { Container } from '../container';
 import { rubricCapabilities } from '../rubric-catalog';
 import { rubricDescriptors } from '../rubric-catalog';
 import { browserCapMs, browserUsedToday } from './browser-budget';
-import { schedulerState } from './locks';
+import { type LabSwitches, lockDto, schedulerState } from './locks';
 import { planCapabilities, schedulerMode } from './runtime';
 
 // What «Рубрики» reads: the scheduler's state, its slots and every rubric, composed from the scheduler's own tables.
@@ -46,11 +46,11 @@ export function slotDto(slot: SlotRow): RubricSlotDto {
 
 export async function readSchedulerStatus(
   container: ReadContainer,
-  labOn: () => Promise<boolean>
+  lab: LabSwitches
 ): Promise<RubricSchedulerStatusDto> {
   const now = container.clock.now();
   const env = container.schedulerEnv;
-  const state = await schedulerState(container, env, labOn);
+  const state = await schedulerState(container, env, lab);
   const capabilities = rubricCapabilities(env);
   const base = {
     capabilities: {
@@ -67,10 +67,11 @@ export async function readSchedulerStatus(
       mode: 'forecast_only',
       enabled: false,
       effective: 'unavailable',
-      locks: state.locks.map((code) => ({ code })),
+      locks: state.locks.map(lockDto),
       destination: null,
       liveSlots: 0,
       next: null,
+      firstSlot: null,
       lastPlanAt: null,
       revision: 0
     };
@@ -83,10 +84,11 @@ export async function readSchedulerStatus(
     mode: state.mode,
     enabled: state.settings.enabled,
     effective: state.locks.length === 0 ? 'running' : state.settings.enabled ? 'locked' : 'switched_off',
-    locks: state.locks.map((code) => ({ code })),
+    locks: state.locks.map(lockDto),
     destination: state.destination === null ? null : { id: state.destination.id, title: state.destination.title },
     liveSlots: live.length,
     next: next === undefined ? null : { rubricKey: next.rubricKey as RubricKey, at: iso(next.slotAt) },
+    firstSlot: next === undefined ? null : { rubricKey: next.rubricKey as RubricKey, at: iso(next.slotAt) },
     lastPlanAt: lastPlanAt === null ? null : iso(lastPlanAt),
     browserBudget: {
       usedMs: await browserUsedToday(container.rubricSlots, now),
