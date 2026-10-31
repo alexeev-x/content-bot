@@ -11,7 +11,7 @@ import { server, setupMswServer } from '../../../test/msw';
 import { createTestQueryClient } from '../../../test/query-wrapper';
 import { RubricList } from '../ui/RubricList';
 import { SchedulerPanel } from '../ui/SchedulerPanel';
-import { UpcomingSlots } from '../ui/UpcomingSlots';
+import { RubricsForecast } from '../ui/RubricsForecast';
 
 setupMswServer();
 beforeEach(() => {
@@ -111,8 +111,19 @@ describe('«Рубрики»', () => {
         return HttpResponse.json({ ...slot, state: 'cancelled', detail: { code: 'OWNER_SKIPPED', step: null } });
       })
     );
-    show(<UpcomingSlots today="2026-11-02" />);
-    await userEvent.click(await screen.findByRole('button', { name: /Открыть слот «Признавайтесь»/ }));
+    server.use(
+      http.get('*/api/v1/rubrics/forecast', () =>
+        HttpResponse.json({
+          from: '2026-11-02',
+          until: '2026-12-06',
+          computedAt: '2026-11-02T09:00:00.000Z',
+          days: [],
+          unavailable: []
+        })
+      )
+    );
+    show(<RubricsForecast today="2026-11-02" onOpenRubric={() => undefined} />);
+    await userEvent.click(await screen.findByRole('button', { name: /Признавайтесь, 19:00: Запланирован/ }));
     const dialog = await screen.findByRole('dialog');
     expect(within(dialog).getByText(/Отдых 14 дн\. прошёл/)).toBeTruthy();
     await userEvent.click(within(dialog).getByRole('button', { name: 'Пропустить слот' }));

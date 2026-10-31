@@ -1,17 +1,18 @@
 .stack {
   display: grid;
   gap: var(--space-4);
+  min-width: 0;
 }
 
 .panel {
   display: grid;
-  gap: var(--space-4);
-  padding: var(--space-4);
+  gap: var(--space-3);
+  padding: var(--space-3);
 }
 
 .loading {
   display: block;
-  padding: var(--space-4);
+  padding: var(--space-3);
 }
 
 .toolbar {
@@ -27,112 +28,14 @@
   font-size: var(--font-size-sm);
 }
 
-/* The month: seven Monday-first columns; under 720 px the days stack (a 375 px phone has no room for seven). */
-.month,
-.month thead,
-.weeks {
-  display: grid;
-  gap: var(--space-1);
-  inline-size: 100%;
-  border-collapse: separate;
-}
-
-.weekHead,
-.weekRow {
-  display: grid;
-  grid-template-columns: repeat(7, minmax(0, 1fr));
-  gap: var(--space-1);
-}
-
-.weekday {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-  font-weight: inherit;
-  text-align: center;
-}
-
-.cell,
-.outside {
-  display: grid;
-  align-content: start;
-  gap: var(--space-1);
-  min-block-size: 96px;
-  padding: var(--space-2);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-2);
-  background: var(--color-surface-1);
-}
-
-.outside {
-  background: transparent;
-  border-style: dashed;
-}
-
-.date {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-sm);
-}
-
-.slots {
-  display: grid;
-  gap: var(--space-1);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.slot {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: baseline;
-  gap: var(--space-1);
-  min-inline-size: 0;
-  font-size: var(--font-size-sm);
-}
-
-.time {
-  font-variant-numeric: tabular-nums;
-  color: var(--color-text-muted);
-}
-
-.slotTitle {
-  min-inline-size: 0;
-  overflow-wrap: anywhere;
-}
-
-.mark {
-  display: inline-flex;
-  align-self: center;
-  color: var(--color-text-muted);
+/* The day chips stick under the phone topbar; on desktop there is no topbar to clear. */
+.sticky {
+  --sticky-offset: var(--size-topbar);
 }
 
 .reason {
-  flex-basis: 100%;
   color: var(--color-text-muted);
   font-size: var(--font-size-sm);
-}
-
-.list {
-  display: grid;
-  gap: var(--space-4);
-  margin: 0;
-  padding: 0;
-  list-style: none;
-}
-
-.listDay {
-  display: grid;
-  gap: var(--space-2);
-}
-
-.listDate {
-  margin: 0;
-  font-size: var(--font-size-md);
-  text-transform: capitalize;
-}
-
-.list .slot .reason {
-  flex-basis: auto;
 }
 
 .unavailable {
@@ -143,31 +46,17 @@
   list-style: none;
 }
 
-.visuallyHidden {
-  position: absolute;
-  inline-size: 1px;
-  block-size: 1px;
-  overflow: hidden;
-  clip-path: inset(50%);
-  white-space: nowrap;
-}
-
-@media (width < 720px) {
-  .month thead {
-    display: none;
+@media (min-width: 860px) {
+  .panel {
+    gap: var(--space-4);
+    padding: var(--space-4);
   }
 
-  .weekRow {
-    grid-template-columns: minmax(0, 1fr);
+  .loading {
+    padding: var(--space-4);
   }
 
-  /* On a phone a day without rubrics and the days outside the forecast say nothing: only filled days show. */
-  .outside,
-  .cell:not(:has(.slots)) {
-    display: none;
-  }
-
-  .cell {
-    min-block-size: 0;
+  .sticky {
+    --sticky-offset: 0px;
   }
 }

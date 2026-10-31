@@ -1,0 +1,210 @@
+.month {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-2) var(--space-3);
+}
+
+.title {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* Seven equal columns whatever the content: fixed layout ignores chip text widths. */
+.grid {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: separate;
+  border-spacing: 2px;
+}
+
+.weekday {
+  padding: var(--space-1) 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  text-align: center;
+}
+
+.cell,
+.outside {
+  position: relative;
+  min-width: 0;
+  height: 48px;
+  padding: 0;
+  overflow: hidden;
+  border-radius: var(--radius-2);
+  vertical-align: top;
+}
+
+.cell {
+  background: var(--color-surface-1);
+}
+
+.cell[data-empty] {
+  background: none;
+}
+
+.cell[data-today] {
+  box-shadow: inset 0 0 0 2px var(--color-accent);
+}
+
+.cell[data-selected] {
+  background: var(--color-selected-bg);
+}
+
+/* The date button covers the whole cell on a phone (44 px+ tap area) and sits top-left on desktop. */
+.date {
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  box-sizing: border-box;
+  width: 100%;
+  min-height: var(--size-target);
+  padding: var(--space-1) var(--space-1) 0;
+  border: 0;
+  background: none;
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  cursor: pointer;
+}
+
+.date:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+
+.date:hover {
+  background: var(--color-surface-2);
+}
+
+.cell[data-today] .date {
+  color: var(--color-accent-text);
+  font-weight: var(--font-weight-semibold);
+}
+
+.dateText {
+  display: block;
+  padding: var(--space-1);
+  color: var(--color-text-disabled);
+  font-size: var(--font-size-sm);
+  text-align: center;
+}
+
+.dots {
+  position: absolute;
+  inset: auto 0 var(--space-1);
+  display: flex;
+  justify-content: center;
+  gap: 3px;
+  pointer-events: none;
+}
+
+.dot {
+  width: 6px;
+  height: 6px;
+  border-radius: var(--radius-pill);
+  background: var(--color-accent);
+}
+
+/* A forecast dot is hollow: the difference does not rely on colour. */
+.dot[data-forecast] {
+  box-sizing: border-box;
+  border: 1px solid var(--color-accent);
+  background: none;
+}
+
+.chips {
+  display: grid;
+  gap: 2px;
+  padding: 0 var(--space-1) var(--space-1);
+}
+
+.chip,
+.more {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: 24px;
+  padding: 0 var(--space-1);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-1);
+  background: var(--color-surface-2);
+  color: var(--color-text);
+  font: inherit;
+  font-size: var(--font-size-xs);
+  text-align: left;
+  cursor: pointer;
+}
+
+.chip[data-forecast] {
+  border-style: dashed;
+  background: none;
+  color: var(--color-text-muted);
+}
+
+.chip:hover,
+.more:hover {
+  background: var(--color-surface-3);
+}
+
+.chip:focus-visible,
+.more:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 1px;
+}
+
+.chipTime {
+  flex: none;
+  font-variant-numeric: tabular-nums;
+}
+
+.chipTitle {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.more {
+  justify-content: center;
+  color: var(--color-text-muted);
+}
+
+@media (min-width: 860px) {
+  .cell,
+  .outside {
+    height: auto;
+    min-height: 40px;
+  }
+
+  .cell:not([data-empty]) {
+    min-height: 124px;
+  }
+
+  .date {
+    justify-content: flex-start;
+    width: auto;
+    min-width: 28px;
+    min-height: 28px;
+    padding: var(--space-1) var(--space-2);
+    border-radius: var(--radius-1);
+  }
+}

@@ -1,111 +1,64 @@
-import { RUBRIC_TITLES, type ForecastSlotDto, type RubricForecastDto } from '@alexeev/contracts';
+import { RUBRIC_TITLES, type RubricKey } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
+import { groupByDay } from '../../../shared/lib/group-by-day';
 import {
   Banner,
   Disclosure,
   EmptyState,
   ErrorState,
-  Icon,
+  GroupedList,
   Panel,
+  PanelList,
   SegmentedControl,
-  Skeleton
+  Skeleton,
+  useMediaQuery
 } from '../../../shared/ui';
-import { rubricForecastQueryOptions } from '../api/rubrics-queries';
-import { dayLabel, mskTime, shortDayLabel, weeksOf } from '../model/msk';
+import { rubricCalendarQueryOptions, rubricForecastQueryOptions } from '../api/rubrics-queries';
+import { itemsByDay, mergeCalendar, monthBounds, monthOf, type CalendarItem } from '../model/calendar-items';
+import { addDays, mskTime } from '../model/msk';
+import { CalendarDrawer, type CalendarTarget } from './CalendarDrawer';
+import { CalendarEntryRow } from './CalendarEntryRow';
+import { CalendarMonth } from './CalendarMonth';
+import { calendarCopy } from './calendar-copy';
 import { rubricsCopy as copy } from './copy';
 import styles from './RubricsForecast.module.css';
 
 type View = 'month' | 'list';
 
-function SlotLine({ slot, withReason }: { slot: ForecastSlotDto; withReason: boolean }) {
-  return (
-    <li className={styles.slot}>
-      <time className={styles.time} dateTime={slot.at}>
-        {mskTime(slot.at)}
-      </time>
-      <span className={styles.slotTitle}>{RUBRIC_TITLES[slot.rubricKey]}</span>
-      {slot.hasPicture ? (
-        <span className={styles.mark} title={copy.picture}>
-          <Icon name="image" size={14} aria-hidden="true" />
-          <span className={styles.visuallyHidden}>{copy.picture}</span>
-        </span>
-      ) : null}
-      {slot.hasPoll ? (
-        <span className={styles.mark} title={copy.poll}>
-          <Icon name="chart" size={14} aria-hidden="true" />
-          <span className={styles.visuallyHidden}>{copy.poll}</span>
-        </span>
-      ) : null}
-      {withReason ? <span className={styles.reason}>{slot.reason.text}</span> : null}
-    </li>
-  );
-}
+/** The channel's slots are Moscow slots whatever the owner's zone. */
+const MSK = 'Europe/Moscow';
+/** Real slots are asked for as far as the forecast reaches (the API takes up to 42 days). */
+const CALENDAR_DAYS = 34;
 
-function MonthView({ forecast }: { forecast: RubricForecastDto }) {
-  const byDay = new Map(forecast.days.map((day) => [day.date, day.slots]));
-  return (
-    <table className={styles.month} aria-label={copy.views.month}>
-      <thead>
-        <tr className={styles.weekHead}>
-          {copy.weekdays.map((weekday) => (
-            <th key={weekday} className={styles.weekday} scope="col">
-              {weekday}
-            </th>
-          ))}
-        </tr>
-      </thead>
-      <tbody className={styles.weeks}>
-        {weeksOf(forecast.from, forecast.until).map((week) => (
-          <tr key={week[0]} className={styles.weekRow}>
-            {week.map((day) => {
-              const slots = byDay.get(day);
-              return (
-                <td key={day} className={slots === undefined ? styles.outside : styles.cell} aria-label={dayLabel(day)}>
-                  <span className={styles.date}>{shortDayLabel(day)}</span>
-                  {slots !== undefined && slots.length > 0 ? (
-                    <ul className={styles.slots}>
-                      {slots.map((slot) => (
-                        <SlotLine key={slot.at} slot={slot} withReason={false} />
-                      ))}
-                    </ul>
-                  ) : null}
-                </td>
-              );
-            })}
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
+type Props = {
+  /** The Moscow day the page opened on: the calendar starts there. */
+  today: string;
+  onOpenRubric: (key: RubricKey) => void;
+};
 
-function ListView({ forecast }: { forecast: RubricForecastDto }) {
-  return (
-    <ol className={styles.list}>
-      {forecast.days
-        .filter((day) => day.slots.length > 0)
-        .map((day) => (
-          <li key={day.date} className={styles.listDay}>
-            <h3 className={styles.listDate}>{dayLabel(day.date)}</h3>
-            <ul className={styles.slots}>
-              {day.slots.map((slot) => (
-                <SlotLine key={slot.at} slot={slot} withReason />
-              ))}
-            </ul>
-          </li>
-        ))}
-    </ol>
-  );
-}
-
-/** «Рубрики» → Календарь: the 35-day forecast as a month or a list, and the rubrics this Worker cannot run. */
-export function RubricsForecast() {
-  const query = useQuery(rubricForecastQueryOptions());
+/** «Рубрики» → Календарь: real slots first, then the forecast, as a month or a list; one drawer for every entry. */
+export function RubricsForecast({ today, onOpenRubric }: Props) {
+  const forecast = useQuery(rubricForecastQueryOptions());
+  const calendarEnd = addDays(today, CALENDAR_DAYS);
+  const slots = useQuery(rubricCalendarQueryOptions(today, calendarEnd));
+  const phone = useMediaQuery('(max-width: 859px)');
   const [view, setView] = useState<View>('month');
+  const [month, setMonth] = useState(() => monthOf(today));
+  const [selectedDay, setSelectedDay] = useState(today);
+  const [target, setTarget] = useState<CalendarTarget | null>(null);
 
-  if (query.isPending)
+  const items = useMemo(
+    () =>
+      forecast.data === undefined || slots.data === undefined
+        ? []
+        : mergeCalendar(slots.data.slots, forecast.data, today),
+    [forecast.data, slots.data, today]
+  );
+  const byDay = useMemo(() => itemsByDay(items), [items]);
+
+  if (forecast.isPending || slots.isPending)
     return (
       <Panel>
         <output className={styles.loading} aria-busy="true" aria-label={copy.loading}>
@@ -113,19 +66,62 @@ export function RubricsForecast() {
         </output>
       </Panel>
     );
-  if (query.isError)
+  if (forecast.isError || slots.isError) {
+    const error = forecast.error ?? slots.error;
     return (
       <Panel>
         <ErrorState
           message={copy.error}
-          requestId={query.error instanceof ApiError ? query.error.requestId : undefined}
-          onRetry={() => void query.refetch()}
+          requestId={error instanceof ApiError ? error.requestId : undefined}
+          onRetry={() => void Promise.all([forecast.refetch(), slots.refetch()])}
         />
       </Panel>
     );
+  }
 
-  const forecast = query.data;
-  const total = forecast.days.reduce((sum, day) => sum + day.slots.length, 0);
+  const windowEnd = forecast.data.until > calendarEnd ? forecast.data.until : calendarEnd;
+  const changeMonth = (next: string) => {
+    setMonth(next);
+    const { first, last } = monthBounds(next);
+    // The phone feed must always show a day of the month on screen.
+    if (selectedDay < first || selectedDay > last) setSelectedDay(first < today ? today : first);
+  };
+  const openItem = (item: CalendarItem) => setTarget({ kind: 'item', item });
+  const dayItems = (day: string): readonly CalendarItem[] => byDay.get(day) ?? [];
+  const days = groupByDay(items, (item) => item.at, MSK);
+
+  const content =
+    items.length === 0 ? (
+      <EmptyState size="compact" icon="calendar" title={calendarCopy.empty} hint={calendarCopy.emptyHint} />
+    ) : view === 'list' ? null : (
+      <>
+        <CalendarMonth
+          month={month}
+          today={today}
+          windowStart={today}
+          windowEnd={windowEnd}
+          byDay={byDay}
+          compact={phone}
+          selectedDay={selectedDay}
+          onMonthChange={changeMonth}
+          onSelectDay={setSelectedDay}
+          onOpenDay={(day) => setTarget({ kind: 'day', day })}
+          onOpenItem={openItem}
+        />
+        {phone ? (
+          dayItems(selectedDay).length === 0 ? (
+            <EmptyState size="compact" icon="calendar" title={calendarCopy.emptyDay} />
+          ) : (
+            <PanelList aria-label={selectedDay}>
+              {dayItems(selectedDay).map((item) => (
+                <CalendarEntryRow key={item.key} item={item} onPress={openItem} />
+              ))}
+            </PanelList>
+          )
+        ) : null}
+      </>
+    );
+
   return (
     <div className={styles.stack}>
       <Banner tone="info" title={copy.forecastTitle}>
@@ -143,21 +139,34 @@ export function RubricsForecast() {
               value={view}
               onChange={(id) => setView(id === 'list' ? 'list' : 'month')}
             />
-            <span className={styles.computed}>{copy.computedAt(mskTime(forecast.computedAt))}</span>
+            <span className={styles.computed}>{copy.computedAt(mskTime(forecast.data.computedAt))}</span>
           </div>
-          {total === 0 ? (
-            <EmptyState title={copy.empty} description={copy.emptyHint} />
-          ) : view === 'month' ? (
-            <MonthView forecast={forecast} />
-          ) : (
-            <ListView forecast={forecast} />
-          )}
+          {content}
         </div>
       </Panel>
-      {forecast.unavailable.length === 0 ? null : (
-        <Disclosure id="rubrics-unavailable" title={copy.unavailableTitle(forecast.unavailable.length)}>
+      {view === 'list' && items.length > 0 ? (
+        // Outside the panel: a panel clips, and the day headers must stick to the page's scroll.
+        <div className={styles.sticky}>
+          <GroupedList
+            variant="chip"
+            groups={days.map((day) => ({ id: day.key, label: day.label, count: day.items.length }))}
+          >
+            {(id) => (
+              <Panel>
+                <PanelList aria-label={days.find((day) => day.key === id)?.label}>
+                  {(days.find((day) => day.key === id)?.items ?? []).map((item) => (
+                    <CalendarEntryRow key={item.key} item={item} onPress={openItem} />
+                  ))}
+                </PanelList>
+              </Panel>
+            )}
+          </GroupedList>
+        </div>
+      ) : null}
+      {forecast.data.unavailable.length === 0 ? null : (
+        <Disclosure id="rubrics-unavailable" title={copy.unavailableTitle(forecast.data.unavailable.length)}>
           <ul className={styles.unavailable}>
-            {forecast.unavailable.map((each) => (
+            {forecast.data.unavailable.map((each) => (
               <li key={each.rubricKey}>
                 <strong>{RUBRIC_TITLES[each.rubricKey]}</strong>{' '}
                 <span className={styles.reason}>
@@ -168,6 +177,16 @@ export function RubricsForecast() {
           </ul>
         </Disclosure>
       )}
+      <CalendarDrawer
+        target={target}
+        dayItems={dayItems}
+        onClose={() => setTarget(null)}
+        onOpenItem={openItem}
+        onOpenRubric={(key) => {
+          setTarget(null);
+          onOpenRubric(key);
+        }}
+      />
     </div>
   );
 }
