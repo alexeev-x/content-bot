@@ -86,7 +86,7 @@ const EMOJI_ENTITIES: PostEntity[] = [
 
 describe('entities on create', () => {
   it('stores and returns the entities with emoji offsets, on the post and on revision 0', async () => {
-    const post = await create({ title: 'Emoji', body: EMOJI_BODY, entities: EMOJI_ENTITIES });
+    const post = await create({ body: EMOJI_BODY, entities: EMOJI_ENTITIES });
 
     expect(post.entities).toEqual(EMOJI_ENTITIES);
     const fetched = postSchema.parse(await (await api.request(`/api/v1/posts/${post.id}`)).json());
@@ -97,10 +97,9 @@ describe('entities on create', () => {
   });
 
   it('defaults to no entities and stores the normal form of what it is given', async () => {
-    expect((await create({ title: 'Plain', body: 'text' })).entities).toEqual([]);
+    expect((await create({ body: 'text' })).entities).toEqual([]);
 
     const post = await create({
-      title: 'Messy',
       body: 'abcdefghij',
       entities: [
         { type: 'italic', offset: 5, length: 2 },
@@ -118,7 +117,7 @@ describe('entities on create', () => {
   });
 
   it('replays the original response with entities for the same key, and refuses the key with other entities', async () => {
-    const input = { title: 'Replay', body: EMOJI_BODY, entities: EMOJI_ENTITIES };
+    const input = { body: EMOJI_BODY, entities: EMOJI_ENTITIES };
     const first = await create(input, 'entities-replay');
 
     const replay = await createRaw(input, 'entities-replay');
@@ -143,7 +142,7 @@ describe('entities on create', () => {
       updatedAt: isoAt(START)
     };
     const { sha256Hex } = await import('../../src/platform/security/sha256');
-    const hash = await sha256Hex(JSON.stringify({ title: 'Legacy', body: 'Old' }));
+    const hash = await sha256Hex(JSON.stringify({ body: 'Old' }));
     await testDb()
       .prepare(
         `INSERT INTO idempotency_keys (scope, key, request_hash, status, response_status, response_body, created_at, expires_at)
@@ -152,7 +151,7 @@ describe('entities on create', () => {
       .bind(hash, JSON.stringify(legacy), START, START + 60_000)
       .run();
 
-    const replay = await createRaw({ title: 'Legacy', body: 'Old' }, 'legacy');
+    const replay = await createRaw({ body: 'Old' }, 'legacy');
 
     expect(replay.status).toBe(201);
     expect(postSchema.parse(await replay.json())).toMatchObject({ id: legacy.id, entities: [] });
@@ -163,7 +162,7 @@ describe('entities on create', () => {
     ['a start inside an emoji', { type: 'bold', offset: 2, length: 1 }, 'ENTITIES_SPLIT_SURROGATE'],
     ['an end inside an emoji', { type: 'bold', offset: 0, length: 2 }, 'ENTITIES_SPLIT_SURROGATE']
   ])('answers 400 with a reason for %s and writes nothing', async (_name, entity, reason) => {
-    const response = await createRaw({ title: 'Bad', body: 'a😀b', entities: [entity] }, 'bad-entities');
+    const response = await createRaw({ body: 'a😀b', entities: [entity] }, 'bad-entities');
 
     await expectError(response, 400, 'VALIDATION_ERROR', { reason });
     expect(await count('posts')).toBe(0);
@@ -173,7 +172,6 @@ describe('entities on create', () => {
 
   it('answers 400 for a style that partially overlaps code or a link, and for code inside a link', async () => {
     const overlap = await createRaw({
-      title: 'T',
       body: 'abcdef',
       entities: [
         { type: 'bold', offset: 0, length: 4 },
@@ -183,7 +181,6 @@ describe('entities on create', () => {
     await expectError(overlap, 400, 'VALIDATION_ERROR', { reason: 'ENTITIES_INVALID_NESTING' });
 
     const codeInLink = await createRaw({
-      title: 'T',
       body: 'abcdef',
       entities: [
         { type: 'text_link', offset: 0, length: 6, url: 'https://example.com/' },
@@ -209,7 +206,7 @@ describe('entities on create', () => {
       ]
     ];
     for (const [, entities, details] of cases) {
-      const response = await createRaw({ title: 'T', body, entities });
+      const response = await createRaw({ body, entities });
       await expectError(response, 400, 'VALIDATION_ERROR', details);
     }
     expect(await count('posts')).toBe(0);
@@ -219,7 +216,6 @@ describe('entities on create', () => {
 describe('partially overlapping free styles', () => {
   it('are stored split into nested pieces: bold 0-4 with italic 2-6', async () => {
     const response = await createRaw({
-      title: 'Styles',
       body: 'abcdef',
       entities: [
         { type: 'bold', offset: 0, length: 4 },
@@ -241,7 +237,7 @@ describe('partially overlapping free styles', () => {
 
 describe('entities on update', () => {
   it('answers 400 ENTITIES_REQUIRED for a new body without entities and keeps the post as it was', async () => {
-    const post = await create({ title: 'T', body: EMOJI_BODY, entities: EMOJI_ENTITIES });
+    const post = await create({ body: EMOJI_BODY, entities: EMOJI_ENTITIES });
 
     const response = await patch(post.id, { revision: 0, body: 'completely different text' });
 
@@ -252,7 +248,7 @@ describe('entities on update', () => {
   });
 
   it('replaces body and entities together and snapshots every revision with its own entities', async () => {
-    const post = await create({ title: 'T', body: EMOJI_BODY, entities: EMOJI_ENTITIES });
+    const post = await create({ body: EMOJI_BODY, entities: EMOJI_ENTITIES });
 
     const response = await patch(post.id, {
       revision: 0,
@@ -276,17 +272,20 @@ describe('entities on update', () => {
     expect(audit?.details).toBe('{"revision":1,"fields":["body","entities"]}');
   });
 
-  it('keeps the entities on a title-only edit and carries them into the new revision', async () => {
-    const post = await create({ title: 'T', body: EMOJI_BODY, entities: EMOJI_ENTITIES });
+  it('keeps the entities on a send-options edit and carries them into the new revision', async () => {
+    const post = await create({ body: EMOJI_BODY, entities: EMOJI_ENTITIES });
 
-    const response = await patch(post.id, { revision: 0, title: 'Renamed' });
+    const response = await patch(post.id, {
+      revision: 0,
+      sendOptions: { silent: true, protectContent: false, linkPreview: false }
+    });
 
-    expect(postSchema.parse(await response.json())).toMatchObject({ title: 'Renamed', entities: EMOJI_ENTITIES });
+    expect(postSchema.parse(await response.json())).toMatchObject({ entities: EMOJI_ENTITIES });
     expect((await revisionEntities(post.id))[1]).toEqual({ revision: 1, entities: EMOJI_ENTITIES });
   });
 
   it('accepts entities alone against the stored body, and refuses ones that do not fit it', async () => {
-    const post = await create({ title: 'T', body: EMOJI_BODY });
+    const post = await create({ body: EMOJI_BODY });
 
     const ok = await patch(post.id, { revision: 0, entities: EMOJI_ENTITIES });
     expect(postSchema.parse(await ok.json())).toMatchObject({
@@ -303,9 +302,9 @@ describe('entities on update', () => {
   });
 
   it('answers 409 before judging entities when the revision is stale or the post is approved', async () => {
-    const post = await create({ title: 'T', body: 'abc' });
+    const post = await create({ body: 'abc' });
     const fits = [{ type: 'bold', offset: 0, length: 1 }];
-    await patch(post.id, { revision: 0, title: 'T2' });
+    await patch(post.id, { revision: 0, sendOptions: { silent: true, protectContent: false, linkPreview: false } });
 
     await expectError(await patch(post.id, { revision: 0, entities: fits }), 409, 'CONFLICT', {
       reason: 'STALE_REVISION'
@@ -319,7 +318,7 @@ describe('entities on update', () => {
   });
 
   it('lets exactly one of two concurrent formatting edits of the same revision win', async () => {
-    const post = await create({ title: 'T', body: 'abcdef' });
+    const post = await create({ body: 'abcdef' });
 
     const responses = await Promise.all([
       patch(post.id, { revision: 0, entities: [{ type: 'bold', offset: 0, length: 3 }] }),
@@ -333,7 +332,7 @@ describe('entities on update', () => {
 
 describe('approval freezes the entities', () => {
   it('snapshots them on the approved revision, which no later edit can change', async () => {
-    const post = await create({ title: 'T', body: EMOJI_BODY, entities: EMOJI_ENTITIES });
+    const post = await create({ body: EMOJI_BODY, entities: EMOJI_ENTITIES });
 
     const approved = postSchema.parse(await (await approve(post.id, 0)).json());
 
@@ -361,9 +360,8 @@ describe('sending the approved revision', () => {
     return publication.id;
   }
 
-  it('sends the title as bold and the approved revision entities, shifted past it, with emoji counted in UTF-16 units', async () => {
+  it('sends the trimmed body and the approved revision entities, with emoji counted in UTF-16 units', async () => {
     const draft = await create({
-      title: '🔥 Patch',
       body: `\n  ${EMOJI_BODY}  `,
       entities: shifted(EMOJI_ENTITIES, 3)
     });
@@ -373,34 +371,23 @@ describe('sending the approved revision', () => {
 
     await makeTick({ clock, transport }).run();
 
-    // Title "🔥 Patch" is 8 units; "\n\n" follows; the body is trimmed by 3 units on the left.
-    const shift = '🔥 Patch'.length + 2;
-    expect(transport.calls).toEqual([
-      {
-        chatId: '-1001',
-        text: `🔥 Patch\n\n${EMOJI_BODY}`,
-        entities: [{ type: 'bold', offset: 0, length: '🔥 Patch'.length }, ...shifted(EMOJI_ENTITIES, shift)]
-      }
-    ]);
+    // The body is trimmed by 3 units on the left, so the entities move back by 3 and no title line shifts them.
+    expect(transport.calls).toEqual([{ chatId: '-1001', text: EMOJI_BODY, entities: EMOJI_ENTITIES }]);
   });
 
-  it('sends a post written before entities existed exactly as before: bold title, same text', async () => {
-    const approved = postSchema.parse(
-      await (await approve((await create({ title: 'Old', body: 'Plain body' })).id, 0)).json()
-    );
+  it('sends a post written before entities existed as its plain body, without entities', async () => {
+    const approved = postSchema.parse(await (await approve((await create({ body: 'Plain body' })).id, 0)).json());
     await testDb().prepare("UPDATE posts SET entities = '[]'").run();
     await schedule(approved);
     const transport = fakeTransport(SENT);
 
     await makeTick({ clock, transport }).run();
 
-    expect(transport.calls).toEqual([
-      { chatId: '-1001', text: 'Old\n\nPlain body', entities: [{ type: 'bold', offset: 0, length: 3 }] }
-    ]);
+    expect(transport.calls).toEqual([{ chatId: '-1001', text: 'Plain body', entities: [] }]);
   });
 
   it('refuses stored entities that no longer fit the body: failed CONTENT_INVALID and nothing is sent', async () => {
-    const draft = await create({ title: 'T', body: 'abc', entities: [{ type: 'bold', offset: 0, length: 3 }] });
+    const draft = await create({ body: 'abc', entities: [{ type: 'bold', offset: 0, length: 3 }] });
     const approved = postSchema.parse(await (await approve(draft.id, 0)).json());
     const publicationId = await schedule(approved);
     await testDb()
@@ -445,7 +432,7 @@ describe('the size caps hold for a maximum post', () => {
   it('accepts, with its stored response and replay, the largest post whose every character is escaped in JSON', async () => {
     const entities = maxEntities();
     expect(JSON.stringify(entities).length).toBeGreaterThan(POST_ENTITIES_JSON_MAX - 100);
-    const input = { title: '"'.repeat(200), body: '"'.repeat(4096), entities };
+    const input = { body: '"'.repeat(4096), entities };
     const first = await create(input, 'max-entities');
 
     const replay = await createRaw(input, 'max-entities');
@@ -460,8 +447,8 @@ describe('the size caps hold for a maximum post', () => {
     expect(stored?.n).toBeLessThan(32768);
   });
 
-  it('fits the 32 KB request cap with three-byte characters in title and body', async () => {
-    const input = { title: '一'.repeat(200), body: '一'.repeat(4096), entities: maxEntities() };
+  it('fits the 32 KB request cap with three-byte characters in the body', async () => {
+    const input = { body: '一'.repeat(4096), entities: maxEntities() };
     expect(new TextEncoder().encode(JSON.stringify(input)).length).toBeLessThan(32 * 1024);
 
     const response = await createRaw(input);

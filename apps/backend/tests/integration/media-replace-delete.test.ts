@@ -79,7 +79,7 @@ async function createDraft() {
   const created = await api.request('/api/v1/posts', {
     method: 'POST',
     headers: { 'idempotency-key': nextKey() },
-    json: { title: 'Media post', body: 'Body' }
+    json: { body: 'Media post\n\nBody' }
   });
   return postSchema.parse(await created.json());
 }
@@ -570,7 +570,7 @@ describe('delete with detach=all', () => {
     expect(await count('SELECT count(*) AS n FROM post_media_cleanup')).toBe(0);
     const snapshot = await createD1PostRepository(testDb()).findRevision(post.id, revision);
     expect(snapshot?.media).toEqual([]);
-    expect(snapshot?.body).toBe('Body');
+    expect(snapshot?.body).toBe('Media post\n\nBody');
   });
 
   it('cancels a publication that would be left with no media and no text, with a stable code', async () => {

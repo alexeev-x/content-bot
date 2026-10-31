@@ -179,7 +179,7 @@ describe('GET /api/v1/posts views', () => {
     const draft = await api.request('/api/v1/posts', {
       method: 'POST',
       headers: { 'idempotency-key': 'k1' },
-      json: { title: 'Draft' }
+      json: { body: 'Draft' }
     });
     expect(draft.status).toBe(201);
 

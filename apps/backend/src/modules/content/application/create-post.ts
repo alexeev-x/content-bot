@@ -45,7 +45,6 @@ export async function createPost(deps: CreatePostDeps, command: CreatePostComman
   // Kind, poll and send options join it only when set, for the same reason.
   const requestHash = await sha256Hex(
     JSON.stringify({
-      title: input.title,
       body: input.body,
       ...(input.entities.length === 0 ? {} : { entities: input.entities }),
       ...(input.kind === 'poll' ? { kind: input.kind, poll: input.poll } : {}),
@@ -76,13 +75,12 @@ export async function createPost(deps: CreatePostDeps, command: CreatePostComman
       break;
   }
 
-  // Without a title (owner, 16.10.2026: no title field) only the body is sent; the title is just its studio name.
-  // A poll post is named after its question and never carries a title in the message.
+  // The title is only the studio name (owner, 31.10.2026: no title line in any message): a text post is named after its
+  // body, a poll post after its question.
   const poll = input.kind === 'poll' ? (input.poll ?? EMPTY_POLL) : null;
   const record: PostRecord = {
     id: deps.newId(),
-    title: poll === null ? (input.title ?? postNameFromBody(input.body)) : postNameFromBody(poll.question),
-    titleInMessage: poll === null && input.title !== undefined,
+    title: postNameFromBody(poll === null ? input.body : poll.question),
     body: input.body,
     entities: input.entities,
     kind: input.kind,

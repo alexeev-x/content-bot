@@ -609,7 +609,6 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
           }
           return {
             title: snapshot.title,
-            titleInMessage: snapshot.titleInMessage,
             body: snapshot.body,
             entities: snapshot.entities,
             kind: snapshot.kind,

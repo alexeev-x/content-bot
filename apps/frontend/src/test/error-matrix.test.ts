@@ -98,14 +98,14 @@ const endpoints: Endpoint[] = [
     name: 'POST /posts',
     method: 'post',
     path: '/api/v1/posts',
-    call: () => createPost({ title: 'T' }, 'key-1'),
+    call: () => createPost({ body: 'T' }, 'key-1'),
     errors: [...validation, ...idempotency, ...common]
   },
   {
     name: 'PATCH /posts/:id',
     method: 'patch',
     path: `/api/v1/posts/${ids.post}`,
-    call: () => updatePost(ids.post, { ...rev, title: 'T' }),
+    call: () => updatePost(ids.post, { ...rev, body: 'T' }),
     errors: [...validation, notFound, stale, err(409, 'CONFLICT', 'not_editable', 'NOT_EDITABLE'), ...common]
   },
   {

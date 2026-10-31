@@ -48,7 +48,7 @@ async function expectRefusal(response: Response, details: Record<string, string>
 describe('poll posts', () => {
   it('creates a poll post named after its question, with revision 0 carrying the poll', async () => {
     const post = await createPoll();
-    expect(post).toMatchObject({ kind: 'poll', poll, title: 'Which hero?', titleInMessage: false, body: '' });
+    expect(post).toMatchObject({ kind: 'poll', poll, title: 'Which hero?', body: '' });
     expect(post.sendOptions).toEqual({ silent: false, protectContent: false, linkPreview: false });
     const stored = await createD1PostRepository(testDb()).findRevision(post.id, 0);
     expect(stored).toMatchObject({ kind: 'poll', poll });
@@ -71,7 +71,9 @@ describe('poll posts', () => {
     await expectRefusal(await create({ kind: 'text', poll }), { reason: 'KIND_MISMATCH' });
 
     const pollPost = await createPoll();
-    await expectRefusal(await patch(pollPost.id, { revision: 0, title: 'x' }), { reason: 'KIND_MISMATCH' });
+    await expectRefusal(await patch(pollPost.id, { revision: 0, body: 'x', entities: [] }), {
+      reason: 'KIND_MISMATCH'
+    });
     const textPost = postSchema.parse(await (await create({ body: 'hi' })).json());
     await expectRefusal(await patch(textPost.id, { revision: 0, poll }), { reason: 'KIND_MISMATCH' });
 

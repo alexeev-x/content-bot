@@ -1,4 +1,3 @@
-import { POST_BODY_MAX } from '@alexeev/contracts';
 import { cleanup, screen, waitFor, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
@@ -67,7 +66,7 @@ describe('mobile editor navigation', () => {
     await openExisting({ body: 'Сохранённый текст' });
 
     const message = screen.getByRole('article', { name: 'Пост в канале' });
-    expect(within(message).getByRole('textbox', { name: 'Заголовок' })).toBeTruthy();
+    expect(within(message).queryByRole('textbox', { name: 'Заголовок' })).toBeNull();
     expect(within(message).getByRole('textbox', { name: 'Текст' })).toBe(bodyBox());
     expect(screen.queryByRole('tablist')).toBeNull();
     const bar = screen.getByRole('toolbar', { name: 'Инструменты поста' });
@@ -104,7 +103,7 @@ describe('mobile editor navigation', () => {
 describe('create', () => {
   // No title field (owner, 16.10.2026): a new post is only its text; the server names it after the start.
   const untitled = (overrides: Parameters<typeof post>[0] = {}) =>
-    post({ title: 'Текст', titleInMessage: false, body: 'Текст', ...overrides });
+    post({ title: 'Текст', body: 'Текст', ...overrides });
 
   it('shows no title field and does not create a draft when the blank editor is only visited', async () => {
     let creates = 0;
@@ -201,12 +200,6 @@ describe('create', () => {
     await user.keyboard('{Control>}s{/Control}');
     await new Promise((resolve) => window.setTimeout(resolve, 300));
     expect(calls).toBe(0);
-  });
-
-  it('keeps the title field of an older post that has a title', async () => {
-    server.use(http.get('*/api/v1/posts/:id', () => HttpResponse.json(post())));
-    renderEditorApp(`/posts/${ids.post}`);
-    expect(await screen.findByRole('textbox', { name: /Заголовок/ })).toBeTruthy();
   });
 });
 
@@ -359,7 +352,7 @@ describe('409 STALE_REVISION', () => {
     await waitFor(() =>
       expect(patches).toEqual([
         { revision: 0, body: 'Мой текст', entities: [] },
-        { revision: 3, title: 'Заголовок', body: 'Мой текст', entities: [] }
+        { revision: 3, body: 'Мой текст', entities: [] }
       ])
     );
     await waitFor(() => expect(screen.queryByText('Пост уже изменён в другом месте')).toBeNull());
@@ -503,26 +496,14 @@ describe('leave guard', () => {
 });
 
 describe('limits and preview', () => {
-  it('counts the body against 4096 and the whole message with title and blank line', async () => {
+  // The old format with a title line is gone (owner, 31.10.2026): the message is the body alone.
+  it('counts the message as the body alone, with no title line', async () => {
     const user = userEvent.setup();
     await openExisting({ title: 'Тест', body: '' });
     await user.click(bodyBox());
     await user.paste('a'.repeat(100));
     expect(screen.getAllByText('100 / 4096').length).toBeGreaterThan(0);
-    // 4 (title) + 2 (blank line) + 100 (body)
-    expect(document.body.textContent).toContain('В сообщении 106 из 4096 символов');
-  });
-
-  it('warns when title and body together exceed Telegram, keeps saving possible, and blocks approval', async () => {
-    const user = userEvent.setup();
-    await openExisting({ title: 'Заголовок', body: '' });
-    await user.click(bodyBox());
-    await user.paste('b'.repeat(POST_BODY_MAX - 5));
-    expect(await screen.findByText(/Сообщение длиннее лимита Telegram на 6/)).toBeTruthy();
-    expect(screen.getByRole('button', { name: 'К постам' }).hasAttribute('disabled')).toBe(false);
-    await user.click(screen.getByRole('button', { name: 'К публикации' }));
-    expect(screen.queryByRole('heading', { name: 'Настройки публикации' })).toBeNull();
-    expect(bodyBox().getAttribute('aria-invalid')).toBe('true');
+    expect(document.body.textContent).toContain('В сообщении 100 из 4096 символов');
   });
 
   it('on «К публикации» without text or media says what is missing and stays in the editor', async () => {
@@ -534,13 +515,13 @@ describe('limits and preview', () => {
     await waitFor(() => expect(document.activeElement).toBe(bodyBox()));
   });
 
-  it('previews the title and body as plain text, so markup is shown literally', async () => {
+  it('previews the body as plain text with no title line, so markup is shown literally', async () => {
     const user = userEvent.setup();
     await openExisting({ title: 'Заголовок', body: '' });
     await user.click(bodyBox());
     await user.paste('<b>жирный</b> & текст');
     const preview = screen.getByRole('figure', { name: 'Предпросмотр в Telegram' });
-    expect(within(preview).getByText('Заголовок').tagName).toBe('STRONG');
+    expect(within(preview).queryByText('Заголовок')).toBeNull();
     expect(within(preview).getByText('<b>жирный</b> & текст')).toBeTruthy();
     expect(preview.querySelector('b')).toBeNull();
   });

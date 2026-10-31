@@ -25,8 +25,6 @@ interface PostRow {
   archived_at: number | null;
   created_at: number;
   updated_at: number;
-  /** 0 for a post created without a title (migration 0063). */
-  title_in_message: number;
   /** Migration 0070. */
   kind: PostKind;
   poll_json: string | null;
@@ -39,16 +37,15 @@ interface PostRow {
   media_pending_until: number | null;
 }
 
-// A post without a title in its message is named after its body (?8) and ignores a client title; a post with one
-// takes the client's (?3). Both keep the stored value when nothing new comes.
-const NEW_TITLE = 'CASE WHEN title_in_message = 0 THEN COALESCE(?8, title) ELSE COALESCE(?3, title) END';
+// A post is named after its body or poll question (?6) and keeps the stored name when neither changes.
+const NEW_TITLE = 'COALESCE(?6, title)';
 
-// The revision row snapshots the post's values as they will be after the UPDATE (?10 poll, ?11-?13 options).
+// The revision row snapshots the post's values as they will be after the UPDATE (?8 poll, ?9-?11 options).
 const NEW_FIELDS =
-  'COALESCE(?10, poll_json), COALESCE(?11, send_silent), COALESCE(?12, send_protected), COALESCE(?13, link_preview_disabled)';
+  'COALESCE(?8, poll_json), COALESCE(?9, send_silent), COALESCE(?10, send_protected), COALESCE(?11, link_preview_disabled)';
 
 const POST_COLUMNS = `id, title, body, entities, status, revision, archived_at, created_at, updated_at,
-  title_in_message, kind, poll_json, send_silent, send_protected, link_preview_disabled, rich_html, media_pending_until`;
+  kind, poll_json, send_silent, send_protected, link_preview_disabled, rich_html, media_pending_until`;
 
 // Every write goes through the contract schemas, so a stored list that does not parse is damaged data:
 // it fails loudly instead of being sent or shown with other offsets.
@@ -76,7 +73,6 @@ function toRecord(row: PostRow): PostRecord {
   return {
     id: row.id,
     title: row.title,
-    titleInMessage: row.title_in_message !== 0,
     body: row.body,
     entities: parseEntities(row.entities),
     kind: row.kind,
@@ -223,10 +219,9 @@ export function createD1PostRepository(db: D1Database): PostRepository {
         db
           .prepare(
             `INSERT INTO posts (id, title, title_sort_key, body, entities, status, revision, created_at, updated_at,
-               title_in_message, kind, poll_json, send_silent, send_protected, link_preview_disabled, rich_html)
+               kind, poll_json, send_silent, send_protected, link_preview_disabled, rich_html)
              SELECT ?1, ?2, ?3, ?4, ?5, 'draft', 0, ?6, ?6, ?${7 + claim.length}, ?${8 + claim.length},
-               ?${9 + claim.length}, ?${10 + claim.length}, ?${11 + claim.length}, ?${12 + claim.length},
-               ?${13 + claim.length}
+               ?${9 + claim.length}, ?${10 + claim.length}, ?${11 + claim.length}, ?${12 + claim.length}
              WHERE ${ownsClaimSql(7)}`
           )
           .bind(
@@ -237,7 +232,6 @@ export function createD1PostRepository(db: D1Database): PostRepository {
             entities,
             record.createdAt,
             ...claim,
-            record.titleInMessage ? 1 : 0,
             record.kind,
             poll,
             ...options,
@@ -313,11 +307,10 @@ export function createD1PostRepository(db: D1Database): PostRepository {
     async findRevision(postId, revision) {
       const { results } = await db
         .prepare(
-          // The title flag is per post and fixed at creation, so the post row holds it for every revision.
-          `SELECT r.title, COALESCE(p.title_in_message, 1) AS title_in_message, r.body, r.entities,
+          `SELECT r.title, r.body, r.entities,
                   r.kind AS rev_kind, r.poll_json, r.send_silent, r.send_protected, r.link_preview_disabled,
                   r.rich_html, m.id, m.kind, m.file_name, m.content_type, m.object_key
-             FROM post_revisions r LEFT JOIN posts p ON p.id = r.post_id
+             FROM post_revisions r
              LEFT JOIN json_each(r.media_json) j
              LEFT JOIN media_assets m ON m.id = j.value
             WHERE r.post_id = ?1 AND r.revision = ?2 ORDER BY CAST(j.key AS INTEGER)`
@@ -325,7 +318,6 @@ export function createD1PostRepository(db: D1Database): PostRepository {
         .bind(postId, revision)
         .all<{
           title: string;
-          title_in_message: number;
           body: string;
           entities: string;
           rev_kind: PostKind;
@@ -344,7 +336,6 @@ export function createD1PostRepository(db: D1Database): PostRepository {
       if (row === undefined) return null;
       return {
         title: row.title,
-        titleInMessage: row.title_in_message !== 0,
         body: row.body,
         entities: parseEntities(row.entities),
         kind: row.rev_kind,
@@ -402,7 +393,6 @@ export function createD1PostRepository(db: D1Database): PostRepository {
 
     async update(change) {
       const fields = [
-        ...(change.title === undefined ? [] : ['title']),
         ...(change.body === undefined ? [] : ['body']),
         ...(change.entities === undefined ? [] : ['entities']),
         ...(change.poll === undefined ? [] : ['poll']),
@@ -428,18 +418,16 @@ export function createD1PostRepository(db: D1Database): PostRepository {
           .prepare(
             `INSERT INTO post_revisions (post_id, revision, title, body, entities, status, created_at, media_json,
                kind, poll_json, send_silent, send_protected, link_preview_disabled, rich_html)
-             SELECT id, revision + 1, ${NEW_TITLE}, COALESCE(?4, body), COALESCE(?5, entities), status, ?6, '[]',
-               kind, ${NEW_FIELDS}, COALESCE(?14, rich_html)
+             SELECT id, revision + 1, ${NEW_TITLE}, COALESCE(?3, body), COALESCE(?4, entities), status, ?5, '[]',
+               kind, ${NEW_FIELDS}, COALESCE(?12, rich_html)
              FROM posts WHERE ${GUARD}`
           )
           .bind(
             change.id,
             change.expectedRevision,
-            change.title ?? null,
             change.body ?? null,
             entities,
             change.now,
-            null,
             nameSource,
             null,
             poll,
@@ -450,24 +438,21 @@ export function createD1PostRepository(db: D1Database): PostRepository {
         db
           .prepare(
             `UPDATE posts SET title = ${NEW_TITLE},
-               title_sort_key = CASE WHEN title_in_message = 0 THEN COALESCE(?9, title_sort_key)
-                 ELSE COALESCE(?7, title_sort_key) END,
-               body = COALESCE(?4, body), entities = COALESCE(?5, entities),
-               poll_json = COALESCE(?10, poll_json), send_silent = COALESCE(?11, send_silent),
-               send_protected = COALESCE(?12, send_protected),
-               link_preview_disabled = COALESCE(?13, link_preview_disabled),
-               rich_html = COALESCE(?14, rich_html),
-               revision = revision + 1, updated_at = ?6
+               title_sort_key = COALESCE(?7, title_sort_key),
+               body = COALESCE(?3, body), entities = COALESCE(?4, entities),
+               poll_json = COALESCE(?8, poll_json), send_silent = COALESCE(?9, send_silent),
+               send_protected = COALESCE(?10, send_protected),
+               link_preview_disabled = COALESCE(?11, link_preview_disabled),
+               rich_html = COALESCE(?12, rich_html),
+               revision = revision + 1, updated_at = ?5
              WHERE ${GUARD} RETURNING ${POST_COLUMNS}`
           )
           .bind(
             change.id,
             change.expectedRevision,
-            change.title ?? null,
             change.body ?? null,
             entities,
             change.now,
-            change.title === undefined ? null : postTitleSortKey(change.title),
             nameSource,
             nameSource === null ? null : postTitleSortKey(nameSource),
             poll,

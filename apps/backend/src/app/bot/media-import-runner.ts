@@ -99,7 +99,6 @@ export function createMediaImportRunner(
             id: postId,
             input: {
               revision: current.revision,
-              ...(input.title === undefined ? {} : { title: input.title }),
               body: input.body,
               entities: input.entities
             }

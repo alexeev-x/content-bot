@@ -83,8 +83,6 @@ export interface PostRepository {
     revision: number
   ): Promise<{
     title: string;
-    /** Whether the title is the message's bold first line (the post's flag, fixed at creation). */
-    titleInMessage: boolean;
     body: string;
     entities: PostEntity[];
     /** Kind, poll and send options as approved: the revision's own snapshot, never the post's current values. */
@@ -102,7 +100,6 @@ export interface PostRepository {
   /** Null when the guard (revision matches and the post is a draft) did not hold. */
   update(
     change: PostChange & {
-      title?: string;
       body?: string;
       entities?: PostEntity[];
       poll?: PostPoll;

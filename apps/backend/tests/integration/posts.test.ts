@@ -26,11 +26,13 @@ beforeEach(async () => {
 
 const nextKey = () => `key-${++keyCounter}`;
 
+// The studio name is the first line of the body, so a test's `title` becomes the first line of its text.
 async function create(input: { title?: string; body?: string }, key = nextKey()): Promise<PostDto> {
+  const lines = [input.title, input.body].filter((line): line is string => line !== undefined && line !== '');
   const response = await api.request('/api/v1/posts', {
     method: 'POST',
     headers: { 'idempotency-key': key },
-    json: input
+    json: { body: lines.join('\n') }
   });
   expect(response.status).toBe(201);
   return postSchema.parse(await response.json());
@@ -61,7 +63,7 @@ describe('POST /api/v1/posts', () => {
   it('creates a draft at revision 0 with its revision and audit rows', async () => {
     const post = await create({ title: '  Patch 7.40  ', body: 'Hello' });
 
-    expect(post).toMatchObject({ title: 'Patch 7.40', body: 'Hello', revision: 0, status: 'draft' });
+    expect(post).toMatchObject({ title: 'Patch 7.40', body: '  Patch 7.40  \nHello', revision: 0, status: 'draft' });
     expect(post.createdAt).toBe(new Date(START).toISOString());
     expect(post.updatedAt).toBe(post.createdAt);
     expect(await count('post_revisions', `post_id = '${post.id}' AND revision = 0 AND status = 'draft'`)).toBe(1);
@@ -80,18 +82,18 @@ describe('POST /api/v1/posts', () => {
   });
 
   it('defaults the body to an empty string', async () => {
-    expect((await create({ title: 'Only a title' })).body).toBe('');
+    expect((await create({})).body).toBe('');
   });
 
   it('replays the original response for the same key and payload without a second post', async () => {
     const first = await create({ title: 'Same', body: 'Body' }, 'replay-key');
     // The original is edited afterwards; the replay still returns what the first call returned.
-    await patch(first.id, { revision: 0, title: 'Changed' });
+    await patch(first.id, { revision: 0, body: 'Changed', entities: [] });
 
     const replay = await api.request('/api/v1/posts', {
       method: 'POST',
       headers: { 'idempotency-key': 'replay-key' },
-      json: { title: 'Same', body: 'Body' }
+      json: { body: 'Same\nBody' }
     });
 
     expect(replay.status).toBe(201);
@@ -106,7 +108,7 @@ describe('POST /api/v1/posts', () => {
     const response = await api.request('/api/v1/posts', {
       method: 'POST',
       headers: { 'idempotency-key': 'reused-key' },
-      json: { title: 'Second' }
+      json: { body: 'Second' }
     });
 
     await expectError(response, 409, 'CONFLICT', { reason: 'IDEMPOTENCY_KEY_REUSED' });
@@ -114,7 +116,7 @@ describe('POST /api/v1/posts', () => {
   });
 
   it('answers 409 IN_FLIGHT while another request with the key is still running', async () => {
-    const hash = await sha256Hex(JSON.stringify({ title: 'Slow', body: '' }));
+    const hash = await sha256Hex(JSON.stringify({ body: 'Slow' }));
     await testDb()
       .prepare(
         `INSERT INTO idempotency_keys (scope, key, request_hash, status, created_at, expires_at)
@@ -126,7 +128,7 @@ describe('POST /api/v1/posts', () => {
     const response = await api.request('/api/v1/posts', {
       method: 'POST',
       headers: { 'idempotency-key': 'flying' },
-      json: { title: 'Slow' }
+      json: { body: 'Slow' }
     });
 
     await expectError(response, 409, 'CONFLICT', { reason: 'IN_FLIGHT' });
@@ -152,7 +154,7 @@ describe('POST /api/v1/posts', () => {
       api.request('/api/v1/posts', {
         method: 'POST',
         headers: { 'idempotency-key': 'twin' },
-        json: { title: 'Twin' }
+        json: { body: 'Twin' }
       });
 
     const responses = await Promise.all([send(), send()]);
@@ -181,22 +183,22 @@ describe('POST /api/v1/posts', () => {
   it('answers 400 without an Idempotency-Key and for an empty or overlong one', async () => {
     const cases: Record<string, string>[] = [{}, { 'idempotency-key': '' }, { 'idempotency-key': 'k'.repeat(256) }];
     for (const headers of cases) {
-      const response = await api.request('/api/v1/posts', { method: 'POST', headers, json: { title: 'T' } });
+      const response = await api.request('/api/v1/posts', { method: 'POST', headers, json: { body: 'T' } });
       await expectError(response, 400, 'VALIDATION_ERROR');
     }
     const longest = await api.request('/api/v1/posts', {
       method: 'POST',
       headers: { 'idempotency-key': 'k'.repeat(255) },
-      json: { title: 'T' }
+      json: { body: 'T' }
     });
     expect(longest.status).toBe(201);
   });
 
   it.each([
-    ['a blank title', { title: '   ' }],
-    ['a title over 200 characters', { title: 't'.repeat(201) }],
-    ['a body over 4096 characters', { title: 'T', body: 'b'.repeat(4097) }],
-    ['an unknown field', { title: 'T', status: 'approved' }]
+    ['a title, which no longer exists', { title: 'T' }],
+    ['a title next to a body', { title: 'T', body: 'b' }],
+    ['a body over 4096 characters', { body: 'b'.repeat(4097) }],
+    ['an unknown field', { body: 'T', status: 'approved' }]
   ])('answers 400 for %s', async (_name, json) => {
     const response = await api.request('/api/v1/posts', {
       method: 'POST',
@@ -211,12 +213,10 @@ describe('POST /api/v1/posts', () => {
   });
 
   it.each([
-    ['a NUL in the title', { title: '\u0000abc' }],
-    ['a control character in the title', { title: 'a\u001fb' }],
-    ['a NUL in the body', { title: 'T', body: 'a\u0000b' }],
-    ['a control character in the body', { title: 'T', body: '\u0001'.repeat(2800) }],
-    ['lone surrogates in the body', { title: 'T', body: '\ud800\ud800\ud800' }],
-    ['a lone surrogate in the title', { title: 'T\udc00' }]
+    ['a NUL in the body', { body: 'a\u0000b' }],
+    ['a control character in the body', { body: '\u0001'.repeat(2800) }],
+    ['lone surrogates in the body', { body: '\ud800\ud800\ud800' }],
+    ['a lone surrogate after text', { body: 'T\udc00' }]
   ])('answers 400 for %s, writes nothing and does not claim the key', async (_name, json) => {
     const response = await api.request('/api/v1/posts', {
       method: 'POST',
@@ -230,13 +230,13 @@ describe('POST /api/v1/posts', () => {
   });
 
   it('keeps tabs, line breaks and emoji in text', async () => {
-    const post = await create({ title: 'Patch \u{1F525}', body: 'line 1\r\n\tline 2' });
+    const post = await create({ body: 'Patch \u{1F525}\r\n\tline 2' });
 
-    expect(post).toMatchObject({ title: 'Patch \u{1F525}', body: 'line 1\r\n\tline 2' });
+    expect(post).toMatchObject({ title: 'Patch \u{1F525}', body: 'Patch \u{1F525}\r\n\tline 2' });
   });
 
   it('stores and replays a max-size post whose every character is escaped in JSON', async () => {
-    const input = { title: '"'.repeat(200), body: '\\'.repeat(2048) + '"'.repeat(2048) };
+    const input = { body: '\\'.repeat(2048) + '"'.repeat(2048) };
     const first = await create(input, 'max-key');
 
     const replay = await api.request('/api/v1/posts', {
@@ -255,21 +255,21 @@ describe('POST /api/v1/posts', () => {
   });
 
   it('accepts a body of exactly 4096 characters', async () => {
-    expect((await create({ title: 'T', body: 'b'.repeat(4096) })).body).toHaveLength(4096);
+    expect((await create({ body: 'b'.repeat(4096) })).body).toHaveLength(4096);
   });
 
   it('answers 400 for malformed JSON and 413 for an oversized request', async () => {
     const malformed = await api.request('/api/v1/posts', {
       method: 'POST',
       headers: { 'idempotency-key': nextKey(), 'content-type': 'application/json' },
-      body: '{"title":'
+      body: '{"body":'
     });
     await expectError(malformed, 400, 'VALIDATION_ERROR');
 
     const huge = await api.request('/api/v1/posts', {
       method: 'POST',
       headers: { 'idempotency-key': nextKey() },
-      json: { title: 'T', body: 'x'.repeat(100_000) }
+      json: { body: 'x'.repeat(100_000) }
     });
     await expectError(huge, 413, 'VALIDATION_ERROR');
   });
@@ -283,39 +283,27 @@ describe('POST /api/v1/posts', () => {
   });
 });
 
-describe('a post without a title (owner, 16.10.2026)', () => {
-  it('is named after the start of its body, renamed on edit, and keeps a title only when it was given one', async () => {
-    const untitled = await create({ body: 'Если бы тиммейтов можно было денаить, я бы до врагов не доходил.\n\nP.S.' });
-    expect(untitled).toMatchObject({
-      title: 'Если бы тиммейтов можно было денаить, я бы до врагов не доходил.',
-      titleInMessage: false
-    });
-    // An edit of the body renames it; a client title is ignored for such a post.
+describe('a post never gets a title line (owner, 31.10.2026)', () => {
+  it('is named after the start of its body, renamed on edit, and sends only its body', async () => {
+    const post = await create({ body: 'Если бы тиммейтов можно было денаить, я бы до врагов не доходил.\n\nP.S.' });
+    expect(post).toMatchObject({ title: 'Если бы тиммейтов можно было денаить, я бы до врагов не доходил.' });
+    expect(post).not.toHaveProperty('titleInMessage');
+    // An edit of the body renames it.
     const edited = postSchema.parse(
       await (
-        await patch(untitled.id, {
-          revision: untitled.revision,
-          title: 'чужой',
-          body: 'Новая первая строка',
-          entities: []
-        })
+        await patch(post.id, { revision: post.revision, body: 'Новая первая строка\nвторая', entities: [] })
       ).json()
     );
-    expect(edited).toMatchObject({ title: 'Новая первая строка', titleInMessage: false });
+    expect(edited).toMatchObject({ title: 'Новая первая строка' });
 
-    const titled = await create({ title: 'Старый заголовок', body: 'Текст' });
-    expect(titled).toMatchObject({ title: 'Старый заголовок', titleInMessage: true });
-
-    // What a channel receives: only the body for the untitled post, the bold title and the body for the other.
+    // What a channel receives: the body as written, whatever the stored name is.
     const repo = createD1PostRepository(testDb());
-    const sentUntitled = formatPublicationText((await repo.findRevision(edited.id, edited.revision))!);
-    expect(sentUntitled).toEqual({ ok: true, text: 'Новая первая строка', entities: [] });
-    const sentTitled = formatPublicationText((await repo.findRevision(titled.id, titled.revision))!);
-    expect(sentTitled).toMatchObject({ ok: true, text: 'Старый заголовок\n\nТекст' });
+    const sent = formatPublicationText((await repo.findRevision(edited.id, edited.revision))!);
+    expect(sent).toEqual({ ok: true, text: 'Новая первая строка\nвторая', entities: [] });
   });
 
   it('is named «Без текста» while the body is empty', async () => {
-    expect(await create({ body: '' })).toMatchObject({ title: 'Без текста', titleInMessage: false });
+    expect(await create({ body: '' })).toMatchObject({ title: 'Без текста' });
   });
 });
 
@@ -376,34 +364,40 @@ describe('PATCH /api/v1/posts/:id', () => {
   it('updates fields, bumps the revision and records revision and audit rows', async () => {
     const clock = fakeClock();
     api = createApi({ clock });
-    const created = await create({ title: 'Old', body: 'Old body' });
+    const created = await create({ body: 'Old body' });
     clock.advance(5_000);
 
-    const response = await patch(created.id, { revision: 0, title: 'New' });
+    const response = await patch(created.id, { revision: 0, body: 'New body', entities: [] });
 
     expect(response.status).toBe(200);
     const updated = postSchema.parse(await response.json());
-    expect(updated).toMatchObject({ id: created.id, title: 'New', body: 'Old body', revision: 1, status: 'draft' });
+    expect(updated).toMatchObject({
+      id: created.id,
+      title: 'New body',
+      body: 'New body',
+      revision: 1,
+      status: 'draft'
+    });
     expect(updated.createdAt).toBe(created.createdAt);
     expect(updated.updatedAt).toBe(new Date(START + 5_000).toISOString());
 
     const second = await patch(created.id, { revision: 1, body: '', entities: [] });
-    expect(postSchema.parse(await second.json())).toMatchObject({ title: 'New', body: '', revision: 2 });
+    expect(postSchema.parse(await second.json())).toMatchObject({ title: 'Без текста', body: '', revision: 2 });
 
     const revisions = await testDb()
       .prepare('SELECT revision, title, body, status FROM post_revisions WHERE post_id = ?1 ORDER BY revision')
       .bind(created.id)
       .all();
     expect(revisions.results).toEqual([
-      { revision: 0, title: 'Old', body: 'Old body', status: 'draft' },
-      { revision: 1, title: 'New', body: 'Old body', status: 'draft' },
-      { revision: 2, title: 'New', body: '', status: 'draft' }
+      { revision: 0, title: 'Old body', body: 'Old body', status: 'draft' },
+      { revision: 1, title: 'New body', body: 'New body', status: 'draft' },
+      { revision: 2, title: 'Без текста', body: '', status: 'draft' }
     ]);
     const audit = await testDb()
       .prepare("SELECT action, details FROM audit_log WHERE action = 'post.update' ORDER BY id")
       .all();
     expect(audit.results).toEqual([
-      { action: 'post.update', details: '{"revision":1,"fields":["title"]}' },
+      { action: 'post.update', details: '{"revision":1,"fields":["body","entities"]}' },
       { action: 'post.update', details: '{"revision":2,"fields":["body","entities"]}' }
     ]);
   });
@@ -412,8 +406,8 @@ describe('PATCH /api/v1/posts/:id', () => {
     const created = await create({ title: 'Race', body: 'x' });
 
     const responses = await Promise.all([
-      patch(created.id, { revision: 0, title: 'Writer A' }),
-      patch(created.id, { revision: 0, title: 'Writer B' })
+      patch(created.id, { revision: 0, body: 'Writer A', entities: [] }),
+      patch(created.id, { revision: 0, body: 'Writer B', entities: [] })
     ]);
 
     const statuses = responses.map((response) => response.status).sort();
@@ -430,13 +424,13 @@ describe('PATCH /api/v1/posts/:id', () => {
 
   it('answers 409 STALE_REVISION for an old revision and writes nothing', async () => {
     const created = await create({ title: 'T' });
-    await patch(created.id, { revision: 0, title: 'T2' });
+    await patch(created.id, { revision: 0, body: 'T2', entities: [] });
     const before = [await count('post_revisions'), await count('audit_log')];
 
-    await expectError(await patch(created.id, { revision: 0, title: 'T3' }), 409, 'CONFLICT', {
+    await expectError(await patch(created.id, { revision: 0, body: 'T3', entities: [] }), 409, 'CONFLICT', {
       reason: 'STALE_REVISION'
     });
-    await expectError(await patch(created.id, { revision: 7, title: 'T3' }), 409, 'CONFLICT', {
+    await expectError(await patch(created.id, { revision: 7, body: 'T3', entities: [] }), 409, 'CONFLICT', {
       reason: 'STALE_REVISION'
     });
 
@@ -444,31 +438,30 @@ describe('PATCH /api/v1/posts/:id', () => {
   });
 
   it('answers 409 NOT_EDITABLE for an approved post', async () => {
-    const created = await create({ title: 'T', body: 'Ready' });
+    const created = await create({ body: 'Ready' });
     const approved = postSchema.parse(await (await approve(created.id, { revision: 0 })).json());
 
-    const response = await patch(created.id, { revision: approved.revision, title: 'Too late' });
+    const response = await patch(created.id, { revision: approved.revision, body: 'Too late', entities: [] });
 
     await expectError(response, 409, 'CONFLICT', { reason: 'NOT_EDITABLE' });
     const stored = await api.request(`/api/v1/posts/${created.id}`);
-    expect(postSchema.parse(await stored.json()).title).toBe('T');
+    expect(postSchema.parse(await stored.json()).title).toBe('Ready');
   });
 
   it('answers 404 for an unknown or malformed id', async () => {
-    await expectError(await patch(crypto.randomUUID(), { revision: 0, title: 'T' }), 404, 'NOT_FOUND');
-    await expectError(await patch('not-a-uuid', { revision: 0, title: 'T' }), 404, 'NOT_FOUND');
+    await expectError(await patch(crypto.randomUUID(), { revision: 0, body: 'T', entities: [] }), 404, 'NOT_FOUND');
+    await expectError(await patch('not-a-uuid', { revision: 0, body: 'T', entities: [] }), 404, 'NOT_FOUND');
   });
 
   it.each([
-    ['a NUL title', { revision: 0, title: '\u0000' }],
+    ['a title, which no longer exists', { revision: 0, title: 'T' }],
     ['a control character in the body', { revision: 0, body: 'a\u0007b', entities: [] }],
     ['lone surrogates in the body', { revision: 0, body: '\ud800\ud800\ud800', entities: [] }],
     ['nothing to update', { revision: 0 }],
-    ['a missing revision', { title: 'T' }],
-    ['a negative revision', { revision: -1, title: 'T' }],
-    ['a blank title', { revision: 0, title: ' ' }],
+    ['a missing revision', { body: 'T', entities: [] }],
+    ['a negative revision', { revision: -1, body: 'T', entities: [] }],
     ['an oversized body', { revision: 0, body: 'b'.repeat(4097), entities: [] }],
-    ['a status change', { revision: 0, title: 'T', status: 'approved' }]
+    ['a status change', { revision: 0, body: 'T', entities: [], status: 'approved' }]
   ])('answers 400 for %s', async (_name, json) => {
     const created = await create({ title: 'T' });
 
@@ -479,7 +472,7 @@ describe('PATCH /api/v1/posts/:id', () => {
 
 describe('POST /api/v1/posts/:id/approve', () => {
   it('approves a draft, bumps the revision and records revision and audit rows', async () => {
-    const created = await create({ title: 'T', body: 'Ready' });
+    const created = await create({ body: 'Ready' });
 
     const response = await approve(created.id, { revision: 0 });
 
@@ -490,7 +483,7 @@ describe('POST /api/v1/posts/:id/approve', () => {
   });
 
   it('answers 400 EMPTY_BODY for a blank body and leaves the post a draft', async () => {
-    const created = await create({ title: 'T', body: '  \n ' });
+    const created = await create({ body: '  \n ' });
 
     await expectError(await approve(created.id, { revision: 0 }), 400, 'VALIDATION_ERROR', { reason: 'EMPTY_BODY' });
 
@@ -500,14 +493,14 @@ describe('POST /api/v1/posts/:id/approve', () => {
   });
 
   it('answers 409 STALE_REVISION for an old revision', async () => {
-    const created = await create({ title: 'T', body: 'x' });
+    const created = await create({ body: 'x' });
     await patch(created.id, { revision: 0, body: 'y', entities: [] });
 
     await expectError(await approve(created.id, { revision: 0 }), 409, 'CONFLICT', { reason: 'STALE_REVISION' });
   });
 
   it('answers 409 ALREADY_APPROVED on a second approval', async () => {
-    const created = await create({ title: 'T', body: 'x' });
+    const created = await create({ body: 'x' });
     await approve(created.id, { revision: 0 });
 
     await expectError(await approve(created.id, { revision: 0 }), 409, 'CONFLICT', { reason: 'ALREADY_APPROVED' });
@@ -516,7 +509,7 @@ describe('POST /api/v1/posts/:id/approve', () => {
   });
 
   it('lets exactly one of two concurrent approvals win', async () => {
-    const created = await create({ title: 'T', body: 'x' });
+    const created = await create({ body: 'x' });
 
     const responses = await Promise.all([approve(created.id, { revision: 0 }), approve(created.id, { revision: 0 })]);
 
@@ -528,7 +521,7 @@ describe('POST /api/v1/posts/:id/approve', () => {
   });
 
   it('lets exactly one of a concurrent edit and approval win', async () => {
-    const created = await create({ title: 'T', body: 'x' });
+    const created = await create({ body: 'x' });
 
     const responses = await Promise.all([
       patch(created.id, { revision: 0, body: 'y', entities: [] }),
@@ -542,7 +535,7 @@ describe('POST /api/v1/posts/:id/approve', () => {
   it('answers 404 for an unknown or malformed id and 400 for a bad body', async () => {
     await expectError(await approve(crypto.randomUUID(), { revision: 0 }), 404, 'NOT_FOUND');
     await expectError(await approve('not-a-uuid', { revision: 0 }), 404, 'NOT_FOUND');
-    const created = await create({ title: 'T', body: 'x' });
+    const created = await create({ body: 'x' });
     await expectError(await approve(created.id, {}), 400, 'VALIDATION_ERROR');
     await expectError(await approve(created.id, { revision: 0, force: true }), 400, 'VALIDATION_ERROR');
   });
@@ -645,7 +638,7 @@ describe('GET /api/v1/posts', () => {
     const stateMatch = postPageSchema.parse(await (await api.request('/api/v1/posts?q=ЧЕРНОВИК')).json());
 
     expect(titleMatch).toMatchObject({ totalCount: 1, items: [{ title: 'СЕКРЕТНЫЙ ЗАГОЛОВОК' }] });
-    expect(bodyMatch).toMatchObject({ totalCount: 1, items: [{ body: 'ТЕКСТОВОЕ ТЕЛО' }] });
+    expect(bodyMatch).toMatchObject({ totalCount: 1, items: [{ body: 'Другое\nТЕКСТОВОЕ ТЕЛО' }] });
     expect(stateMatch.items.length).toBeGreaterThan(0);
     expect(stateMatch.items.every((post) => post.status === 'draft')).toBe(true);
   });
@@ -690,7 +683,7 @@ describe('GET /api/v1/posts', () => {
 
   it('maintains trigram search indexes when post text and channel titles change', async () => {
     const created = await create({ title: 'Обычный заголовок', body: 'Начальный текст' });
-    await patch(created.id, { revision: 0, title: 'Обновлённый заголовок', body: 'Изменённый текст', entities: [] });
+    await patch(created.id, { revision: 0, body: 'Обновлённый заголовок\nИзменённый текст', entities: [] });
     const destinationId = crypto.randomUUID();
     const approved = postSchema.parse(await (await approve(created.id, { revision: 1 })).json());
     const publicationId = crypto.randomUUID();
@@ -820,7 +813,7 @@ describe('GET /api/v1/posts', () => {
 
     const renamed = posts[0];
     if (renamed === undefined) throw new Error('Expected a created post.');
-    await patch(renamed.id, { revision: 0, title: 'Пост 1' });
+    await patch(renamed.id, { revision: 0, body: 'Пост 1', entities: [] });
     const storedKey = await testDb()
       .prepare('SELECT title_sort_key FROM posts WHERE id = ?1')
       .bind(renamed.id)
@@ -870,7 +863,7 @@ describe('GET /api/v1/posts', () => {
     clock.advance(1_000);
     await create({ title: 'Newer' });
     clock.advance(1_000);
-    await patch(older.id, { revision: 0, title: 'Older, edited' });
+    await patch(older.id, { revision: 0, body: 'Older, edited', entities: [] });
 
     const page = postPageSchema.parse(await (await api.request('/api/v1/posts')).json());
 

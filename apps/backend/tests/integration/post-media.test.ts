@@ -81,7 +81,7 @@ async function createDraft(): Promise<{ id: string; revision: number }> {
   const response = await api.request('/api/v1/posts', {
     method: 'POST',
     headers: { 'idempotency-key': nextKey() },
-    json: { title: 'Media post', body: 'Body' }
+    json: { body: 'Media post\n\nBody' }
   });
   expect(response.status).toBe(201);
   const post = postSchema.parse(await response.json());
@@ -1184,12 +1184,12 @@ describe('post media in every post response', () => {
   const mediaOf = (post: { media: { id: string; position: number }[] }) =>
     post.media.map(({ id, position }) => ({ id, position }));
 
-  it('returns the attached media from a title save (PATCH)', async () => {
+  it('returns the attached media from a text save (PATCH)', async () => {
     const draft = await draftWithMedia();
 
     const response = await api.request(`/api/v1/posts/${draft.id}`, {
       method: 'PATCH',
-      json: { revision: draft.revision, title: 'Renamed' }
+      json: { revision: draft.revision, body: 'Renamed', entities: [] }
     });
 
     expect(response.status).toBe(200);
@@ -1226,7 +1226,7 @@ describe('post media in every post response', () => {
     const post = await createDraft();
     const response = await api.request(`/api/v1/posts/${post.id}`, {
       method: 'PATCH',
-      json: { revision: post.revision, title: 'Still empty' }
+      json: { revision: post.revision, body: 'Still empty', entities: [] }
     });
     expect(postSchema.parse(await response.json()).media).toEqual([]);
   });

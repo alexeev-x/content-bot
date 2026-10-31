@@ -60,8 +60,7 @@ describe('buildEventDraft', () => {
   it('patch: watched first, capped at 15 with «и ещё N», link, no invented facts', () => {
     const watched = new Set([watchKey('hero', 'hero 19')]);
     const draft = buildEventDraft({ ...base, type: 'patch' }, entities(20), watched);
-    // No post title: the heading is the bold first line of the body, sent once.
-    expect(draft.title).toBeUndefined();
+    // The heading is the bold first line of the body, sent once.
     expect(draft.body.startsWith('Патч 7.41: что изменилось\n\n')).toBe(true);
     expect(draft.entities).toEqual([{ type: 'bold', offset: 0, length: 'Патч 7.41: что изменилось'.length }]);
     const lines = draft.body.split('\n');

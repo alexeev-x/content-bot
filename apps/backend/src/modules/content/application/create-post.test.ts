@@ -24,7 +24,7 @@ async function count(table: string): Promise<number> {
 
 describe('createPost', () => {
   it('keeps the same key independent between two Telegram users', async () => {
-    const input = { title: 'Same payload', body: 'Same', entities: [], kind: 'text' as const };
+    const input = { body: 'Same', entities: [], kind: 'text' as const };
 
     const mine = await createPost(deps(), { actor: '4242', idempotencyKey: 'shared', input });
     const theirs = await createPost(deps(), { actor: '777', idempotencyKey: 'shared', input });
@@ -37,9 +37,9 @@ describe('createPost', () => {
   });
 
   it('releases the key when the write fails, so the client can retry at once', async () => {
-    // Bypasses the contract validation on purpose: the 201-character title trips the table CHECK
+    // Bypasses the contract validation on purpose: a 4097-character body trips the table CHECK
     // and makes the batch throw after the key was claimed.
-    const broken = { title: 't'.repeat(201), body: '', entities: [], kind: 'text' as const };
+    const broken = { body: 'b'.repeat(4097), entities: [], kind: 'text' as const };
 
     await expect(createPost(deps(), { actor: '4242', idempotencyKey: 'retry', input: broken })).rejects.toThrow();
 
@@ -48,8 +48,19 @@ describe('createPost', () => {
     const retried = await createPost(deps(), {
       actor: '4242',
       idempotencyKey: 'retry',
-      input: { title: 'Fixed', body: '', entities: [], kind: 'text' }
+      input: { body: 'Fixed', entities: [], kind: 'text' }
     });
     expect(retried.title).toBe('Fixed');
+  });
+
+  it('names a post after its body and never marks it as a title in the message', async () => {
+    const post = await createPost(deps(), {
+      actor: '4242',
+      idempotencyKey: 'named',
+      input: { body: 'First line\nSecond line', entities: [], kind: 'text' }
+    });
+
+    expect(post.title).toBe('First line');
+    expect(post).not.toHaveProperty('titleInMessage');
   });
 });
