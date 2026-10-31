@@ -29,6 +29,13 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
   z.object({ id: z.uuid(), kind: z.literal('dispatch_now') }),
   /** A step of the channel's audience upkeep (rubric scheduler stage 2): old comments out, the daily setup check. */
   z.object({ id: z.uuid(), kind: z.literal('rubric_analytics'), step: z.enum(['purge', 'health']) }),
+  /** One rubric slot's build (rubric scheduler stage 4): stale when the slot moved on or its attempt changed. */
+  z.object({
+    id: z.uuid(),
+    kind: z.literal('rubric_build'),
+    slotId: z.uuid(),
+    attempt: z.number().int().min(1).max(10)
+  }),
   /** The Monday review of the analyst's hypotheses after the week's report (owner, 20.10.2026). */
   z.object({ id: z.uuid(), kind: z.literal('hypotheses'), reportId: z.string().min(1).max(100) }),
   /**
@@ -219,7 +226,8 @@ export type WriterJob =
           | 'hero_matches'
           | 'game_files_post'
           | 'dispatch_now'
-          | 'rubric_analytics';
+          | 'rubric_analytics'
+          | 'rubric_build';
       }
     >
   | EventWriterJob;

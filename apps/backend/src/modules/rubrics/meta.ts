@@ -558,3 +558,20 @@ export const RUBRIC_META: Record<RubricKey, RubricMeta> = {
     aiCalls: { text: 0, image: 0 }
   }
 };
+
+/**
+ * Rubrics whose inner rules the scheduler keeps by now (MASTER-PLAN stage 4): banks that go round without repeats,
+ * no facts to remember. Only these may go out; the rest wait for their stage (follow-ups, hero history, events).
+ */
+export const INNER_RULES_READY: ReadonlySet<RubricKey> = new Set<RubricKey>([
+  'confess',
+  'explain_dumb',
+  'toxic_translator',
+  'ability_in_life',
+  'item_leaflet',
+  'would_you_rather',
+  'on_lane',
+  'toxic_bingo',
+  'fake_item',
+  'quote_of_day'
+]);

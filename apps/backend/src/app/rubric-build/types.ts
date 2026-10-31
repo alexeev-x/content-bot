@@ -78,6 +78,11 @@ export type BuiltRubricPost = {
   )[];
   /** The rich message's HTML (its picture marked by the media slot); null: a plain message or photo. */
   rich: string | null;
+  /**
+   * The rubric's own rich HTML for a studio post: its picture still the media slot (publishing fills it from the
+   * post's media), or without the slot when there is no picture; null: a classic text or photo post.
+   */
+  richSource: string | null;
   /** An album's rich HTML (the carousel on top); set when `album` is not empty. */
   albumRich: string | null;
   picture: Uint8Array | null;

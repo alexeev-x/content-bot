@@ -4,7 +4,7 @@ export const rubricsCopy = {
   description: 'Когда какая рубрика выйдет в канал и почему. Время — московское.',
   forecastTitle: 'Это прогноз',
   forecastBody:
-    'Автопубликация рубрик ещё не включена: план считается заново при каждом открытии и учитывает посты, уже стоящие в «Публикациях». Событийные рубрики (патч, анонсы, утечки) появятся, когда случится событие.',
+    'План на 35 дней считается заново при каждом открытии и учитывает посты, уже стоящие в «Публикациях». Настоящие слоты ближайших дней — выше, в «Ближайших слотах». Событийные рубрики (патч, анонсы, утечки) появятся, когда случится событие.',
   views: { label: 'Вид календаря', month: 'Месяц', list: 'Список' },
   weekdays: ['Пн', 'Вт', 'Ср', 'Чт', 'Пт', 'Сб', 'Вс'],
   picture: 'с картинкой',
@@ -23,5 +23,83 @@ export const rubricsCopy = {
     stats_db: 'база матчей'
   },
   missing: (needs: string) => `нужно: ${needs}`,
-  computedAt: (time: string) => `Посчитано в ${time} МСК`
+  computedAt: (time: string) => `Посчитано в ${time} МСК`,
+  tabs: { label: 'Разделы рубрик', calendar: 'Календарь', rubrics: 'Рубрики' },
+  scheduler: {
+    title: 'Автопубликация рубрик',
+    switch: 'Рубрики выходят сами',
+    channel: 'Канал',
+    channelPlaceholder: 'Выберите канал',
+    rehearsal: (title: string) => `Репетиция на DEV: в тестовый канал «${title}», без ИИ.`,
+    effective: { running: 'Работает', switched_off: 'Выключена', locked: 'Остановлена', unavailable: 'Только прогноз' },
+    next: (title: string, when: string) => `Следующая: «${title}», ${when} МСК`,
+    lastPlan: (when: string) => `План пересчитан в ${when} МСК`,
+    saveError: 'Не удалось изменить. Обновите страницу и повторите.',
+    locks: {
+      NOT_HERE: 'На этом сервере планировщик не работает: только прогноз.',
+      NOT_BUILT: 'Планировщик ещё не включён на этом сервере: только прогноз.',
+      SCHEMA: 'Не применена миграция 0119: Actions → D1 migrations.',
+      SWITCHED_OFF: 'Выключено: рубрики не выходят.',
+      LAB_OFF: 'На DEV включите «Рубрики» в Настройки → Фоновые задачи.',
+      NO_DESTINATION: 'Выберите канал.',
+      DESTINATION_DISABLED: 'Канал выключен или удалён: выберите другой.',
+      REHEARSAL_DESTINATION: 'Тестовый канал репетиции не задан (RUBRIC_REHEARSAL_DESTINATION_ID и _CHAT_ID).',
+      PUBLISHING_OFF: 'Публикация выключена на сервере (PUBLISHING_ENABLED).'
+    }
+  },
+  slots: {
+    title: 'Ближайшие слоты',
+    empty: 'Слотов пока нет: план появится в течение получаса после включения.',
+    states: {
+      planned: 'Запланирован',
+      building: 'Собирается',
+      ready: 'Собран',
+      released: 'Публикуется',
+      waiting_parent: 'Ждёт первого поста',
+      unknown: 'Требует проверки',
+      sent: 'Опубликовано',
+      partial: 'Опубликовано частично',
+      unresolved: 'Не проверено',
+      send_failed: 'Ошибка отправки',
+      missed: 'Пропущен',
+      empty: 'Не собран',
+      skipped: 'Пропуск',
+      yielded: 'Уступил',
+      cancelled: 'Отменён',
+      superseded: 'Заменён'
+    },
+    open: (title: string, when: string) => `Открыть слот «${title}», ${when}`,
+    detailTitle: (title: string) => `Слот «${title}»`,
+    reason: 'Почему',
+    fallbacks: 'Запасные рубрики',
+    attempts: 'Шаги',
+    noAttempts: 'Шагов ещё не было.',
+    problem: (code: string, step: string | null) => (step === null ? `Код: ${code}` : `Шаг ${step}, код: ${code}`),
+    skip: 'Пропустить слот',
+    skipTitle: (title: string, when: string) => `Пропустить «${title}» ${when}?`,
+    skipBody: 'Пост не выйдет, рубрика сохранит очередь и выйдет в другой день. Если пост уже собран, он удалится.',
+    skipDone: 'Слот пропущен',
+    skipFailed: 'Не удалось пропустить слот',
+    outcomes: { ok: 'готово', failed: 'сбой', skipped: 'пропуск', degraded: 'с потерями' }
+  },
+  list: {
+    caption: 'Все рубрики канала',
+    states: {
+      active: 'Выходит',
+      paused: 'Банк исчерпан',
+      unavailable: 'Не хватает сервиса',
+      waiting: 'Ждёт своего этапа',
+      off: 'Выключена'
+    },
+    rest: 'Отдых, дней',
+    restHint: (base: number) => `По умолчанию ${base}. От 7 до 60.`,
+    save: 'Сохранить',
+    saved: 'Сохранено',
+    enabled: (title: string) => `«${title}» выходит`,
+    lastPost: (when: string, seeded: boolean) =>
+      seeded ? `Первый выход по плану: ${when}` : `Последний пост: ${when}`,
+    noLastPost: 'Ещё не выходила',
+    next: (when: string) => `Следующий: ${when} МСК`,
+    restError: 'Отдых — от 7 до 60 дней.'
+  }
 } as const;

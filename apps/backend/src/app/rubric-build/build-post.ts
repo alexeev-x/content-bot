@@ -194,6 +194,12 @@ export async function postFromSample(
     text,
     entities,
     rich: pollOnly || album.length > 0 ? null : (ownRich ?? rubricRichHtml(text, picture !== null)),
+    richSource:
+      pollOnly || album.length > 0 || sample.rich === undefined
+        ? null
+        : picture === null
+          ? sample.rich.replace(RICH_MEDIA_SLOT, '')
+          : sample.rich,
     albumRich: album.length > 0 ? albumRichHtml(body, sample.links ?? [], album) : null,
     picture,
     album,

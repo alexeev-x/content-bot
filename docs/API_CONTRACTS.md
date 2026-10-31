@@ -287,6 +287,11 @@ Schemas and error codes: `apps/contracts/src/bot.ts`.
 |---|---|
 | `GET /api/v1/rubrics/status` | The rubric scheduler's state: `forecast_only` until its tables exist (stage 4), whether it is on, its locks and what this Worker can run (Browser Rendering, AI, STRATZ, the match base) |
 | `GET /api/v1/rubrics/forecast` | The plan of the next 35 Moscow days over the channel as it is now, each slot with its rubric, time and reason in Russian, and the rubrics this Worker cannot run; computed per request, cached 5 minutes, nothing stored |
+| `PUT /api/v1/rubrics/scheduler` | The switch and its channel `{ enabled, destinationId?, revision }`; off cancels the slots not yet released; 400 `DESTINATION_REQUIRED`/`DESTINATION_NOT_ALLOWED`, 409 `STALE_REVISION`/`UNAVAILABLE_HERE` |
+| `GET /api/v1/rubrics/calendar?from=&to=` | The real slots of Moscow days (span ≤ 42), every state, with the reason, the fallbacks and what ended a slot early |
+| `GET /api/v1/rubrics` | Every rubric: active / paused (bank exhausted) / unavailable (what it lacks) / waiting (its rules come later) / off; rest (default or the owner's), last and next post |
+| `PATCH /api/v1/rubrics/:key` | On/off and the rest (7–60 days) `{ enabled?, restDays?, revision }`; on makes it due at its next slot, off cancels its slots not yet released |
+| `GET /api/v1/rubrics/slots/:id`, `POST …/skip` | One slot with every build/release step; «Пропустить слот» cancels a slot not yet released (409 `ALREADY_RELEASED` for one in publishing) |
 | `GET /api/v1/bot/status` | Which bot settings are missing on this Worker (names only), the bot username, the URL this Worker expects, and Telegram's webhook info: the current URL, whether it points here, pending updates, the last error and the update kinds Telegram sends (`allowedUpdates`), and `audience` (migration 0118; absent before it): what the bot hears from the channel — the setup state, the channels and their groups, the last day’s reactions, poll updates and comments. Changes nothing |
 | `POST /api/v1/bot/connect` | The Worker registers its own webhook with the token and secret it already holds, removes stale command lists, and sets the owner-chat commands and the menu button. Safe to repeat. Returns the fresh status. With missing settings → `503` `BOT_NOT_CONFIGURED` |
 

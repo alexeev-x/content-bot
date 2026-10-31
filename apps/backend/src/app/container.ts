@@ -1,3 +1,12 @@
+import { latestPatchPublishedAt } from '../modules/dota';
+import {
+  createD1NoticeRepository,
+  createD1SchedulerSettingsRepository,
+  createD1SlotRepository,
+  type NoticeRepository,
+  type SchedulerSettingsRepository,
+  type SlotRepository
+} from '../modules/rubric-scheduler';
 import {
   type AudienceRepository,
   type AudienceTargets,
@@ -194,6 +203,14 @@ export interface Container {
   audienceHashKeySet: boolean;
   /** What publishing did with posts, for the rubric scheduler and the audience health step. */
   publicationOutcomes: PublicationOutcomesRepository;
+  /** The rubric scheduler's switch, rests and step markers; its slots; its notices (migration 0119). */
+  rubricSchedulerSettings: SchedulerSettingsRepository;
+  rubricSlots: SlotRepository;
+  rubricNotices: NoticeRepository;
+  /** The Worker's settings the rubric scheduler reads: its mode, the rehearsal channel, its capabilities. */
+  schedulerEnv: ContainerEnv;
+  /** When the newest patch note was published: the rubrics' quiet week after a patch. */
+  latestPatchAt: () => Promise<number | null>;
   postRevisions: PostRevisionSource;
   /** Built on first use from TELEGRAM_BOT_TOKEN; asking for it without the token is a 503. */
   transport: PublicationTransport;
@@ -325,6 +342,11 @@ export interface Container {
 // still answer there, so the database is resolved when a store is first used, and its absence
 // is a 503 instead of a crash.
 export interface ContainerEnv {
+  /** The rubric scheduler's mode and the DEV rehearsal's channel (app/rubric-scheduler/runtime.ts). */
+  RUBRIC_SCHEDULER?: string;
+  RUBRIC_REHEARSAL_DESTINATION_ID?: string;
+  RUBRIC_REHEARSAL_CHAT_ID?: string;
+  FORECAST_CAPABILITIES?: string;
   DB?: D1Database;
   AI_JOBS?: Queue<AiJob>;
   MEDIA_BUCKET?: R2Bucket;
@@ -561,6 +583,21 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get audienceHashKeySet() {
       return (env.AUDIENCE_HASH_KEY ?? '') !== '';
+    },
+    get rubricSchedulerSettings() {
+      return createD1SchedulerSettingsRepository(db());
+    },
+    get rubricSlots() {
+      return createD1SlotRepository(db());
+    },
+    get latestPatchAt() {
+      return () => latestPatchPublishedAt(db());
+    },
+    get schedulerEnv() {
+      return env;
+    },
+    get rubricNotices() {
+      return createD1NoticeRepository(db());
     },
     get publicationOutcomes() {
       return createD1PublicationOutcomesRepository(db());

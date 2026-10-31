@@ -35,3 +35,11 @@ const SHORT_LABEL = new Intl.DateTimeFormat('ru-RU', { day: 'numeric', month: 's
 export const dayLabel = (day: string) => DAY_LABEL.format(new Date(`${day}T00:00:00Z`));
 /** «2 нояб.». */
 export const shortDayLabel = (day: string) => SHORT_LABEL.format(new Date(`${day}T00:00:00Z`));
+
+/** The Moscow day `YYYY-MM-DD` of an instant. */
+export function mskDay(iso: string): string {
+  return new Date(Date.parse(iso) + MSK_OFFSET_MS).toISOString().slice(0, 10);
+}
+
+/** «2 нояб., 19:04» in Moscow time. */
+export const mskWhen = (iso: string) => `${shortDayLabel(mskDay(iso))}, ${mskTime(iso)}`;

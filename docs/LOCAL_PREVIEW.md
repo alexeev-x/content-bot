@@ -31,7 +31,9 @@ The data is real but local: posts, channels and settings live in `apps/backend/.
 
 Without a bot token the admin works but shows «Бот не настроен», and sending to channels is unavailable. To try the bot locally, put the Telegram values from the root `.env.example` into the root `.env` (`npm run dev` merges them into `apps/backend/.dev.vars`) and use the token of the **dev bot and a test channel**, never production ones. `.dev.vars` is gitignored.
 
-Scheduled sending is off locally: `PUBLISHING_ENABLED` in `apps/backend/wrangler.jsonc` is `"false"`.
+Scheduled sending is off locally: `PUBLISHING_ENABLED` in `apps/backend/wrangler.jsonc` is `"false"`. The rubric
+scheduler only forecasts locally; to rehearse it, set `RUBRIC_SCHEDULER=rehearsal`, `RUBRIC_REHEARSAL_DESTINATION_ID`
+and `RUBRIC_REHEARSAL_CHAT_ID` (the test channel) among the local Worker vars (docs/backend/rubric-scheduler.md).
 
 ## Why this is safe for dev and production
 

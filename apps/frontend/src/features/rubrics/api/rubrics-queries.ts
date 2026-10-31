@@ -1,17 +1,32 @@
-import { queryOptions } from '@tanstack/react-query';
-import { getRubricForecast, getRubricSchedulerStatus } from './rubrics-api';
+import type { RubricKey, UpdateRubricInput, UpdateRubricSchedulerInput } from '@alexeev/contracts';
+import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
+import {
+  getRubricCalendar,
+  getRubricForecast,
+  getRubricList,
+  getRubricSchedulerStatus,
+  getRubricSlot,
+  listRubricChannels,
+  skipRubricSlot,
+  updateRubric,
+  updateRubricScheduler
+} from './rubrics-api';
 
 const rubricKeys = {
   all: ['rubrics'] as const,
   status: () => [...rubricKeys.all, 'status'] as const,
-  forecast: () => [...rubricKeys.all, 'forecast'] as const
+  forecast: () => [...rubricKeys.all, 'forecast'] as const,
+  calendar: (from: string, to: string) => [...rubricKeys.all, 'calendar', from, to] as const,
+  list: () => [...rubricKeys.all, 'list'] as const,
+  slot: (id: string) => [...rubricKeys.all, 'slot', id] as const,
+  channels: () => [...rubricKeys.all, 'channels'] as const
 };
 
 export function rubricStatusQueryOptions() {
   return queryOptions({
     queryKey: rubricKeys.status(),
     queryFn: ({ signal }) => getRubricSchedulerStatus(signal),
-    staleTime: 60_000
+    staleTime: 30_000
   });
 }
 
@@ -23,3 +38,52 @@ export function rubricForecastQueryOptions() {
     staleTime: 5 * 60_000
   });
 }
+
+/** A slot moves every minute while it is built and released: the calendar is fresh for half a minute. */
+export function rubricCalendarQueryOptions(from: string, to: string) {
+  return queryOptions({
+    queryKey: rubricKeys.calendar(from, to),
+    queryFn: ({ signal }) => getRubricCalendar(from, to, signal),
+    staleTime: 30_000
+  });
+}
+
+export function rubricListQueryOptions() {
+  return queryOptions({
+    queryKey: rubricKeys.list(),
+    queryFn: ({ signal }) => getRubricList(signal),
+    staleTime: 30_000
+  });
+}
+
+export function rubricSlotQueryOptions(id: string) {
+  return queryOptions({
+    queryKey: rubricKeys.slot(id),
+    queryFn: ({ signal }) => getRubricSlot(id, signal),
+    staleTime: 15_000
+  });
+}
+
+export function rubricChannelsQueryOptions() {
+  return queryOptions({
+    queryKey: rubricKeys.channels(),
+    queryFn: ({ signal }) => listRubricChannels(signal),
+    staleTime: 60_000
+  });
+}
+
+/** Every change re-reads the whole section after the server's answer: the plan moves with it. Never optimistic. */
+function useRubricMutation<TInput, TResult>(mutationFn: (input: TInput) => Promise<TResult>) {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn,
+    retry: false,
+    onSuccess: () => client.invalidateQueries({ queryKey: rubricKeys.all })
+  });
+}
+
+export const useUpdateRubricScheduler = () =>
+  useRubricMutation((input: UpdateRubricSchedulerInput) => updateRubricScheduler(input));
+export const useUpdateRubric = () =>
+  useRubricMutation(({ key, input }: { key: RubricKey; input: UpdateRubricInput }) => updateRubric(key, input));
+export const useSkipRubricSlot = () => useRubricMutation((id: string) => skipRubricSlot(id));

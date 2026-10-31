@@ -26,6 +26,11 @@ export type AppEnv = Env & {
   AUDIENCE_HASH_KEY?: string;
   /** DEV only: the capabilities the rubric forecast assumes (comma list), so DEV shows what production would plan. */
   FORECAST_CAPABILITIES?: string;
+  /** The rubric scheduler: «on» on production, «rehearsal» on DEV (wrangler.jsonc vars); anything else forecasts only. */
+  RUBRIC_SCHEDULER?: string;
+  /** DEV rehearsal: the test channel's destination id and its chat id (the only chat the rehearsal may post to). */
+  RUBRIC_REHEARSAL_DESTINATION_ID?: string;
+  RUBRIC_REHEARSAL_CHAT_ID?: string;
 };
 
 export type AppBindings = {

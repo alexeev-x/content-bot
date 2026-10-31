@@ -53,3 +53,10 @@ Hero statistics (OpenDota, migration 0031) were removed 14.10.2026; their tables
 ## Audience upkeep (as built, migration 0118)
 
 At minute 37 of every hour (purge) and at 12:12 MSK (health) the tick claims a window in `system_state` (`ra:purge`, `ra:health`, 50 minutes) and sends one `rubric_analytics` message to `AI_JOBS`: one statement and one queue send, only when the tick's budget keeps two statements and the heartbeat reserve. The consumer (`app/workflows/rubric-analytics.ts`) freezes comment counts and deletes old comments (≤ 5 × 200 rows), or re-checks the setup and sends the «silent» notice. Neither step touches publishing or feeds the tick's failures.
+
+## Rubric scheduler (as built, migration 0119)
+
+After the publication work and the audience step, while at least 12 statements and the heartbeat reserve remain, one
+step `rubric-scheduler` runs the scheduler's tick: its locks, the plan when due (every 30 minutes), then at most two
+builds (queued as `rubric_build`), two releases and four read-backs. A failure is reported like any step and never
+touches the publication work, which already ran. Details: `docs/backend/rubric-scheduler.md`.

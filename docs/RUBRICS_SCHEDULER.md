@@ -1,7 +1,10 @@
 # Rubrics → scheduler: what is left to build
 
-**Status: not built.** Today a rubric exists only as a DEV sample: «Тестирование» → «Рубрики» sends one rubric's post
-from live data to the owner's chat (`apps/backend/src/app/lab/rubric-samples.ts`, built by `app/rubric-build/`, the code the scheduler will post with). Nothing below runs yet. This file
+**Status: partly built (31.10.2026).** The scheduler plans, builds, releases and reads back the bank rubrics whose inner
+rules are coded (13, 14, 15, 16, 18, 24, 25, 27, 28, 30; docs/backend/rubric-scheduler.md); «Рубрики» shows the switch,
+the slots, every rubric and the 35-day forecast. Event and chain rubrics, follow-ups, hero history and picture rubrics on
+production come with the later stages of docs/scheduler/MASTER-PLAN.md. The DEV sample in «Тестирование» → «Рубрики»
+is built by the same code (`app/rubric-build/`). This file
 lists what the work of wiring rubrics to the scheduler and to real autopublishing must cover; the product rules
 (pool, weekly budget, two-week rest, news first, picture rule) are in `docs/PLAN.md` §2 and are not repeated here.
 Each rubric's approved look and text: `design-refs/rubrics/<NN>-<key>/README.md`.

@@ -1,3 +1,5 @@
+import { schedulerMode } from './rubric-scheduler/runtime';
+import { runRubricSchedulerTick } from './rubric-scheduler/tick';
 import { AppError } from '../shared/app-error';
 import type { BackgroundJob } from '@alexeev/contracts';
 import {
@@ -149,6 +151,12 @@ type TickContainer = Pick<
   | 'aiScriptLinks'
   | 'aiRepository'
   | 'aiProvider'
+  | 'rubricSlots'
+  | 'rubricSchedulerSettings'
+  | 'schedulerEnv'
+  | 'latestPatchAt'
+  | 'publicationOutcomes'
+  | 'lifecycle'
 > &
   // The game-files watch is off without its token, so a tick may run without it.
   Partial<Pick<Container, 'gameFilesRepo' | 'steamApps'>>;
@@ -858,6 +866,16 @@ export async function handleScheduled(
       await container.aiJobs.send({ id: container.newId(), kind: 'rubric_analytics', step: audienceStep });
       return { audienceQueued: 1 };
     });
+  }
+
+  // 7y. the rubric scheduler (stage 4): its own locks, plan, builds, releases and read-backs; a failure is reported
+  // like any step and never stops the publication work, which already ran.
+  // Only where it runs at all: a forecast-only Worker spends nothing here.
+  if (
+    schedulerMode(container.schedulerEnv ?? {}) !== 'unavailable' &&
+    container.queryBudget.remaining() >= 12 + HEARTBEAT_RESERVE
+  ) {
+    await step('rubric-scheduler', () => runRubricSchedulerTick(container, () => backgroundOn('rubricScheduler')));
   }
 
   // Last before the heartbeat: the import spends only what the tick has left (its budget counts every

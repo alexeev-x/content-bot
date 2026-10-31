@@ -99,7 +99,14 @@
         // Cloudflare's addresses.
         "STATS_BRIDGE_URL": "https://alexeev-stats.onrender.com,https://content-bot-stats-bridge.vercel.app",
         "ANALYTICS_TELEGRAM_CHANNEL": "alexeev_x",
-        "ANALYTICS_YOUTUBE_CHANNEL_ID": "UCE-VQmi1Qym7MrEzHg9ngjA"
+        "ANALYTICS_YOUTUBE_CHANNEL_ID": "UCE-VQmi1Qym7MrEzHg9ngjA",
+        // The rubric scheduler rehearses into the test channel without AI (owner, 30.10.2026). The test channel's
+        // destination id and chat id: until both are set the rehearsal stays locked (REHEARSAL_DESTINATION).
+        "RUBRIC_SCHEDULER": "rehearsal",
+        "RUBRIC_REHEARSAL_DESTINATION_ID": "",
+        "RUBRIC_REHEARSAL_CHAT_ID": "",
+        // DEV forecasts what production would plan.
+        "FORECAST_CAPABILITIES": "browser,ai_text,ai_image,ai_upscale,stratz,stats_db"
       }
     },
     "production": {
@@ -140,7 +147,9 @@
         "ANALYTICS_YOUTUBE_CHANNEL_ID": "UCE-VQmi1Qym7MrEzHg9ngjA",
         // The owner's stats bridge to STRATZ and OpenDota (bridge/stats-bridge): with the STRATZ_TOKEN secret it turns
         // on the stats rubrics and the «Гайд на героя» match base.
-        "STATS_BRIDGE_URL": "https://alexeev-stats.onrender.com,https://content-bot-stats-bridge.vercel.app"
+        "STATS_BRIDGE_URL": "https://alexeev-stats.onrender.com,https://content-bot-stats-bridge.vercel.app",
+        // The rubric scheduler runs; it stays off until the owner switches it on in «Рубрики» and picks the channel.
+        "RUBRIC_SCHEDULER": "on"
       }
     }
   }

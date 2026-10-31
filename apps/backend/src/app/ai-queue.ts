@@ -6,6 +6,7 @@ import { createWriterDeps } from './bot/writer-deps';
 import { runDailyReview } from './workflows/daily-review';
 import { runDispatchNow } from './workflows/dispatch-now';
 import { runRubricAnalytics } from './workflows/rubric-analytics';
+import { runRubricBuild } from './workflows/rubric-build';
 import { recordAutopublish } from './workflows/autopublish-log';
 import { runHypothesesReview } from './workflows/hypotheses';
 import { sourceEventWriter } from './workflows/source-event-ai-draft';
@@ -415,6 +416,12 @@ async function runAiQueueMessages(
     if (job.kind === 'dispatch_now') {
       // No claim of its own: the dispatcher's conditional claim per publication is the guard.
       await runDispatchNow(container, requestId).catch(onError);
+      message.ack();
+      continue;
+    }
+    if (job.kind === 'rubric_build') {
+      // The slot's own state is the guard: a redelivered or stale message finds it moved on and does nothing.
+      await runRubricBuild(container, { slotId: job.slotId, attempt: job.attempt }, requestId).catch(onError);
       message.ack();
       continue;
     }

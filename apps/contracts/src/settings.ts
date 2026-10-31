@@ -60,7 +60,8 @@ export const BACKGROUND_JOBS = [
   'contentAlerts',
   'aiReviews',
   'scriptPrompts',
-  'aiLearning'
+  'aiLearning',
+  'rubricScheduler'
 ] as const;
 export type BackgroundJob = (typeof BACKGROUND_JOBS)[number];
 export const backgroundSettingsSchema = z.object({
@@ -76,7 +77,9 @@ export const backgroundSettingsSchema = z.object({
     contentAlerts: z.boolean().default(false),
     aiReviews: z.boolean().default(false),
     scriptPrompts: z.boolean().default(false),
-    aiLearning: z.boolean().default(false)
+    aiLearning: z.boolean().default(false),
+    /** The rubric scheduler's rehearsal into the test channel (stage 4). */
+    rubricScheduler: z.boolean().default(false)
   })
 });
 export type BackgroundSettings = z.infer<typeof backgroundSettingsSchema>;
@@ -91,7 +94,8 @@ export const BACKGROUND_DEFAULTS: BackgroundSettings = {
     contentAlerts: false,
     aiReviews: false,
     scriptPrompts: false,
-    aiLearning: false
+    aiLearning: false,
+    rubricScheduler: false
   }
 };
 

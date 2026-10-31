@@ -64,6 +64,8 @@ export interface ForecastSlot {
   rubric: string;
   at: number;
   reason: { kind: 'rest' | 'anchor'; text: string };
+  /** Fallback rubrics for the same slot, best first (at most two). */
+  alternates: string[];
   hasPicture: boolean;
   hasPoll: boolean;
 }

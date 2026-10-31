@@ -103,7 +103,13 @@ export function plan(input: PlanInput): { slots: ForecastSlot[]; ineligible: Ine
   const slots: ForecastSlot[] = [];
   const today = mskParts(input.now).day;
 
-  const place = (rubric: RubricDescriptor, at: number, kind: 'rest' | 'anchor', text: string) => {
+  const place = (
+    rubric: RubricDescriptor,
+    at: number,
+    kind: 'rest' | 'anchor',
+    text: string,
+    alternates: string[] = []
+  ) => {
     occupants.push({
       at,
       weight: weightOf(rubric),
@@ -116,6 +122,7 @@ export function plan(input: PlanInput): { slots: ForecastSlot[]; ineligible: Ine
       rubric: rubric.key,
       at,
       reason: { kind, text },
+      alternates,
       hasPicture: rubric.hasPicture,
       hasPoll: rubric.hasPoll
     });
@@ -177,7 +184,12 @@ export function plan(input: PlanInput): { slots: ForecastSlot[]; ineligible: Ine
         );
       const chosen = candidates[0];
       if (chosen === undefined) break;
-      place(chosen.rubric, chosen.at, 'rest', `Отдых ${chosen.rubric.restDays ?? 0} дн. прошёл`);
+      // Up to two fallbacks that fit the same slot: the build tries them when the chosen one fails.
+      const alternates = candidates
+        .filter((each) => each.part === chosen.part && each.rubric.key !== chosen.rubric.key)
+        .slice(0, 2)
+        .map((each) => each.rubric.key);
+      place(chosen.rubric, chosen.at, 'rest', `Отдых ${chosen.rubric.restDays ?? 0} дн. прошёл`, alternates);
       open.splice(
         open.findIndex((each) => each.part === chosen.part),
         1
