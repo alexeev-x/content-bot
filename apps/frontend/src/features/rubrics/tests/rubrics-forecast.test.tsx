@@ -46,6 +46,7 @@ const forecast = (extra: Partial<RubricForecastDto> = {}): RubricForecastDto => 
 });
 
 function renderForecast(body: RubricForecastDto | null) {
+  server.use(http.get('*/api/v1/rubrics/calendar', () => HttpResponse.json({ slots: [] })));
   server.use(
     http.get('*/api/v1/rubrics/forecast', () =>
       body === null
@@ -55,7 +56,7 @@ function renderForecast(body: RubricForecastDto | null) {
   );
   render(
     <QueryClientProvider client={createTestQueryClient()}>
-      <RubricsForecast />
+      <RubricsForecast today="2026-11-02" onOpenRubric={() => undefined} />
     </QueryClientProvider>
   );
 }
@@ -64,9 +65,14 @@ describe('RubricsForecast', () => {
   it('says it is a forecast and shows the month in Moscow time', async () => {
     renderForecast(forecast());
     expect(await screen.findByText('Это прогноз')).toBeTruthy();
-    const monday = screen.getByRole('cell', { name: /понедельник, 2 ноября/i });
-    expect(within(monday).getByText('19:00')).toBeTruthy();
-    expect(within(monday).getByText('Признавайтесь')).toBeTruthy();
+    const chip = screen.getByRole('button', { name: 'Признавайтесь, 19:00: Прогноз' });
+    expect(within(chip).getByText('19:00')).toBeTruthy();
+    await userEvent.click(chip);
+    const dialog = await screen.findByRole('dialog');
+    expect(within(dialog).getByText(/слот ещё не создан/)).toBeTruthy();
+    // A forecast line has no slot to skip.
+    expect(within(dialog).queryByRole('button', { name: /Пропустить/ })).toBeNull();
+    expect(within(dialog).getByRole('button', { name: 'Открыть рубрику' })).toBeTruthy();
   });
 
   it('lists the filled days with why each rubric goes then', async () => {
@@ -84,7 +90,7 @@ describe('RubricsForecast', () => {
 
   it('shows an empty forecast plainly', async () => {
     renderForecast(forecast({ days: days.map((day) => ({ ...day, slots: [] })), unavailable: [] }));
-    expect(await screen.findByText('В ближайшие 35 дней рубрик нет')).toBeTruthy();
+    expect(await screen.findByText('Слотов нет')).toBeTruthy();
   });
 
   it('offers a retry with the request id when the forecast fails', async () => {

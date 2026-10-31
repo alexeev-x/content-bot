@@ -7,7 +7,6 @@ import { RubricsAnalytics } from './RubricsAnalytics';
 import { analyticsCopy } from './analytics-copy';
 import { RubricsForecast } from './RubricsForecast';
 import { SchedulerPanel } from './SchedulerPanel';
-import { UpcomingSlots } from './UpcomingSlots';
 import styles from './RubricsPage.module.css';
 
 /** «Рубрики»: the switch on top, then the calendar (real slots and the forecast), the list of rubrics or
@@ -15,10 +14,11 @@ import styles from './RubricsPage.module.css';
 export function RubricsSection() {
   // Taken once per mount: the page shows «today» as it was when opened.
   const [today] = useState(() => mskDay(new Date().toISOString()));
+  const [tab, setTab] = useState('calendar');
   return (
     <div className={styles.page}>
       <SchedulerPanel />
-      <Tabs>
+      <Tabs selectedKey={tab} onSelectionChange={(key) => setTab(String(key))}>
         <TabList aria-label={copy.tabs.label}>
           <Tab id="calendar">{copy.tabs.calendar}</Tab>
           <Tab id="rubrics">{copy.tabs.rubrics}</Tab>
@@ -26,8 +26,7 @@ export function RubricsSection() {
         </TabList>
         <TabPanel id="calendar">
           <div className={styles.page}>
-            <UpcomingSlots today={today} />
-            <RubricsForecast />
+            <RubricsForecast today={today} onOpenRubric={() => setTab('rubrics')} />
           </div>
         </TabPanel>
         <TabPanel id="rubrics">
