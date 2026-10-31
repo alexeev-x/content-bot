@@ -31,6 +31,30 @@ export const botCopy = {
     addressOther: 'другой сервер',
     addressNone: 'не задан'
   },
+  audience: {
+    label: 'Реакции и комментарии',
+    meta: (reactions: number, polls: number, comments: number) =>
+      `за сутки: реакции ${reactions}, опросы ${polls}, комментарии ${comments}`,
+    state: {
+      not_checked: 'не проверено',
+      ok: 'бот их слышит',
+      bot_not_admin_in_channel: 'бот не админ канала',
+      no_linked_group: 'у канала нет группы обсуждения',
+      bot_blind_in_group: 'бот не видит группу обсуждения',
+      no_key: 'не задан AUDIENCE_HASH_KEY',
+      silent: 'за сутки ничего не пришло'
+    },
+    fix: {
+      not_checked: 'Нажмите «Переподключить»: бот проверит канал и группу обсуждения.',
+      bot_not_admin_in_channel: 'Сделайте бота админом канала и нажмите «Переподключить».',
+      no_linked_group: 'Привяжите к каналу группу обсуждения — без неё комментариев нет.',
+      bot_blind_in_group:
+        'Сделайте бота админом группы обсуждения (или выключите privacy в BotFather) и нажмите «Переподключить».',
+      no_key:
+        'Задайте секрет AUDIENCE_HASH_KEY в Cloudflare → Workers → Settings → Variables and Secrets: без него комментарии не сохраняются.',
+      silent: 'Проверьте, что бот админ канала и группы обсуждения, и нажмите «Переподключить».'
+    }
+  },
   missingList: (names: string) => `Не заданы или заданы неверно: ${names}`,
   secretRule: 'TELEGRAM_WEBHOOK_SECRET: только латинские буквы, цифры, «_» и «-», до 256 символов.',
   missingHint: 'Задайте их в Cloudflare → Workers → Settings → Variables and Secrets',

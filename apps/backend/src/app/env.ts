@@ -22,6 +22,8 @@ export type AppEnv = Env & {
   STRATZ_TOKEN?: string;
   /** The owner's stats bridge (`bridge/stats-bridge`), e.g. https://alexeev-stats.onrender.com: STRATZ refuses Cloudflare. */
   STATS_BRIDGE_URL?: string;
+  /** The key commenters are hashed with (rubric scheduler stage 2); without it comments are not kept. */
+  AUDIENCE_HASH_KEY?: string;
 };
 
 export type AppBindings = {

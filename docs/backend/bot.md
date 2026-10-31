@@ -54,3 +54,13 @@ Hook, rewrite, and feedback buttons include a 12-hex suffix of the revision they
 - **Approval** stores `OWNER_APPROVED` with the edit ratio, once per draft. A Telegram text then becomes a studio draft (idempotency key `ai:<revisionId>`) built only from the approved revision, with the usual publish buttons. A Reels text is stored; Reels are published outside the studio.
 - **In the studio:** every draft with its versions, texts and verdicts is in Настройки → ИИ → «История черновиков» (`GET /api/v1/ai/drafts`).
 - **Not built yet:** pre-approval with a publish time (`docs/DECISIONS.md` 16.10.2026), the cheap-model intent parser.
+
+## The channel's audience (as built, migration 0118)
+
+The webhook also takes the channel's reaction counts (`message_reaction_count`), the votes of polls the scheduler registered (`poll`) and the discussion group's messages. A middleware before the owner check hands exactly these to `modules/audience` (`app/bot/audience-branch.ts`); they never get an answer and never reach the owner's flow, and the branch swallows its own failures (log `AUDIENCE_INGEST_FAILED`, or `AUDIENCE_MIGRATION_PENDING` before 0118), so the webhook still answers 200. Every write is idempotent by its key (a replay changes nothing); a foreign chat or an unknown poll writes nothing.
+- Reactions: the newest count per channel post (sum of emoji, custom and paid), at most 40 kinds kept.
+- Polls: voters and option counts of registered, open polls; the count last seen inside 24 h and 72 h of age is kept; a closed poll is never reopened, and the scheduler's `stopPoll` answer is final.
+- Comments: a thread starts with the channel's automatic forward; a reply in it is kept as a 16-hex HMAC of the user id under `AUDIENCE_HASH_KEY`, the public @username if any, and the text sanitised to 500 characters. The owner's own comments, bots, the channel speaking as itself and posts older than 7 days are dropped; a thread holds at most 500 comments.
+- Retention: each post's comment counts are frozen at 73 h (`tg_post_audience`), comment rows deleted after 10 days (owner, 31.10.2026), threads after 14; reactions and poll counts are kept.
+
+**Setup (owner):** the bot is an admin of the channel (it already posts there) and of its discussion group, or bot privacy is off in BotFather; the Worker secret `AUDIENCE_HASH_KEY` is set on DEV and production; then «Подключить бота» once after the deploy (it registers `poll` and `message_reaction_count` and checks the setup). «Связь с ботом» shows what the bot hears and the first thing to fix; the daily health step (12:12 MSK) re-checks and tells the owner once a Moscow day when the channel posted but nothing came back.

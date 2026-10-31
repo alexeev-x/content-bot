@@ -43,6 +43,12 @@ export async function resetDb(): Promise<void> {
   // Children first: jobs reference publications, which reference posts, revisions and destinations.
   await db.batch(
     [
+      'tg_comments',
+      'tg_comment_threads',
+      'tg_post_audience',
+      'tg_polls',
+      'tg_message_reactions',
+      'tg_chats',
       'dota_watch_alerts',
       'dota_watch_matches',
       'dota_watches',

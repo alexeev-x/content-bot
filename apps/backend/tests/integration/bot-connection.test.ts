@@ -92,7 +92,21 @@ describe('GET /api/v1/bot/status', () => {
       missing: [],
       botUsername: null,
       expectedUrl: EXPECTED_URL,
-      webhook: { url: null, pointsHere: false, pendingUpdateCount: 0, lastErrorAt: null, lastErrorMessage: null }
+      webhook: {
+        url: null,
+        pointsHere: false,
+        pendingUpdateCount: 0,
+        lastErrorAt: null,
+        lastErrorMessage: null,
+        allowedUpdates: null
+      },
+      audience: {
+        state: 'not_checked',
+        channels: [],
+        updates24h: { reactions: 0, polls: 0, comments: 0 },
+        lastUpdateAt: null,
+        checkedAt: null
+      }
     });
     expect(telegram.calls).toEqual(['getWebhookInfo']);
   });
@@ -127,7 +141,21 @@ describe('GET /api/v1/bot/status', () => {
       missing: [],
       botUsername: 'content_bot',
       expectedUrl: EXPECTED_URL,
-      webhook: { url: EXPECTED_URL, pointsHere: true, pendingUpdateCount: 3, lastErrorAt: null, lastErrorMessage: null }
+      webhook: {
+        url: EXPECTED_URL,
+        pointsHere: true,
+        pendingUpdateCount: 3,
+        lastErrorAt: null,
+        lastErrorMessage: null,
+        allowedUpdates: null
+      },
+      audience: {
+        state: 'not_checked',
+        channels: [],
+        updates24h: { reactions: 0, polls: 0, comments: 0 },
+        lastUpdateAt: null,
+        checkedAt: null
+      }
     });
     expect(telegram.calls).toEqual(['getWebhookInfo']);
   });
@@ -225,7 +253,7 @@ describe('POST /api/v1/bot/connect', () => {
     expect(telegram.sent[1]).toEqual({
       url: EXPECTED_URL,
       secretToken: WEBHOOK_SECRET,
-      allowedUpdates: ['message', 'callback_query']
+      allowedUpdates: ['message', 'callback_query', 'poll', 'message_reaction_count']
     });
     expect(telegram.sent[7]).toEqual(OWNER_COMMANDS);
     expect(telegram.calls.length).toBeLessThanOrEqual(10);

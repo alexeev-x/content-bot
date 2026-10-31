@@ -47,6 +47,11 @@ import { snapshotInstanceId } from './workflows/hero-stats-snapshot';
 export const CLEANUP_LIMIT = 100;
 // The heartbeat upsert plus slack for the final log line's bookkeeping.
 const HEARTBEAT_RESERVE = 3;
+/** The audience upkeep (docs/scheduler/area-backend-analytics.md §13): purge hourly at :37, health at 12:12 MSK. */
+const AUDIENCE_PURGE_MINUTE = 37;
+const AUDIENCE_HEALTH_MINUTE = 12;
+const AUDIENCE_HEALTH_HOUR_UTC = 9;
+const AUDIENCE_WINDOW_MS = 50 * 60_000;
 /** The heartbeat's minutes: those ending in 2 or 7. */
 const HEARTBEAT_EVERY_MINUTES = 5;
 const HEARTBEAT_MINUTE = 2;
@@ -834,6 +839,24 @@ export async function handleScheduled(
         aiReviewsRetry: result.retry,
         aiReviewsLost: result.lost
       };
+    });
+  }
+
+  // 7z. the channel's audience upkeep (rubric scheduler stage 2): at two fixed minutes one window claim and one queue
+  // message; never part of the publication work and never feeding `failures` here (the queue step reports its own).
+  const audienceStep: 'purge' | 'health' | null =
+    minute === AUDIENCE_PURGE_MINUTE
+      ? 'purge'
+      : minute === AUDIENCE_HEALTH_MINUTE &&
+          new Date(controller.scheduledTime).getUTCHours() === AUDIENCE_HEALTH_HOUR_UTC
+        ? 'health'
+        : null;
+  if (audienceStep !== null && container.queryBudget.remaining() >= 2 + HEARTBEAT_RESERVE) {
+    await step(`audience-${audienceStep}`, async (): Promise<Record<string, number>> => {
+      if (!(await container.systemState.claimStepWindow(`ra:${audienceStep}`, clock.now(), AUDIENCE_WINDOW_MS)))
+        return {};
+      await container.aiJobs.send({ id: container.newId(), kind: 'rubric_analytics', step: audienceStep });
+      return { audienceQueued: 1 };
     });
   }
 

@@ -24,6 +24,8 @@ export interface SystemStateStore {
    * failure stays quiet), so a failure that repeats every minute is one message, not sixty.
    */
   claimFailureNotice(key: string, now: number, windowMs: number): Promise<boolean>;
+  /** Claims a named Cron window (`ra:*`): true for the one tick that won it. One statement, no cleanup. */
+  claimStepWindow(key: string, now: number, windowMs: number): Promise<boolean>;
   /** The horoscope's fortune-tellers since the round began (owner, 28.10.2026: nobody twice before everyone). */
   readHoroscopeTellers(): Promise<number[]>;
   rememberHoroscopeTellers(heroIds: number[], now: number): Promise<void>;
@@ -124,6 +126,18 @@ export function createD1SystemState(db: D1Database): SystemStateStore {
         )
         .bind(COVER_THEME_KEY, JSON.stringify({ theme }), now)
         .run();
+    },
+
+    async claimStepWindow(key, now, windowMs) {
+      const claim = await db
+        .prepare(
+          `INSERT INTO system_state (key, value, updated_at) VALUES (?1, '{}', ?2)
+           ON CONFLICT (key) DO UPDATE SET updated_at = excluded.updated_at
+           WHERE system_state.updated_at <= ?2 - ?3`
+        )
+        .bind(key, now, windowMs)
+        .run();
+      return claim.meta.changes === 1;
     },
 
     async claimFailureNotice(key, now, windowMs) {

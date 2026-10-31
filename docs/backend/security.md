@@ -23,3 +23,7 @@
 - Zod validation of all inputs (`z.strictObject`), body and upload size limits, MIME + file signature, allowlist of domains for outbound requests (SSRF). Client-side validation is UX only. Rate limit on sign-in endpoints.
 - Real secrets are Wrangler secrets (set by the owner); do not commit `.dev.vars` and `.env*`. Logs mask tokens, `initData`, codes and personal data.
 - A separate Telegram test environment (its own bot and channel) — once the owner sets it up; production sending in tests is forbidden. Detailed rules and checklist — skill `api-security`.
+
+## What is kept of the channel's commenters (migration 0118)
+
+Never the user id, the name, the raw update or the message's entities and media. A commenter is a 16-hex HMAC-SHA256 of the user id under the Worker secret `AUDIENCE_HASH_KEY` (the owner sets it per environment; without it no comment is kept), plus the public @username if they have one; the text is stripped of control, zero-width and bidi characters and cut to 500. Comment rows go after 10 days. Logs carry codes only, never comment text, usernames or keys.

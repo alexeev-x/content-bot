@@ -25,7 +25,13 @@ function connectionDeps(c: Context<AppBindings>): BotConnectionDeps {
     appState: container.systemState,
     clock: container.clock,
     logger: container.logger,
-    requestId: c.get('requestId')
+    requestId: c.get('requestId'),
+    audience: {
+      repo: container.audience,
+      targets: container.audienceTargets,
+      telegram: () => container.audienceTelegram,
+      hasKey: (c.env.AUDIENCE_HASH_KEY ?? '') !== ''
+    }
   };
 }
 

@@ -123,6 +123,8 @@ function ownerOnly(ownerId: number) {
 }
 
 export interface BotRuntime {
+  /** The channel's reactions, poll votes and comments (rubric scheduler stage 2); absent: those updates are dropped. */
+  audience?: { wants(update: unknown): boolean; handle(update: unknown): Promise<void> };
   /** This Worker's public origin: where the studio button points. */
   appOrigin: string;
   clock: Clock;
@@ -248,6 +250,12 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
     } catch (error) {
       runtime.onError(error);
     }
+  });
+  // Before the owner check: these updates are the audience's, never the owner's, and never get an answer. The branch
+  // swallows its own failures, so the owner's flow is the same whether it works or not.
+  bot.use(async (ctx, next) => {
+    if (runtime.audience === undefined || !runtime.audience.wants(ctx.update)) return next();
+    await runtime.audience.handle(ctx.update);
   });
   bot.use(ownerOnly(config.ownerId));
   bot.use(privateChatOnly());

@@ -49,3 +49,7 @@ Hero statistics (OpenDota, migration 0031) were removed 14.10.2026; their tables
 **Wrong token.** A 401/404 fails the job that met it (`BOT_UNAUTHORIZED` + incident) and ends the tick's dispatching, but the next tick will fail the next due job the same way until the token is fixed: switch `PUBLISHING_ENABLED` off first, then fix the secret.
 
 **Settings.** `PUBLISHING_ENABLED` (var in `wrangler.jsonc`, per environment; anything but `"true"` is off; `/api/v1/health` `publishingEnabled` reports the effective state, switch on and token present), secret `TELEGRAM_BOT_TOKEN`. Cron Triggers are declared per environment (`triggers.crons`: `dev` every minute, `production` `[]`), so what runs does not depend on how Wrangler inherits `triggers`; `vars` are not inherited and are repeated per environment.
+
+## Audience upkeep (as built, migration 0118)
+
+At minute 37 of every hour (purge) and at 12:12 MSK (health) the tick claims a window in `system_state` (`ra:purge`, `ra:health`, 50 minutes) and sends one `rubric_analytics` message to `AI_JOBS`: one statement and one queue send, only when the tick's budget keeps two statements and the heartbeat reserve. The consumer (`app/workflows/rubric-analytics.ts`) freezes comment counts and deletes old comments (≤ 5 × 200 rows), or re-checks the setup and sends the «silent» notice. Neither step touches publishing or feeds the tick's failures.

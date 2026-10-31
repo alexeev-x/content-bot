@@ -163,6 +163,29 @@ export function BotStatusSummary() {
           </StatGrid>
         ) : null}
 
+        {status.audience === undefined ? null : (
+          <>
+            <StatGrid minTile="md">
+              <StatTile
+                label={copy.audience.label}
+                value={copy.audience.state[status.audience.state]}
+                meta={copy.audience.meta(
+                  status.audience.updates24h.reactions,
+                  status.audience.updates24h.polls,
+                  status.audience.updates24h.comments
+                )}
+                icon="channel"
+                tone={status.audience.state === 'ok' ? 'done' : 'retry'}
+              />
+            </StatGrid>
+            {status.audience.state === 'ok' ? null : (
+              <Banner tone="warning" title={copy.audience.state[status.audience.state]}>
+                {copy.audience.fix[status.audience.state]}
+              </Banner>
+            )}
+          </>
+        )}
+
         {/* Anything but a working connection needs the full panel: what is missing and the connect button. */}
         {state === 'connected' ? null : <BotConnection hideState />}
       </div>

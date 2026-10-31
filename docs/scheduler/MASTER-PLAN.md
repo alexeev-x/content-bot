@@ -361,10 +361,10 @@ Common for every stage: work on `develop` or `feat/…` from it; agents commit w
 - Prod: owner applies **0117** first, then develop→main PR. Shim removed in stage 9.
 
 ### Stage 2 — audience signals, migration 0118 (R3: webhook; parallel with stage 3)
-- [ ] backend-analytics: `modules/audience/**` (§15.1 of annex), `app/bot/audience-branch.ts`, `create-bot.ts` (branch before `ownerOnly`), `webhook-route.ts`, `bot-connection.ts` (allowed updates + setup check), `telegram-api.ts` update kinds, `system-state.ts` `claimStepWindow`, `scheduled.ts` `ra:purge`, `ra:health`, `ai-job.ts`/`ai-queue.ts` `rubric_analytics` kind (purge, health steps), `env.ts` `AUDIENCE_HASH_KEY?`, `container.ts`; `migrations/0118_audience_signals.sql`.
-- [ ] contracts + frontend API: `bot/status` additive `audience`, `webhook.allowedUpdates`; frontend shows it on Settings → Бот (one commit).
-- [ ] docs: `docs/backend/bot.md` (branch, setup, retention 10 d), `docs/backend/security.md`, `docs/backend/cron.md`, `docs/API_CONTRACTS.md`.
-- [ ] tests: audience L4/L5 list, setup, retention, deploy without 0118.
+- [x] backend-analytics: `modules/audience/**` (§15.1 of annex), `app/bot/audience-branch.ts`, `create-bot.ts` (branch before `ownerOnly`), `webhook-route.ts`, `bot-connection.ts` (allowed updates + setup check), `telegram-api.ts` update kinds, `system-state.ts` `claimStepWindow`, `scheduled.ts` `ra:purge`, `ra:health`, `ai-job.ts`/`ai-queue.ts` `rubric_analytics` kind (purge, health steps), `env.ts` `AUDIENCE_HASH_KEY?`, `container.ts`; `migrations/0118_audience_signals.sql`.
+- [x] contracts + frontend API: `bot/status` additive `audience`, `webhook.allowedUpdates`; frontend shows it on Settings → Бот (one commit).
+- [x] docs: `docs/backend/bot.md` (branch, setup, retention 10 d), `docs/backend/security.md`, `docs/backend/cron.md`, `docs/API_CONTRACTS.md`.
+- [x] tests: audience L4/L5 list, setup, retention, deploy without 0118.
 - Done: full verify; DEV: bot admin in the test channel and its group ⇒ post → thread row → comment row; reaction and poll rows (agent posts in the test channel only).
 - Owner: apply **0118** on prod before main PR; set `AUDIENCE_HASH_KEY` (DEV, prod); make the bot admin of the discussion group (or privacy off); press «Подключить бота» after the deploy.
 

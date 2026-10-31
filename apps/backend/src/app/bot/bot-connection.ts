@@ -1,8 +1,15 @@
-import type { BotStatusDto } from '@alexeev/contracts';
+import type { BotAudienceDto, BotStatusDto } from '@alexeev/contracts';
+import {
+  type AudienceRepository,
+  type AudienceTargets,
+  type AudienceTelegram,
+  checkAudienceSetup,
+  readAudienceStatus
+} from '../../modules/audience';
 import { z } from 'zod';
 import type { Clock } from '../../platform/clock';
 import type { Logger } from '../../platform/logging/logger';
-import type { TelegramBotAdminApi } from '../../integrations/telegram/telegram-api';
+import type { TelegramBotAdminApi, TelegramUpdateKind } from '../../integrations/telegram/telegram-api';
 import { AppError } from '../../shared/app-error';
 import type { AppEnv } from '../env';
 import type { SystemStateStore } from '../system-state';
@@ -32,8 +39,12 @@ const webhookInfoSchema = z.object({
   url: z.string(),
   pending_update_count: z.number().int().nonnegative(),
   last_error_date: z.number().int().nonnegative().optional(),
-  last_error_message: z.string().optional()
+  last_error_message: z.string().optional(),
+  allowed_updates: z.array(z.string()).optional()
 });
+
+/** The update kinds the bot asks for: the owner's messages and buttons, the channel's polls and reactions. */
+const ALLOWED_UPDATES: TelegramUpdateKind[] = ['message', 'callback_query', 'poll', 'message_reaction_count'];
 
 export interface BotConnectionDeps {
   env: AppEnv;
@@ -49,6 +60,13 @@ export interface BotConnectionDeps {
   clock: Clock;
   logger: Logger;
   requestId?: string;
+  /** The channel's audience (migration 0118); absent in setups that do not listen to it. */
+  audience?: {
+    repo: AudienceRepository;
+    targets: AudienceTargets;
+    telegram: () => AudienceTelegram;
+    hasKey: boolean;
+  };
 }
 
 // Reads Telegram's webhook info; changes nothing. Without the complete settings Telegram is not asked.
@@ -64,6 +82,7 @@ async function statusOf(deps: BotConnectionDeps, setup: BotSetup): Promise<BotSt
   if (settings === null) {
     return { missing: setup.missing, botUsername: setup.botUsername, expectedUrl, webhook: null };
   }
+  const audience = await audienceOf(deps);
 
   const api = deps.api();
   const info = await call.read(
@@ -87,9 +106,30 @@ async function statusOf(deps: BotConnectionDeps, setup: BotSetup): Promise<BotSt
       lastErrorAt,
       lastErrorMessage: info.last_error_message
         ? redactToken(info.last_error_message, settings.token).slice(0, MAX_ERROR_MESSAGE)
-        : null
-    }
+        : null,
+      allowedUpdates: info.allowed_updates ?? null
+    },
+    ...(audience === null ? {} : { audience })
   };
+}
+
+// Before migration 0118 the tables are not there: the status then simply leaves the audience out.
+async function audienceOf(deps: BotConnectionDeps): Promise<BotAudienceDto | null> {
+  if (deps.audience === undefined) return null;
+  try {
+    const status = await readAudienceStatus({
+      repo: deps.audience.repo,
+      now: deps.clock.now(),
+      hasKey: deps.audience.hasKey
+    });
+    return {
+      ...status,
+      lastUpdateAt: status.lastUpdateAt === null ? null : new Date(status.lastUpdateAt).toISOString(),
+      checkedAt: status.checkedAt === null ? null : new Date(status.checkedAt).toISOString()
+    };
+  } catch {
+    return null;
+  }
 }
 
 // Asks Telegram who the bot is and stores the answer, registers this Worker's own webhook and the
@@ -111,7 +151,7 @@ export async function connectBot(deps: BotConnectionDeps): Promise<BotStatusDto>
       {
         url: webhookUrlFor(appOrigin),
         secretToken: settings.webhookSecret,
-        allowedUpdates: ['message', 'callback_query']
+        allowedUpdates: ALLOWED_UPDATES
       },
       signal
     )
@@ -148,6 +188,26 @@ export async function connectBot(deps: BotConnectionDeps): Promise<BotStatusDto>
       ...(deps.requestId === undefined ? {} : { requestId: deps.requestId }),
       errorCode: 'APP_ORIGIN_NOT_STORED'
     });
+  }
+  // Best effort: which channels and groups the bot can hear. A failure never fails the connect; the daily health step
+  // checks again.
+  if (deps.audience !== undefined) {
+    try {
+      await checkAudienceSetup({
+        repo: deps.audience.repo,
+        targets: deps.audience.targets,
+        telegram: deps.audience.telegram(),
+        bot: { id: me.id, readsAllGroupMessages: me.can_read_all_group_messages },
+        now: deps.clock.now()
+      });
+    } catch {
+      deps.logger.warn({
+        component: 'bot',
+        operation: 'bot_connect.audience_setup',
+        ...(deps.requestId === undefined ? {} : { requestId: deps.requestId }),
+        errorCode: 'AUDIENCE_SETUP_CHECK_FAILED'
+      });
+    }
   }
   return statusOf(deps, inspectBotSetup(env, me));
 }

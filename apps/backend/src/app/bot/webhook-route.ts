@@ -8,6 +8,7 @@ import { timingSafeEqualStrings } from '../../platform/security/timing-safe-equa
 import { AppError } from '../../shared/app-error';
 import type { AppBindings } from '../env';
 import { appOriginOf } from './app-origin';
+import { createAudienceBranch } from './audience-branch';
 import { createBot, loadBotSetup } from './create-bot';
 import { createMediaImportRunner } from './media-import-runner';
 import { createPublishActions } from './publish-actions';
@@ -105,6 +106,7 @@ export const telegramWebhook = new Hono<AppBindings>().post(
         (await getOwnerOperationsSettings({ repo: container.settings, logger: container.logger, requestId })).timezone
     });
     const bot = createBot(config, {
+      audience: createAudienceBranch(container, { ownerId: config.ownerId, hashKey: c.env.AUDIENCE_HASH_KEY }),
       appOrigin,
       publish,
       contamination: (itemId, reason) =>

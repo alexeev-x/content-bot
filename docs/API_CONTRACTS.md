@@ -288,7 +288,7 @@ Schemas and error codes: `apps/contracts/src/bot.ts`.
 
 | Endpoint | Meaning |
 |---|---|
-| `GET /api/v1/bot/status` | Which bot settings are missing on this Worker (names only), the bot username, the URL this Worker expects, and Telegram's webhook info: the current URL, whether it points here, pending updates and the last error. Changes nothing |
+| `GET /api/v1/bot/status` | Which bot settings are missing on this Worker (names only), the bot username, the URL this Worker expects, and Telegram's webhook info: the current URL, whether it points here, pending updates, the last error and the update kinds Telegram sends (`allowedUpdates`), and `audience` (migration 0118; absent before it): what the bot hears from the channel — the setup state, the channels and their groups, the last day’s reactions, poll updates and comments. Changes nothing |
 | `POST /api/v1/bot/connect` | The Worker registers its own webhook with the token and secret it already holds, removes stale command lists, and sets the owner-chat commands and the menu button. Safe to repeat. Returns the fresh status. With missing settings → `503` `BOT_NOT_CONFIGURED` |
 
 ## Automations

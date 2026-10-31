@@ -1,3 +1,9 @@
+import {
+  type AudienceRepository,
+  type AudienceTargets,
+  type AudienceTelegram,
+  createD1AudienceRepository
+} from '../modules/audience';
 import { edgeTextCache, STRATZ_CACHE_SECONDS } from '../platform/edge-cache';
 import {
   createD1PostRepository,
@@ -34,7 +40,9 @@ import {
   type PostSource,
   type PublicationRepository,
   type PublicationAnalyticsRepository,
-  type PublicationTransport
+  type PublicationTransport,
+  createD1PublicationOutcomesRepository,
+  type PublicationOutcomesRepository
 } from '../modules/publishing';
 import {
   createTelegramApi,
@@ -180,6 +188,16 @@ export interface Container {
   /** Whether the Cron dispatcher may claim jobs: PUBLISHING_ENABLED is "true" and the bot token is set. */
   publishing: { enabled: boolean; blockedBy?: 'bot_token_missing' };
   dispatchJobs: DispatchRepository;
+  /** The channel's reactions, poll votes and comments (migration 0118). */
+  audience: AudienceRepository;
+  /** The enabled channels the bot publishes to: the audience setup check reads them. */
+  audienceTargets: AudienceTargets;
+  /** Telegram's getChat/getChatMember for the audience setup check. */
+  audienceTelegram: AudienceTelegram;
+  /** Whether the Worker secret AUDIENCE_HASH_KEY is set (comments are kept only then). */
+  audienceHashKeySet: boolean;
+  /** What publishing did with posts, for the rubric scheduler and the audience health step. */
+  publicationOutcomes: PublicationOutcomesRepository;
   postRevisions: PostRevisionSource;
   /** Built on first use from TELEGRAM_BOT_TOKEN; asking for it without the token is a 503. */
   transport: PublicationTransport;
@@ -329,6 +347,7 @@ export interface ContainerEnv {
   BROWSER?: unknown;
   STRATZ_TOKEN?: string;
   STATS_BRIDGE_URL?: string;
+  AUDIENCE_HASH_KEY?: string;
   /** The hero statistics database (owner, 29.10.2026); bound locally and on production only. */
   STATS_DB?: D1Database;
   STATS_SNAPSHOT?: Workflow;
@@ -484,6 +503,18 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
       const hasSender = overrides.transport !== undefined || botToken() !== '';
       return requested && !hasSender ? { enabled: false, blockedBy: 'bot_token_missing' } : { enabled: requested };
     },
+    get audience() {
+      return createD1AudienceRepository(db());
+    },
+    get audienceTargets(): AudienceTargets {
+      const destinations = createD1DestinationRepository(db());
+      return {
+        channels: async () =>
+          (await destinations.list({ enabled: true, limit: 20 }))
+            .filter((destination) => destination.kind === 'channel')
+            .map((destination) => ({ chatId: destination.chatId, title: destination.title }))
+      };
+    },
     get dispatchJobs() {
       // Production without migration 0117 keeps publishing on the old statements; the log line says so.
       return createD1DispatchRepository(db(), () =>
@@ -535,6 +566,18 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
       const token = botToken();
       if (token === '') throw new AppError('UNAVAILABLE', 'Telegram bot is not configured');
       return createTelegramPublicationTransport(createTelegramApi(token));
+    },
+    get audienceHashKeySet() {
+      return (env.AUDIENCE_HASH_KEY ?? '') !== '';
+    },
+    get publicationOutcomes() {
+      return createD1PublicationOutcomesRepository(db());
+    },
+    get audienceTelegram(): AudienceTelegram {
+      if (overrides.telegramChatApi !== undefined) return overrides.telegramChatApi;
+      const token = botToken();
+      if (token === '') throw new AppError('UNAVAILABLE', 'Telegram bot is not configured');
+      return createTelegramChatReadApi(token);
     },
     get chatInspector(): ChatInspector {
       let reader = overrides.telegramChatApi;
