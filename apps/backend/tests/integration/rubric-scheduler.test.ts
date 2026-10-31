@@ -165,6 +165,114 @@ describe('the rubric scheduler', () => {
     expect(after?.status === 'empty' || after?.rubric_key !== first.rubric_key).toBe(true);
   });
 
+  it('recovers after a crash right after the sent transition: no second send, the rest is counted once', async () => {
+    const first = await buildFirst();
+    clock.set(first.slot_at - 60_000);
+    await tick();
+    clock.set(first.slot_at);
+    await runDispatchNow(container(), 'test');
+    const sends = transport.calls.length;
+    clock.set(first.slot_at + 2 * 60_000);
+    const plain = container();
+    let crashed = false;
+    const crashing = Object.create(plain, {
+      rubricSlots: {
+        value: {
+          ...plain.rubricSlots,
+          transition: async (input: Parameters<typeof plain.rubricSlots.transition>[0]) => {
+            if (input.to === 'sent' && !crashed) {
+              crashed = true;
+              throw new Error('worker died');
+            }
+            return plain.rubricSlots.transition(input);
+          }
+        }
+      }
+    }) as typeof plain;
+    await runRubricSchedulerTick(crashing, async () => ({ master: true, job: true })).catch(() => undefined);
+    expect(crashed).toBe(true);
+    expect(await statusOf(first.id)).not.toBe('sent');
+    const rest = await testDb()
+      .prepare('SELECT last_sent_at FROM rubric_settings WHERE rubric_key = ?1')
+      .bind(first.rubric_key)
+      .first<{ last_sent_at: number }>();
+    expect(rest?.last_sent_at).toBeGreaterThanOrEqual(first.slot_at);
+    await tick();
+    expect(await statusOf(first.id)).toBe('sent');
+    expect(transport.calls.length).toBe(sends);
+  });
+
+  it('deletes the posts of a late build whose slot already moved on, and counts nothing against the rubric', async () => {
+    const first = await planFirst();
+    clock.set(first.build_at);
+    await tick();
+    const job = jobs.find((each) => each.kind === 'rubric_build' && each.slotId === first.id);
+    const plain = container();
+    const late = Object.create(plain, {
+      rubricSlots: {
+        value: {
+          ...plain.rubricSlots,
+          transition: async (input: Parameters<typeof plain.rubricSlots.transition>[0]) => {
+            if (input.to === 'ready')
+              await testDb().prepare("UPDATE rubric_slots SET status = 'cancelled' WHERE id = ?1").bind(first.id).run();
+            return plain.rubricSlots.transition(input);
+          }
+        }
+      }
+    }) as typeof plain;
+    await runRubricBuild(late, { slotId: first.id, attempt: job?.attempt ?? 0 }, 'test');
+    expect(await statusOf(first.id)).toBe('cancelled');
+    const alive = await testDb()
+      .prepare('SELECT count(*) AS n FROM posts WHERE deleted_at IS NULL')
+      .first<{ n: number }>();
+    expect(alive?.n).toBe(0);
+  });
+
+  it('puts the slot back to planned when the queue refuses the build, without blaming the rubric', async () => {
+    const first = await planFirst();
+    clock.set(first.build_at);
+    await tick({
+      AI_JOBS: {
+        send: async () => {
+          throw new Error('queue down');
+        }
+      } as unknown as Queue
+    });
+    const after = (await slots()).find((slot) => slot.id === first.id);
+    expect(after?.status).toBe('planned');
+    expect(after?.attempt).toBe(first.attempt);
+    expect(after?.error_code).toBeNull();
+  });
+
+  it('counts only content slots as bank turns, not a poll close or a riddle answer', async () => {
+    const c = container();
+    const base = {
+      mskDay: '2027-01-15',
+      candidates: ['whose_ability'],
+      candIdx: 0,
+      attempt: 1,
+      buildAt: START,
+      nextActionAt: START,
+      deadlineAt: START + 7_200_000,
+      weight: 'V' as const,
+      interactive: false,
+      family: 'riddle' as const,
+      reason: { kind: 'event' as const, text: 'x' },
+      createdAt: START,
+      rubricKey: 'whose_ability',
+      status: 'sent' as const
+    };
+    await c.rubricSlots.insert(
+      [
+        { ...base, id: crypto.randomUUID(), slotAt: START, kind: 'pool', dedupeKey: 'pool:a' },
+        { ...base, id: crypto.randomUUID(), slotAt: START + 60_000, kind: 'poll_close', dedupeKey: 'poll_close:a' },
+        { ...base, id: crypto.randomUUID(), slotAt: START + 120_000, kind: 'follow_up', dedupeKey: 'follow:a' }
+      ],
+      START
+    );
+    expect(await c.rubricSlots.countingOf('whose_ability')).toBe(1);
+  });
+
   it('takes a slot from the plan to a sent post', async () => {
     await switchOn();
     await tick();

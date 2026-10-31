@@ -285,7 +285,27 @@ export async function runRubricSchedulerTick(
         });
         if (!moved) break;
         builds += 1;
-        await container.aiJobs.send({ id: container.newId(), kind: 'rubric_build', slotId: slot.id, attempt });
+        try {
+          await container.aiJobs.send({ id: container.newId(), kind: 'rubric_build', slotId: slot.id, attempt });
+        } catch (error) {
+          // Nothing was queued, so no build ever started: the slot goes back to planned (the next tick sends again) and
+          // the rubric is not blamed. The attempt is given back too.
+          container.logger.warn({
+            component: 'rubric-scheduler',
+            operation: 'build_enqueue',
+            errorCode: 'BUILD_ENQUEUE_FAILED',
+            detail: error instanceof Error ? error.name : 'unknown'
+          });
+          await slots.transition({
+            id: slot.id,
+            from: 'building',
+            attempt,
+            to: 'planned',
+            now,
+            set: { attempt: slot.attempt, leaseUntil: null, nextActionAt: now }
+          });
+          builds -= 1;
+        }
         break;
       }
       case 'building': {

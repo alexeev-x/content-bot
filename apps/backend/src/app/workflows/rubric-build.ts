@@ -12,6 +12,7 @@ import {
   writeRubricCaptionTyped
 } from '../../modules/ai';
 import { approvePost, createPost, uploadPostMedia } from '../../modules/content';
+import { deletePost } from '../../modules/lifecycle';
 import {
   closest,
   parseRubricFacts,
@@ -89,7 +90,12 @@ function factsOf(value: Record<string, unknown> | null): RubricFacts {
 /** The rubric's own posts (newest first) and the other rubrics' posts of the last week, from the slots (§1.2). */
 async function slotHistory(container: Container, rubric: string, slotId: string): Promise<RubricHistory> {
   const now = container.clock.now();
-  const counting = (slot: SlotRow) => slot.id !== slotId && COUNTING_STATUSES.includes(slot.status);
+  // Only content slots are posts: a poll_close or a follow_up is a part of a post, not another one.
+  const counting = (slot: SlotRow) =>
+    slot.id !== slotId &&
+    COUNTING_STATUSES.includes(slot.status) &&
+    slot.kind !== 'poll_close' &&
+    slot.kind !== 'follow_up';
   const own = (await container.rubricSlots.ofRubric(rubric, 60)).filter(counting);
   const others = (await container.rubricSlots.between(now - 7 * DAY_MS, now + 2 * DAY_MS)).filter(
     (slot) => counting(slot) && slot.rubricKey !== rubric
@@ -375,6 +381,28 @@ export async function failCandidate(
   const rubric = slot.candidates[slot.candIdx] ?? slot.rubricKey;
   // «Nothing to say now» is no failure: no failure mark, no breaker (§12).
   if (code === 'CONTENT_SKIP') return giveWay(container, slot, code, step);
+  // The slot moves first: a death that lost the race (the slot is already ready, empty or on) is not counted twice.
+  const next = slot.candidates[slot.candIdx + 1];
+  const goesOn = next !== undefined && now < slot.slotAt - 5 * 60_000;
+  const nextKey = next ?? slot.rubricKey;
+  const moved = await container.rubricSlots.transition({
+    id: slot.id,
+    from: 'building',
+    attempt: slot.attempt,
+    to: goesOn ? 'planned' : 'empty',
+    now,
+    set: goesOn
+      ? {
+          candIdx: slot.candIdx + 1,
+          rubricKey: nextKey,
+          nextActionAt: now,
+          leaseUntil: null,
+          errorCode: code,
+          errorStep: step
+        }
+      : { leaseUntil: null, errorCode: code, errorStep: step }
+  });
+  if (!moved) return;
   await container.rubricSchedulerSettings.rubricFailed(rubric, now, code);
   // Three failures in three days rest the rubric for two days instead of failing every slot (§12).
   const breaker = await container.rubricBreakers.recordFailure({
@@ -391,33 +419,6 @@ export async function failCandidate(
       key: `breaker:${rubric}`,
       text: `«${RUBRIC_TITLES[rubric as RubricKey] ?? rubric}» трижды не собралась за три дня: отдыхает двое суток. Последняя причина: ${code}.`
     });
-  const next = slot.candidates[slot.candIdx + 1];
-  if (next !== undefined && now < slot.slotAt - 5 * 60_000) {
-    await container.rubricSlots.transition({
-      id: slot.id,
-      from: 'building',
-      attempt: slot.attempt,
-      to: 'planned',
-      now,
-      set: {
-        candIdx: slot.candIdx + 1,
-        rubricKey: next,
-        nextActionAt: now,
-        leaseUntil: null,
-        errorCode: code,
-        errorStep: step
-      }
-    });
-    return;
-  }
-  await container.rubricSlots.transition({
-    id: slot.id,
-    from: 'building',
-    attempt: slot.attempt,
-    to: 'empty',
-    now,
-    set: { leaseUntil: null, errorCode: code, errorStep: step }
-  });
 }
 
 export async function runRubricBuild(
@@ -600,7 +601,7 @@ export async function runRubricBuild(
   await record(built.degradations.length > 0 ? 'degraded' : 'ok', 'store', built.degradations[0] ?? null, null);
   const now = container.clock.now();
   const times = scheduleOf('ready', { slotAt: slot.slotAt, buildAt: slot.buildAt }, now);
-  await container.rubricSlots.transition({
+  const readied = await container.rubricSlots.transition({
     id: slot.id,
     from: 'building',
     attempt: slot.attempt,
@@ -624,4 +625,21 @@ export async function runRubricBuild(
       facts: factsOf({ ...built.facts, sig: textSignature(built.text) })
     }
   });
+  if (readied) return;
+  // A late build: the lease ran out and the slot moved on. Its posts would never go out, so they are deleted, not left
+  // in the studio. The slot's death was already counted by whoever moved it.
+  for (const post of posts) {
+    await deletePost(
+      { repo: container.lifecycle, now: container.clock.now() },
+      { actor: RUBRIC_ACTOR, id: post.postId, revision: post.revision }
+    ).catch((error: unknown) =>
+      container.logger.warn({
+        component: 'rubric-build',
+        operation: 'drop_late_posts',
+        requestId,
+        errorCode: 'LATE_POST_DELETE_FAILED',
+        detail: describeError(error)
+      })
+    );
+  }
 }
