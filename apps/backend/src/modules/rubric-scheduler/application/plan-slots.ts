@@ -115,9 +115,14 @@ export async function planSlots(
       (row.skipUntil === null || row.skipUntil <= now)
     );
   });
+  const EVENT_RETRY_AFTER_MS = 12 * 60 * 60 * 1000;
   const restOf = new Map(settings.map((row) => [row.rubricKey, row.restDays]));
-  // An event already planned, sent or skipped is not planned again.
-  const taken = await deps.slots.taken(input.events.map((event) => event.dedupeKey));
+  // An event already planned, sent or skipped is not planned again; one that failed waits 12 hours before another try
+  // (31.10.2026: a card that could not be built was planned anew every half hour).
+  const taken = await deps.slots.taken(
+    input.events.map((event) => event.dedupeKey),
+    now - EVENT_RETRY_AFTER_MS
+  );
   const result = plan({
     now,
     days: PLAN_DAYS,

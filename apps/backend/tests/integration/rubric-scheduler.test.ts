@@ -245,6 +245,18 @@ describe('the rubric scheduler', () => {
     expect(after?.error_code).toBeNull();
   });
 
+  it('keeps a failed event out of the plan for 12 hours instead of planning it anew every half hour', async () => {
+    const first = await planFirst();
+    await testDb()
+      .prepare("UPDATE rubric_slots SET status = 'empty', dedupe_key = 'event:test', updated_at = ?2 WHERE id = ?1")
+      .bind(first.id, START)
+      .run();
+    const repo = container().rubricSlots;
+    expect((await repo.taken(['event:test'], START - 12 * 3_600_000)).has('event:test')).toBe(true);
+    expect((await repo.taken(['event:test'], START + 1)).has('event:test')).toBe(false);
+    expect((await repo.taken(['event:test'])).has('event:test')).toBe(false);
+  });
+
   it('counts only content slots as bank turns, not a poll close or a riddle answer', async () => {
     const c = container();
     const base = {

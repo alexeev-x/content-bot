@@ -146,14 +146,15 @@ export function createD1SlotRepository(db: D1Database): SlotRepository {
         limit
       ),
 
-    async taken(keys) {
+    async taken(keys, failedSince) {
       if (keys.length === 0) return new Set();
       const { results } = await db
         .prepare(
           `SELECT dedupe_key FROM rubric_slots WHERE dedupe_key IN (SELECT value FROM json_each(?1))
-           AND status IN (${LIVE}, 'sent', 'partial', 'unresolved', 'skipped')`
+           AND (status IN (${LIVE}, 'sent', 'partial', 'unresolved', 'skipped')
+                OR (?2 IS NOT NULL AND status IN ('empty', 'missed', 'send_failed') AND updated_at >= ?2))`
         )
-        .bind(JSON.stringify(keys.slice(0, 100)))
+        .bind(JSON.stringify(keys.slice(0, 100)), failedSince ?? null)
         .all<{ dedupe_key: string }>();
       return new Set(results.map((row) => row.dedupe_key));
     },

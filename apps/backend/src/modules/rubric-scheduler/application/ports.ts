@@ -191,7 +191,9 @@ export interface SlotRepository {
   due(now: number, limit: number): Promise<SlotRow[]>;
   live(): Promise<SlotRow[]>;
   /** The dedupe keys among these that a live, sent or skipped slot already holds. */
-  taken(keys: readonly string[]): Promise<Set<string>>;
+  /** Keys held by a live, sent or skipped slot; with `failedSince`, also by one that failed (empty, missed, send_failed)
+   * since then, so an event that could not be built is not planned again every half hour. */
+  taken(keys: readonly string[], failedSince?: number): Promise<Set<string>>;
   /** Inserts what is not there yet (a taken time or dedupe key is skipped); returns how many went in. */
   insert(slots: NewSlot[], now: number): Promise<number>;
   /**
