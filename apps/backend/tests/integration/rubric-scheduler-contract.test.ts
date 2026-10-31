@@ -1,4 +1,5 @@
 import {
+  autopublishActivitySchema,
   rubricCalendarSchema,
   rubricForecastSchema,
   rubricItemSchema,
@@ -107,5 +108,67 @@ describe('owner actions in «Рубрики»', () => {
     const calendar = await owner.request('/api/v1/rubrics/calendar?from=2027-01-15&to=2027-01-20');
     expect(rubricCalendarSchema.parse(await calendar.json()).slots).toEqual([]);
     expect((await owner.request('/api/v1/rubrics/slots/00000000-0000-4000-8000-000000000000')).status).toBe(404);
+  });
+});
+
+describe('start blockers', () => {
+  const dev = () => createApi({ clock: fakeClock(), env: { RUBRIC_SCHEDULER: 'rehearsal' } });
+  const status = async (owner: Api) =>
+    rubricSchedulerStatusSchema.parse(await (await owner.request('/api/v1/rubrics/status')).json());
+
+  it('names the master switch and the «Рубрики» job apart, each with its fix', async () => {
+    const { locks } = await status(dev());
+    expect(locks).toEqual(
+      expect.arrayContaining([
+        { code: 'SWITCHED_OFF', fix: 'ENABLE_RUBRICS' },
+        { code: 'NO_DESTINATION', fix: 'PICK_CHANNEL' },
+        { code: 'LAB_MASTER_OFF', fix: 'ENABLE_LAB_MASTER' },
+        { code: 'LAB_OFF', fix: 'ENABLE_LAB_JOB' }
+      ])
+    );
+  });
+
+  it('offers the first slot from the forecast before anything is planned', async () => {
+    expect((await status(dev())).firstSlot).not.toBeNull();
+  });
+
+  it('switches the DEV pair on once, and replaying it changes nothing', async () => {
+    const owner = dev();
+    for (let round = 0; round < 2; round += 1) {
+      const response = await owner.request('/api/v1/rubrics/dev-enable', { method: 'POST' });
+      expect(response.status).toBe(200);
+      const codes = rubricSchedulerStatusSchema.parse(await response.json()).locks.map((lock) => lock.code);
+      expect(codes).not.toContain('LAB_MASTER_OFF');
+      expect(codes).not.toContain('LAB_OFF');
+    }
+    const settings = (await (await owner.request('/api/v1/settings/operations')).json()) as {
+      revision: number;
+      background: { enabled: boolean; jobs: { rubricScheduler: boolean } };
+    };
+    expect(settings.background).toMatchObject({ enabled: true, jobs: { rubricScheduler: true } });
+    expect(settings.revision).toBe(1);
+  });
+
+  it('is a 404 outside DEV and a 401 without the owner session', async () => {
+    const production = createApi({ clock: fakeClock(), env: { RUBRIC_SCHEDULER: 'on' } });
+    const refused = await production.request('/api/v1/rubrics/dev-enable', { method: 'POST' });
+    expect(refused.status).toBe(404);
+    expect(((await refused.json()) as { error: { details: { reason: string } } }).error.details.reason).toBe(
+      'NOT_HERE'
+    );
+    expect((await dev().request('/api/v1/rubrics/dev-enable', { method: 'POST', token: null })).status).toBe(401);
+  });
+
+  it('lists what keeps the news from going out, and the DEV job only on DEV', async () => {
+    const blockers = async (owner: Api) =>
+      autopublishActivitySchema.parse(await (await owner.request('/api/v1/settings/autopublish/activity')).json())
+        .blockers;
+    expect(await blockers(dev())).toEqual([
+      { code: 'NEWS_OFF', fix: 'ENABLE_NEWS' },
+      { code: 'NEWS_NO_DESTINATION', fix: 'PICK_CHANNEL' },
+      { code: 'NEWS_SOURCES_JOB_OFF', fix: 'ENABLE_LAB_MASTER' }
+    ]);
+    const production = createApi({ clock: fakeClock(), env: { RUBRIC_SCHEDULER: 'on' } });
+    expect((await blockers(production)).map((blocker) => blocker.code)).toEqual(['NEWS_OFF', 'NEWS_NO_DESTINATION']);
   });
 });

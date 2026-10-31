@@ -19,7 +19,7 @@ import { RUBRIC_ACTOR } from '../workflows/rubric-actor';
 import { projectSlot } from '../workflows/rubric-project';
 import { releaseSlot } from '../workflows/rubric-release';
 import { failCandidate } from '../workflows/rubric-build';
-import { schedulerState } from './locks';
+import { type LabSwitches, schedulerState } from './locks';
 import { planCapabilities, rehearsalPace } from './runtime';
 import { notifySchedulerFailure } from '../workflows/rubric-notices';
 import { readEvents } from './event-sources';
@@ -113,10 +113,10 @@ export type SchedulerContainer = Pick<
 
 export async function runRubricSchedulerTick(
   container: SchedulerContainer,
-  labOn: () => Promise<boolean>
+  lab: LabSwitches
 ): Promise<Record<string, number>> {
   const counts: Record<string, number> = {};
-  const state = await schedulerState(container, container.schedulerEnv, labOn);
+  const state = await schedulerState(container, container.schedulerEnv, lab);
   const now = container.clock.now();
   const slots = container.rubricSlots;
 

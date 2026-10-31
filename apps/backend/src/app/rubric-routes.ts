@@ -10,14 +10,16 @@ import {
 import { Hono } from 'hono';
 import { listRecentPublications } from '../modules/publishing';
 import { type ChannelPost, readForecast } from '../modules/rubric-scheduler';
-import { getOwnerOperationsSettings } from '../modules/settings';
+import { getOwnerOperationsSettings, saveOwnerOperationsSettings } from '../modules/settings';
 import { AppError } from '../shared/app-error';
 import type { Container } from './container';
 import type { AppBindings } from './env';
 import { rateLimit } from './rate-limit';
 import { rubricCapabilities, rubricDescriptors } from './rubric-catalog';
+import type { LabSwitches } from './rubric-scheduler/locks';
 import { readCalendar, readRubricList, readSchedulerStatus, readSlotDetail } from './rubric-scheduler/read-models';
 import { skipSlot, updateRubric, updateScheduler } from './rubric-scheduler/owner-actions';
+import { type SchedulerEnv, schedulerMode } from './rubric-scheduler/runtime';
 import { readRehearsal, readRubricHistory } from './rubric-scheduler/read-history';
 import { limitBody, validated } from './validation';
 
@@ -32,26 +34,101 @@ const LIVE: readonly string[] = ['scheduled', 'queued', 'preparing', 'sending', 
 
 const iso = (ms: number) => new Date(ms).toISOString();
 
-/** DEV's «Фоновые задачи» switch for the rehearsal; production has none (the Cron passes no lab there either). */
-async function rehearsalSwitch(container: Container, requestId: string): Promise<boolean> {
-  const { background } = await getOwnerOperationsSettings({
-    repo: container.settings,
-    logger: container.logger,
-    requestId
+/** DEV's «Фоновые задачи»: the master switch and the «Рубрики» job; production has none (the Cron passes no lab there either). */
+const labSwitches =
+  (container: Container, requestId: string): LabSwitches =>
+  async () => {
+    const { background } = await getOwnerOperationsSettings({
+      repo: container.settings,
+      logger: container.logger,
+      requestId
+    });
+    return { master: background.enabled, job: background.jobs.rubricScheduler };
+  };
+
+/** The status, with «Старт»'s first slot taken from the forecast while no slot exists yet. */
+async function readStatus(container: Container, env: SchedulerEnv, requestId: string) {
+  const status = await readSchedulerStatus(container, labSwitches(container, requestId));
+  if (status.firstSlot !== null || status.mode === 'forecast_only') return status;
+  const first = (await computeForecast(container, env)).days.flatMap((day) => day.slots)[0];
+  return first === undefined ? status : { ...status, firstSlot: { rubricKey: first.rubricKey, at: first.at } };
+}
+
+async function computeForecast(container: Container, env: SchedulerEnv): Promise<RubricForecastDto> {
+  const now = container.clock.now();
+  const forecast = await readForecast({
+    now,
+    sources: {
+      rubrics: rubricDescriptors,
+      capabilities: rubricCapabilities(env),
+      latestPatchAt: () => container.latestPatchAt(),
+      // Every publication counts, news and ours: the daily caps and the gaps are over the whole channel.
+      channelPosts: async (since) =>
+        (await listRecentPublications({ repo: container.publicationOutcomes, now }, since))
+          .filter((row) => LIVE.includes(row.status))
+          .map((row): ChannelPost => ({
+            at: row.at,
+            weight: row.hasMedia ? 'V' : 'L',
+            rubric: null,
+            interactive: row.postKind === 'poll',
+            family: null
+          }))
+    }
   });
-  return background.enabled && background.jobs.rubricScheduler;
+  return {
+    from: forecast.from,
+    until: forecast.until,
+    computedAt: iso(forecast.computedAt),
+    days: forecast.days.map((day) => ({
+      date: day.date,
+      slots: day.slots.map((slot) => ({
+        rubricKey: slot.rubric as RubricForecastDto['days'][number]['slots'][number]['rubricKey'],
+        at: iso(slot.at),
+        hasPicture: slot.hasPicture,
+        hasPoll: slot.hasPoll,
+        reason: slot.reason
+      }))
+    })),
+    unavailable: forecast.ineligible.map((each) => ({
+      rubricKey: each.rubric as RubricForecastDto['unavailable'][number]['rubricKey'],
+      missing: each.missing
+    }))
+  };
 }
 
 export const rubricRoutes = new Hono<AppBindings>()
   .use(rateLimit({ name: 'rubrics:read', limit: READS_PER_MINUTE, windowMs: MINUTE_MS }))
   .get('/status', async (c) => {
     const container = c.get('container');
-    return c.json(await readSchedulerStatus(container, () => rehearsalSwitch(container, c.get('requestId'))));
+    return c.json(await readStatus(container, c.env, c.get('requestId')));
   })
   .put('/scheduler', limitBody(MAX_BODY_BYTES), validated('json', updateRubricSchedulerInputSchema), async (c) => {
     const container = c.get('container');
     await updateScheduler(container, c.req.valid('json'));
-    return c.json(await readSchedulerStatus(container, () => rehearsalSwitch(container, c.get('requestId'))));
+    return c.json(await readStatus(container, c.env, c.get('requestId')));
+  })
+  // «Включить всё нужное на DEV»: the lab master switch and the «Рубрики» job. The rehearsal mode is DEV's alone.
+  .post('/dev-enable', async (c) => {
+    const container = c.get('container');
+    if (schedulerMode(container.schedulerEnv) !== 'rehearsal')
+      throw new AppError('NOT_FOUND', 'Not found', { reason: 'NOT_HERE' });
+    const requestId = c.get('requestId');
+    const deps = { repo: container.settings, logger: container.logger, requestId };
+    const current = await getOwnerOperationsSettings(deps);
+    if (!current.background.enabled || !current.background.jobs.rubricScheduler)
+      await saveOwnerOperationsSettings(
+        { ...deps, now: container.clock.now() },
+        {
+          actor: c.get('actor').telegramId,
+          input: {
+            revision: current.revision,
+            timezone: current.timezone,
+            notifications: current.notifications,
+            background: { enabled: true, jobs: { ...current.background.jobs, rubricScheduler: true } }
+          }
+        }
+      );
+    return c.json(await readStatus(container, c.env, requestId));
   })
   .get('/calendar', validated('query', rubricCalendarQuerySchema), async (c) => {
     const { from, to } = c.req.valid('query');
@@ -61,46 +138,7 @@ export const rubricRoutes = new Hono<AppBindings>()
     return c.json(await readCalendar(c.get('container'), from, to));
   })
   .get('/forecast', async (c) => {
-    const container = c.get('container');
-    const now = container.clock.now();
-    const forecast = await readForecast({
-      now,
-      sources: {
-        rubrics: rubricDescriptors,
-        capabilities: rubricCapabilities(c.env),
-        latestPatchAt: () => container.latestPatchAt(),
-        // Every publication counts, news and ours: the daily caps and the gaps are over the whole channel.
-        channelPosts: async (since) =>
-          (await listRecentPublications({ repo: container.publicationOutcomes, now }, since))
-            .filter((row) => LIVE.includes(row.status))
-            .map((row): ChannelPost => ({
-              at: row.at,
-              weight: row.hasMedia ? 'V' : 'L',
-              rubric: null,
-              interactive: row.postKind === 'poll',
-              family: null
-            }))
-      }
-    });
-    const body: RubricForecastDto = {
-      from: forecast.from,
-      until: forecast.until,
-      computedAt: iso(forecast.computedAt),
-      days: forecast.days.map((day) => ({
-        date: day.date,
-        slots: day.slots.map((slot) => ({
-          rubricKey: slot.rubric as RubricForecastDto['days'][number]['slots'][number]['rubricKey'],
-          at: iso(slot.at),
-          hasPicture: slot.hasPicture,
-          hasPoll: slot.hasPoll,
-          reason: slot.reason
-        }))
-      })),
-      unavailable: forecast.ineligible.map((each) => ({
-        rubricKey: each.rubric as RubricForecastDto['unavailable'][number]['rubricKey'],
-        missing: each.missing
-      }))
-    };
+    const body = await computeForecast(c.get('container'), c.env);
     c.header('Cache-Control', 'private, max-age=300');
     return c.json(body);
   })

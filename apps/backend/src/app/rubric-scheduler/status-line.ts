@@ -5,9 +5,9 @@ import { RUBRIC_TITLES, type RubricSchedulerStatusDto } from '@alexeev/contracts
 
 const LOCKS: Record<RubricSchedulerStatusDto['locks'][number]['code'], string> = {
   NOT_HERE: 'не работают здесь',
-  NOT_BUILT: 'не работают здесь',
   SCHEMA: 'нет миграции 0119',
   SWITCHED_OFF: 'выключены',
+  LAB_MASTER_OFF: 'выключен главный рубильник фоновых задач',
   LAB_OFF: 'выключены в фоновых задачах',
   NO_DESTINATION: 'не выбран канал',
   DESTINATION_DISABLED: 'канал выключен',

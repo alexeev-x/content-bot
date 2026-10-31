@@ -45,7 +45,8 @@ const env = (extra: Partial<ContainerEnv> = {}): ContainerEnv => ({
   ...extra
 });
 const container = (extra: Partial<ContainerEnv> = {}) => createContainer(env(extra), { clock, transport });
-const tick = (extra: Partial<ContainerEnv> = {}) => runRubricSchedulerTick(container(extra), async () => true);
+const tick = (extra: Partial<ContainerEnv> = {}) =>
+  runRubricSchedulerTick(container(extra), async () => ({ master: true, job: true }));
 
 const slots = () =>
   testDb()

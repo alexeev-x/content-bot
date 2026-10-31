@@ -82,7 +82,7 @@ export const telegramWebhook = new Hono<AppBindings>().post(
                 logger: container.logger,
                 requestId: c.get('requestId')
               });
-              return background.enabled && background.jobs.rubricScheduler;
+              return { master: background.enabled, job: background.jobs.rubricScheduler };
             })
           )
       });

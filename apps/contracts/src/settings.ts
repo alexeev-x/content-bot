@@ -128,6 +128,16 @@ export const autopublishHeldReasonSchema = z.enum([
   'failed'
 ]);
 export type AutopublishHeldReason = z.infer<typeof autopublishHeldReasonSchema>;
+/** What keeps the news from going out by itself now; `fix` is what the owner can press, null where only text helps. */
+export const newsBlockerCodeSchema = z.enum([
+  'NEWS_OFF',
+  'NEWS_NO_DESTINATION',
+  'NEWS_CHANNEL_DISABLED',
+  'NEWS_SOURCES_JOB_OFF'
+]);
+export type NewsBlockerCode = z.infer<typeof newsBlockerCodeSchema>;
+export const newsBlockerFixSchema = z.enum(['ENABLE_NEWS', 'PICK_CHANNEL', 'ENABLE_LAB_MASTER', 'ENABLE_SOURCES_JOB']);
+export type NewsBlockerFix = z.infer<typeof newsBlockerFixSchema>;
 export const autopublishActivityItemSchema = z.object({
   id: z.uuid(),
   at: z.iso.datetime(),
@@ -144,6 +154,10 @@ export const autopublishActivitySchema = z.object({
   dailyLimit: z.number().int().min(1).max(AUTOPUBLISH_DAILY_LIMIT_MAX),
   /** Publications the automatic publishing created in the last 24 hours: what the limit counts. */
   usedToday: z.number().int().nonnegative(),
+  blockers: z
+    .array(z.object({ code: newsBlockerCodeSchema, fix: newsBlockerFixSchema.nullable().default(null) }))
+    .max(4)
+    .default([]),
   /** The last 24 hours, newest first. */
   items: z.array(autopublishActivityItemSchema).max(50)
 });

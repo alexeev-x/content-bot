@@ -915,7 +915,12 @@ export async function handleScheduled(
     schedulerMode(container.schedulerEnv ?? {}) !== 'unavailable' &&
     container.queryBudget.remaining() >= 12 + HEARTBEAT_RESERVE
   ) {
-    await step('rubric-scheduler', () => runRubricSchedulerTick(container, () => backgroundOn('rubricScheduler')));
+    await step('rubric-scheduler', () =>
+      runRubricSchedulerTick(container, async () => ({
+        master: lab === null || (await lab.cronOn(async () => (await readPreferences()).background)),
+        job: await backgroundOn('rubricScheduler')
+      }))
+    );
   }
 
   // Last before the heartbeat: the import spends only what the tick has left (its budget counts every
