@@ -17,8 +17,8 @@ type Props = {
    * `bottom`: a bottom sheet at every width (the «Ещё» menu).
    */
   variant?: 'side' | 'bottom';
-  /** `wide`: a side panel of up to 760 px for dense detail (analytics item); default 480 px. */
-  size?: 'default' | 'wide';
+  /** `wide`: a side panel of up to 760 px for dense detail (analytics item); `narrow`: 420 px (DetailSheet); default 480 px. */
+  size?: 'default' | 'wide' | 'narrow';
 };
 
 /** Inspector panel that keeps the page behind it visible; focus is trapped, Esc and the scrim close it. */

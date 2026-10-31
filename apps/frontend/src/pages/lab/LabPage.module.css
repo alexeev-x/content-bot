@@ -17,22 +17,8 @@
 
 /* The submenu again inside the page: on a phone the side menu is a sheet. */
 .sections {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-2);
-}
-
-.section {
-  padding: var(--space-1) var(--space-3);
-  border: 1px solid var(--color-border-subtle);
-  border-radius: var(--radius-pill);
-  color: var(--color-text-muted);
-  text-decoration: none;
-}
-
-.section[aria-current='page'] {
-  border-color: var(--color-accent);
-  color: var(--color-text);
+  min-width: 0;
+  max-width: 100%;
 }
 
 /* With the side menu shown, its submenu already lists these pages. */

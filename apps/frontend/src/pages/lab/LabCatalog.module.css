@@ -1,0 +1,30 @@
+.catalog {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.heading {
+  margin: 0;
+  font-size: var(--font-size-lg);
+}
+.block {
+  min-width: 0;
+}
+.tracks,
+.inner {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-3);
+}
+.note {
+  margin: 0;
+  padding: var(--space-3) 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+@media (min-width: 860px) {
+  .tracks,
+  .inner {
+    padding: var(--space-4);
+  }
+}

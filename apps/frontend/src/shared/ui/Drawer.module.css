@@ -21,6 +21,9 @@
   background: var(--color-surface-1);
   box-shadow: var(--shadow-pop);
 }
+.modal[data-size='narrow'] {
+  width: min(420px, 100%);
+}
 .modal[data-size='wide'] {
   width: min(760px, 100%);
 }

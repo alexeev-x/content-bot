@@ -2,6 +2,7 @@ import { LabAutopublish } from '../../features/lab-autopublish';
 import { BackgroundJobsEditor, useOwnerTimezone } from '../../features/owner-settings';
 import { RubricSamplesList } from '../../features/rubric-samples';
 import { RubricsRareStates, RubricsRehearsal } from '../../features/rubrics';
+import { LabCatalog } from './LabCatalog';
 import styles from './LabPage.module.css';
 
 export function LabRubrics() {
@@ -53,6 +54,7 @@ export function LabStates() {
         выдуманных данных.
       </p>
       <RubricsRareStates />
+      <LabCatalog />
     </div>
   );
 }

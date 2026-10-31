@@ -155,3 +155,19 @@
     max-width: 100%;
   }
 }
+
+/* No card in card: a Panel inside a Panel is flat, set apart by a rule and padding only. */
+.panel[data-variant='flat'] {
+  overflow: visible;
+  border: 0;
+  border-top: 1px solid var(--color-border-subtle);
+  border-radius: 0;
+  background: transparent;
+}
+.panel[data-variant='flat']:first-child {
+  border-top: 0;
+}
+.panel[data-variant='flat'] .head {
+  border-bottom: 0;
+  background: transparent;
+}

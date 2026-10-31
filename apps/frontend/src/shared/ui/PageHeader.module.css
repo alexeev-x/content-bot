@@ -128,3 +128,66 @@
     flex-wrap: wrap;
   }
 }
+
+/* Never wider than the viewport; a long title wraps instead of pushing the actions off-screen. */
+.header {
+  box-sizing: border-box;
+  max-width: 100%;
+}
+.titleRow {
+  min-width: 0;
+}
+.title {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.secondary,
+.primary {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+.primary {
+  min-width: 0;
+}
+@media (min-width: 860px) {
+  .secondary {
+    order: 2;
+  }
+  .primary {
+    order: 3;
+  }
+}
+/* primaryAction / secondaryActions: the menu stays beside the title, the main button takes its own row. */
+@media (max-width: 859px) {
+  .header[data-split] {
+    grid-template-columns: minmax(0, 1fr) auto auto;
+  }
+  .header[data-split] .text {
+    grid-column: 1;
+  }
+  .header[data-split] .tools {
+    grid-column: 2;
+    grid-row: 1;
+  }
+  .header[data-split] .secondary {
+    grid-column: 3;
+    grid-row: 1;
+  }
+  .header[data-split] .actions {
+    grid-column: 1 / -1;
+    grid-row: 3;
+    flex-wrap: wrap;
+  }
+  .header[data-split] .primary {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}
+@media (max-width: 599px) {
+  .header[data-split] .primary > * {
+    flex: 1;
+    width: 100%;
+    min-height: var(--size-target);
+  }
+}

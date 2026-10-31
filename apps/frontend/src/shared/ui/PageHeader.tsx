@@ -13,6 +13,10 @@ type Props = {
   focusHeadingOnMount?: boolean;
   /** The actions are a toolbar (tabs, filters): on a phone they take their own row under the title. */
   wideActions?: boolean;
+  /** The one main action: full width (44 px) under 600 px, inline from there up. */
+  primaryAction?: ReactNode;
+  /** A `Menu` (⋯) the caller builds with the other actions; stays beside the title on a phone. */
+  secondaryActions?: ReactNode;
 };
 
 const PageHeaderToolsContext = createContext<ReactNode>(null);
@@ -27,7 +31,9 @@ export function PageHeader({
   marker,
   tools: toolsOverride,
   focusHeadingOnMount = false,
-  wideActions = false
+  wideActions = false,
+  primaryAction,
+  secondaryActions
 }: Props) {
   const headingRef = useRef<HTMLHeadingElement>(null);
   const contextualTools = useContext(PageHeaderToolsContext);
@@ -40,7 +46,11 @@ export function PageHeader({
   }, [focusHeadingOnMount]);
 
   return (
-    <header className={styles.header} data-wide-actions={wideActions || undefined}>
+    <header
+      className={styles.header}
+      data-wide-actions={wideActions || undefined}
+      data-split={primaryAction || secondaryActions ? '' : undefined}
+    >
       <div className={styles.text}>
         <div className={styles.titleRow}>
           <h1 ref={headingRef} className={styles.title} tabIndex={focusHeadingOnMount ? -1 : undefined}>
@@ -52,6 +62,8 @@ export function PageHeader({
       </div>
       {tools ? <div className={styles.tools}>{tools}</div> : null}
       {actions ? <div className={styles.actions}>{actions}</div> : null}
+      {secondaryActions ? <div className={styles.secondary}>{secondaryActions}</div> : null}
+      {primaryAction ? <div className={styles.primary}>{primaryAction}</div> : null}
     </header>
   );
 }

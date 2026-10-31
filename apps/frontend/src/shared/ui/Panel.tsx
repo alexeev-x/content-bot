@@ -1,9 +1,13 @@
 import { useId, type CSSProperties, type ElementType, type ReactNode } from 'react';
 import styles from './Panel.module.css';
+import { PanelProvider, useInPanel } from './panel-context';
 
 type Props = {
-  /** Plain content group without a card surface, for tightly composed editor fields. */
-  variant?: 'surface' | 'plain';
+  /**
+   * `plain`: a content group without a card surface, for tightly composed editor fields.
+   * `flat`: for use inside a Panel (no card in card): no border or background, a 1 px rule above and padding only.
+   */
+  variant?: 'surface' | 'plain' | 'flat';
   /** Without a title the panel is only the bordered surface (wraps a table or a list). */
   title?: string;
   /** Heading level of the title; the dashboard uses h2 under the page h1. */
@@ -45,6 +49,7 @@ export function Panel({
   children
 }: Props) {
   const headingId = useId();
+  const inPanel = useInPanel();
   const Heading = `h${headingLevel}` as ElementType;
   const body =
     reserveRows || reservePhoneRows
@@ -57,6 +62,7 @@ export function Panel({
     <section
       className={styles.panel}
       data-variant={variant}
+      data-nested={inPanel || undefined}
       data-quiet={quiet || undefined}
       aria-labelledby={title ? headingId : undefined}
     >
@@ -80,7 +86,7 @@ export function Panel({
         aria-labelledby={scrollableBody && title ? headingId : undefined}
         tabIndex={scrollableBody ? 0 : undefined}
       >
-        {children}
+        <PanelProvider value>{children}</PanelProvider>
       </div>
       {footer ? <div className={styles.footer}>{footer}</div> : null}
     </section>

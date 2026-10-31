@@ -1,7 +1,7 @@
-import { Link, Outlet } from '@tanstack/react-router';
+import { Outlet, useNavigate, useRouterState } from '@tanstack/react-router';
 import { useDocumentTitle } from '../../app/use-document-title';
 import { ru } from '../../shared/lib/ru';
-import { PageHeader } from '../../shared/ui';
+import { PageHeader, Tab, TabList, Tabs } from '../../shared/ui';
 import { LAB_SECTIONS } from './lab-sections';
 import styles from './LabPage.module.css';
 
@@ -11,6 +11,9 @@ import styles from './LabPage.module.css';
  */
 export function LabPage() {
   useDocumentTitle(ru.nav.lab);
+  const navigate = useNavigate();
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  const current = LAB_SECTIONS.find((section) => pathname.startsWith(section.to))?.to;
   return (
     <div className={`reading-width ${styles.page}`}>
       <PageHeader
@@ -18,13 +21,22 @@ export function LabPage() {
         focusHeadingOnMount
         description="Только на DEV: в прод этот раздел не попадает — ни пункт меню, ни код."
       />
-      <nav aria-label="Разделы тестирования" className={styles.sections}>
-        {LAB_SECTIONS.map((section) => (
-          <Link key={section.to} to={section.to} className={styles.section} activeProps={{ 'aria-current': 'page' }}>
-            {section.label}
-          </Link>
-        ))}
-      </nav>
+      <div className={styles.sections}>
+        <Tabs
+          size="touch"
+          fullWidth
+          selectedKey={current}
+          onSelectionChange={(key) => void navigate({ to: String(key) })}
+        >
+          <TabList aria-label="Разделы тестирования">
+            {LAB_SECTIONS.map((section) => (
+              <Tab key={section.to} id={section.to}>
+                {section.label}
+              </Tab>
+            ))}
+          </TabList>
+        </Tabs>
+      </div>
       <Outlet />
     </div>
   );

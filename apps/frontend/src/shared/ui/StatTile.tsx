@@ -2,6 +2,7 @@ import type { ReactNode } from 'react';
 import { IconBadge } from './IconBadge';
 import type { IconName } from './Icon';
 import type { StatusGroup } from './status-meta';
+import { useInPanel } from './panel-context';
 import styles from './StatTile.module.css';
 
 type GridProps = {
@@ -36,8 +37,9 @@ type Props = {
 
 /** One figure with its label: the tile of «Расходы», «Качество» and the bot's numbers. */
 export function StatTile({ label, value, meta, icon, tone = 'accent', iconAt = 'end' }: Props) {
+  const flat = useInPanel();
   return (
-    <div className={styles.tile} data-icon-at={icon ? iconAt : undefined}>
+    <div className={styles.tile} data-flat={flat || undefined} data-icon-at={icon ? iconAt : undefined}>
       <dt className={styles.label}>{label}</dt>
       <dd className={styles.value}>{value}</dd>
       {meta === undefined || meta === null ? null : <dd className={styles.meta}>{meta}</dd>}

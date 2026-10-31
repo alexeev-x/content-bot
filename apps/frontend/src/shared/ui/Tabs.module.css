@@ -154,3 +154,17 @@
     padding: 0 var(--space-2);
   }
 }
+
+.tabs[data-size='touch'] .list {
+  block-size: var(--size-target);
+}
+.tabs[data-full] .list {
+  align-self: stretch;
+  scroll-snap-type: x proximity;
+  overscroll-behavior-x: contain;
+}
+.tabs[data-full] .tab {
+  flex: 1 0 auto;
+  justify-content: center;
+  scroll-snap-align: center;
+}

@@ -1,0 +1,165 @@
+.row {
+  --row-pad-inline: var(--space-3);
+  display: flex;
+  align-items: center;
+  min-width: 0;
+  min-height: 52px;
+  border-bottom: 1px solid var(--color-border-subtle);
+  /* Keyboard focus is never hidden under a sticky group header or the phone topbar. */
+  scroll-margin-top: calc(var(--sticky-offset, 0px) + 40px);
+}
+.row[data-density='compact'] {
+  min-height: 44px;
+}
+.row:last-child {
+  border-bottom: 0;
+}
+.row[data-active] {
+  background: var(--color-selected-bg);
+  box-shadow: inset 2px 0 0 var(--color-accent);
+}
+.row[data-dimmed] {
+  opacity: 0.6;
+}
+.main {
+  display: grid;
+  flex: 1;
+  grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas:
+    'title status'
+    'meta status';
+  align-items: center;
+  column-gap: var(--space-3);
+  row-gap: 2px;
+  box-sizing: border-box;
+  min-width: 0;
+  min-height: inherit;
+  padding: var(--space-2) var(--row-pad-inline);
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  text-decoration: none;
+  outline: none;
+}
+.main[data-lead] {
+  grid-template-columns: 56px minmax(0, 1fr) auto;
+  grid-template-areas:
+    'lead title status'
+    'lead meta status';
+}
+.main:not([data-status]) {
+  grid-template-columns: minmax(0, 1fr);
+  grid-template-areas: 'title' 'meta';
+}
+.main[data-lead]:not([data-status]) {
+  grid-template-columns: 56px minmax(0, 1fr);
+  grid-template-areas: 'lead title' 'lead meta';
+}
+button.main,
+a.main {
+  cursor: pointer;
+}
+button.main:hover,
+a.main:hover {
+  background: var(--color-surface-2);
+}
+button.main:active,
+a.main:active {
+  background: var(--color-surface-3);
+}
+.main:focus-visible {
+  outline: var(--focus-ring-width) solid var(--color-focus-ring);
+  outline-offset: -2px;
+}
+button.main:disabled {
+  background: none;
+  color: var(--color-text-disabled);
+  cursor: not-allowed;
+}
+.leading {
+  grid-area: lead;
+  align-self: start;
+  padding-top: 1px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+  white-space: nowrap;
+}
+.title {
+  grid-area: title;
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  min-width: 0;
+  font-size: var(--font-size-md);
+  font-weight: var(--font-weight-medium);
+  line-height: 1.35;
+}
+.titleText {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.markers {
+  display: inline-flex;
+  flex: none;
+  gap: var(--space-1);
+  color: var(--color-text-muted);
+}
+.status {
+  grid-area: status;
+  justify-self: end;
+}
+.meta {
+  grid-area: meta;
+  min-width: 0;
+  overflow: hidden;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.trailing {
+  display: grid;
+  flex: none;
+  min-width: var(--size-target);
+  min-height: var(--size-target);
+  place-items: center;
+  padding-right: var(--space-1);
+}
+@media (min-width: 860px) {
+  .row {
+    --row-pad-inline: var(--space-4);
+  }
+}
+/* Phone: the title may wrap to two lines, the status chip drops under it (as RowCard does). */
+@media (max-width: 859px) {
+  .main,
+  .main[data-lead],
+  .main:not([data-status]),
+  .main[data-lead]:not([data-status]) {
+    column-gap: var(--space-3);
+  }
+  .main[data-status] {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: 'title' 'status' 'meta';
+  }
+  .main[data-lead][data-status] {
+    grid-template-columns: 56px minmax(0, 1fr);
+    grid-template-areas: 'lead title' 'lead status' 'lead meta';
+  }
+  .status {
+    justify-self: start;
+  }
+  .titleText {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow-wrap: anywhere;
+    white-space: normal;
+  }
+}

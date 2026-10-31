@@ -18,8 +18,27 @@ type TabsVariant = 'group' | 'card';
  * APG tabs: arrows move between tabs (roving tabindex), Tab enters the panel. Compose Tabs > TabList > Tab + TabPanel.
  * `card`: equal-width bordered tiles, each with an icon square, a title and a hint (source pickers); pass `icon` and `hint` to Tab.
  */
-export function Tabs({ variant = 'group', ...props }: Omit<TabsProps, 'className'> & { variant?: TabsVariant }) {
-  return <AriaTabs {...props} data-variant={variant} className={styles.tabs} />;
+export function Tabs({
+  variant = 'group',
+  size = 'default',
+  fullWidth = false,
+  ...props
+}: Omit<TabsProps, 'className'> & {
+  variant?: TabsVariant;
+  /** `touch`: 44 px tall tabs for phone navigation. */
+  size?: 'default' | 'touch';
+  /** Tabs share the row; if they do not fit, the list scrolls and snaps inside itself. */
+  fullWidth?: boolean;
+}) {
+  return (
+    <AriaTabs
+      {...props}
+      data-variant={variant}
+      data-size={size}
+      data-full={fullWidth || undefined}
+      className={styles.tabs}
+    />
+  );
 }
 
 export function TabList<T extends object>(props: Omit<TabListProps<T>, 'className'>) {
