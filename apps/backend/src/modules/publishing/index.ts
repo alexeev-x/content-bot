@@ -62,4 +62,3 @@ export { createTelegramPublicationTransport } from './infrastructure/telegram-pu
 export type { TelegramSender } from './infrastructure/telegram-publication-transport';
 export { createTelegramChatInspector } from './infrastructure/telegram-chat-inspector';
 export type { TelegramChatReader } from './infrastructure/telegram-chat-inspector';
-export { createD1SentMessagesReader, type SentMessagesReader } from './infrastructure/d1-sent-messages-repository';

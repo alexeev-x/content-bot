@@ -15,7 +15,6 @@ import {
   useRestoreActions,
   type LifecycleNotice
 } from '../../features/posts';
-import { PostRubricSelect } from '../../features/content-analytics';
 import { classifyApiError } from '../../shared/api/error-kind';
 import { ApiError } from '../../shared/api/http-client';
 import { Banner, Button, Card, ErrorState, Menu, Skeleton, useMediaQuery, VisuallyHidden } from '../../shared/ui';
@@ -134,7 +133,6 @@ function LoadedPost({ post }: { post: PostDto }) {
         post={post}
         approvedActions={(post) => <PublishAction post={post} />}
         aside={<PostPublications postId={id} />}
-        postSettings={isArchived ? undefined : <PostRubricSelect postId={id} />}
         headerActions={
           isArchived && !phone ? undefined : (
             <Menu

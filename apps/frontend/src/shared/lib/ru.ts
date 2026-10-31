@@ -12,6 +12,7 @@ export const ru = {
     incidents: 'Инциденты',
     sources: 'Источники',
     analytics: 'Аналитика',
+    rubrics: 'Рубрики',
     ai: 'ИИ-редактор',
     settings: 'Настройки',
     lab: 'Тестирование',

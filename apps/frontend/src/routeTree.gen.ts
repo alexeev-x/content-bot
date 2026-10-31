@@ -17,6 +17,7 @@ import { Route as LabRouteImport } from './routes/lab';
 import { Route as LoginRouteImport } from './routes/login';
 import { Route as MediaRouteImport } from './routes/media';
 import { Route as PublicationsRouteImport } from './routes/publications';
+import { Route as RubricsRouteImport } from './routes/rubrics';
 import { Route as SettingsRouteImport } from './routes/settings';
 import { Route as SourcesRouteImport } from './routes/sources';
 import { Route as PostsIndexRouteImport } from './routes/posts/index';
@@ -70,6 +71,11 @@ const MediaRoute = MediaRouteImport.update({
 const PublicationsRoute = PublicationsRouteImport.update({
   id: '/publications',
   path: '/publications',
+  getParentRoute: () => rootRouteImport,
+} as any);
+const RubricsRoute = RubricsRouteImport.update({
+  id: '/rubrics',
+  path: '/rubrics',
   getParentRoute: () => rootRouteImport,
 } as any);
 const SettingsRoute = SettingsRouteImport.update({
@@ -152,6 +158,7 @@ export interface FileRoutesByFullPath {
   '/login': typeof LoginRoute;
   '/media': typeof MediaRoute;
   '/publications': typeof PublicationsRoute;
+  '/rubrics': typeof RubricsRoute;
   '/settings': typeof SettingsRouteWithChildren;
   '/sources': typeof SourcesRoute;
   '/posts/$id': typeof PostsIdRouteWithChildren;
@@ -176,6 +183,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute;
   '/media': typeof MediaRoute;
   '/publications': typeof PublicationsRoute;
+  '/rubrics': typeof RubricsRoute;
   '/sources': typeof SourcesRoute;
   '/posts/$id': typeof PostsIdRouteWithChildren;
   '/posts/new': typeof PostsNewRoute;
@@ -200,6 +208,7 @@ export interface FileRoutesById {
   '/login': typeof LoginRoute;
   '/media': typeof MediaRoute;
   '/publications': typeof PublicationsRoute;
+  '/rubrics': typeof RubricsRoute;
   '/settings': typeof SettingsRouteWithChildren;
   '/sources': typeof SourcesRoute;
   '/posts/$id': typeof PostsIdRouteWithChildren;
@@ -226,6 +235,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/media'
     | '/publications'
+    | '/rubrics'
     | '/settings'
     | '/sources'
     | '/posts/$id'
@@ -250,6 +260,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/media'
     | '/publications'
+    | '/rubrics'
     | '/sources'
     | '/posts/$id'
     | '/posts/new'
@@ -273,6 +284,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/media'
     | '/publications'
+    | '/rubrics'
     | '/settings'
     | '/sources'
     | '/posts/$id'
@@ -298,6 +310,7 @@ export interface RootRouteChildren {
   LoginRoute: typeof LoginRoute;
   MediaRoute: typeof MediaRoute;
   PublicationsRoute: typeof PublicationsRoute;
+  RubricsRoute: typeof RubricsRoute;
   SettingsRoute: typeof SettingsRouteWithChildren;
   SourcesRoute: typeof SourcesRoute;
   PostsIdRoute: typeof PostsIdRouteWithChildren;
@@ -361,6 +374,13 @@ declare module '@tanstack/react-router' {
       path: '/publications';
       fullPath: '/publications';
       preLoaderRoute: typeof PublicationsRouteImport;
+      parentRoute: typeof rootRouteImport;
+    };
+    '/rubrics': {
+      id: '/rubrics';
+      path: '/rubrics';
+      fullPath: '/rubrics';
+      preLoaderRoute: typeof RubricsRouteImport;
       parentRoute: typeof rootRouteImport;
     };
     '/settings': {
@@ -510,6 +530,7 @@ const rootRouteChildren: RootRouteChildren = {
   LoginRoute: LoginRoute,
   MediaRoute: MediaRoute,
   PublicationsRoute: PublicationsRoute,
+  RubricsRoute: RubricsRoute,
   SettingsRoute: SettingsRouteWithChildren,
   SourcesRoute: SourcesRoute,
   PostsIdRoute: PostsIdRouteWithChildren,

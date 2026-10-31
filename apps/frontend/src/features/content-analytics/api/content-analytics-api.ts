@@ -3,10 +3,6 @@ import {
   aiVideoReviewResultSchema,
   contentAnalyticsOverviewSchema,
   contentGoalsSchema,
-  contentPostRubricSchema,
-  contentRubricSchema,
-  contentRubricsSchema,
-  type ContentRubricInput,
   contentItemDetailSchema,
   contentItemsPageSchema,
   contentForecastAccuracySchema,
@@ -125,32 +121,4 @@ export function removeContentGoal(platform: ContentPlatform) {
 
 export function disconnectTikTok() {
   return apiRequestNoContent('/api/v1/content-analytics/tiktok/disconnect', { method: 'POST' });
-}
-
-/** The rubrics and the rubric of each Telegram post in the report's window (this period and the previous one). */
-export function getContentRubrics(days: ContentReportPeriod | undefined, signal?: AbortSignal) {
-  return apiRequest(`/api/v1/content-analytics/rubrics${buildQuery({ days })}`, contentRubricsSchema, { signal });
-}
-
-export function createContentRubric(input: ContentRubricInput) {
-  return apiRequest('/api/v1/content-analytics/rubrics', contentRubricSchema, { method: 'POST', body: input });
-}
-
-export function updateContentRubric(id: string, input: ContentRubricInput) {
-  return apiRequest(`/api/v1/content-analytics/rubrics/${id}`, contentRubricSchema, { method: 'PUT', body: input });
-}
-
-export function deleteContentRubric(id: string) {
-  return apiRequestNoContent(`/api/v1/content-analytics/rubrics/${id}`, { method: 'DELETE' });
-}
-
-export function getPostRubric(postId: string, signal?: AbortSignal) {
-  return apiRequest(`/api/v1/content-analytics/posts/${postId}/rubric`, contentPostRubricSchema, { signal });
-}
-
-export function setPostRubric(postId: string, rubricId: string | null) {
-  return apiRequest(`/api/v1/content-analytics/posts/${postId}/rubric`, contentPostRubricSchema, {
-    method: 'PUT',
-    body: { rubricId }
-  });
 }

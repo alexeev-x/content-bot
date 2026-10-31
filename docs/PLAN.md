@@ -180,8 +180,8 @@ The AI makes the Telegram channel's content itself: news and rubric posts drafte
 
 ## 2. Rubrics the AI runs itself
 
-Many repeatable rubrics the AI drafts from the sources on its own schedule; the owner approves or edits. Their results
-show in Аналитика → «Рубрики Telegram».
+Many repeatable rubrics the AI drafts from the sources on its own schedule; the owner approves or edits. They go out by
+themselves through the rubric scheduler; «Рубрики» shows when and why (docs/scheduler/MASTER-PLAN.md).
 
 Research of 25.10.2026 (about 200 Telegram channels, sources, Telegram's features; reports in `.logs/handoff/research-*.md`):
 the post's format barely moves views; an explicit ask («оцениваем», «голосуй») gives about 1.6× reactions; short

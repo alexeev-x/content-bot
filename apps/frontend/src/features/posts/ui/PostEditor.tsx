@@ -50,8 +50,6 @@ type Props = {
   /** Extra cards under the preview (this post's publications). */
   aside?: ReactNode;
   headerActions?: ReactNode;
-  /** Under the text and media: post settings the page composes from other features (the analytics rubric). */
-  postSettings?: ReactNode;
   /** Page-level banners (a failed delete): shown with the editor's own, so the phone composer does not cover them. */
   notices?: ReactNode;
   /** Phones: the archive's one-line strip under the header (its banner is in `notices` on wider screens). */
@@ -71,7 +69,6 @@ export function PostEditor({
   approvedActions,
   aside,
   headerActions,
-  postSettings,
   notices,
   phonePinned,
   initialTab
@@ -275,13 +272,11 @@ export function PostEditor({
     <div className={styles.phoneStack}>
       {fields}
       {mediaEditor}
-      {postSettings}
     </div>
   ) : (
     <div className={styles.leftColumn}>
       <div className={styles.writeCard}>{fields}</div>
       {mediaEditor}
-      {postSettings}
     </div>
   );
   const mixedNotice = editor.mixed ? (

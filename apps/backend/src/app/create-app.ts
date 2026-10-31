@@ -20,6 +20,7 @@ import { mediaRoutes } from './media-routes';
 import { postsRoutes } from './posts-routes';
 import { sourcesRoutes } from './sources-routes';
 import { publicationsRoutes } from './publications-routes';
+import { rubricRoutes } from './rubric-routes';
 import { requireOwner } from './require-owner';
 import { settingsRoutes } from './settings-routes';
 import { notifyOwnerOfFailure } from './notifications/failure-notice';
@@ -123,6 +124,7 @@ export function createApp(
   app.route('/api/v1/dota', dotaRoutes);
   app.route('/api/v1/sources', sourcesRoutes);
   app.route('/api/v1/publications', publicationsRoutes);
+  app.route('/api/v1/rubrics', rubricRoutes);
   options.mountLab?.(app);
   app.route('/api/v1/dashboard', dashboardRoutes);
   app.route('/api/v1/activity', activityRoutes);

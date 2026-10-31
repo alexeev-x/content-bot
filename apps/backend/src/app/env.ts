@@ -24,6 +24,8 @@ export type AppEnv = Env & {
   STATS_BRIDGE_URL?: string;
   /** The key commenters are hashed with (rubric scheduler stage 2); without it comments are not kept. */
   AUDIENCE_HASH_KEY?: string;
+  /** DEV only: the capabilities the rubric forecast assumes (comma list), so DEV shows what production would plan. */
+  FORECAST_CAPABILITIES?: string;
 };
 
 export type AppBindings = {

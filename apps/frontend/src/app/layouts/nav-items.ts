@@ -19,6 +19,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/', label: ru.nav.dashboard, icon: 'home', exact: true, primary: true },
   { to: '/posts', label: ru.nav.posts, icon: 'file', primary: true },
   { to: '/publications', label: ru.nav.publications, icon: 'send', primary: true, badge: 'incidents' },
+  // The rubric scheduler (stage 3): what goes out when; in «Ещё» on a phone.
+  { to: '/rubrics', label: ru.nav.rubrics, icon: 'calendar', primary: false },
   { to: '/analytics', label: ru.nav.analytics, icon: 'chart', primary: false },
   // What the AI writes, learns and costs (owner, 20.10.2026: it outgrew Настройки → ИИ, which keeps only settings).
   { to: '/ai', label: ru.nav.ai, icon: 'sparkle', primary: false },

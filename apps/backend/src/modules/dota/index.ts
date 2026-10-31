@@ -1832,3 +1832,11 @@ export {
   patchPicturePoints,
   patchVersionOf
 } from './patch-digest';
+
+/** When the newest patch note was published (UTC ms), or null before the first one: the rubrics' quiet week reads it. */
+export async function latestPatchPublishedAt(db: D1Database): Promise<number | null> {
+  const row = await db
+    .prepare("SELECT max(published_at) AS at FROM dota_update_items WHERE source_key = 'patch_notes'")
+    .first<{ at: number | null }>();
+  return row?.at ?? null;
+}

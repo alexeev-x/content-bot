@@ -4,10 +4,9 @@ import { useEffect, useMemo, useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import { useNow } from '../../../shared/lib/use-now';
 import { Banner, Button, ErrorState, StaleRegion, TabPanel, Tabs, type TableSort } from '../../../shared/ui';
-import { contentReportQueryOptions, contentRubricsQueryOptions } from '../api/content-analytics-queries';
+import { contentReportQueryOptions } from '../api/content-analytics-queries';
 import { buildActions, composeCards } from '../model/actions';
 import { formatSeries } from '../model/formats';
-import { rubricStats } from '../model/rubrics';
 import { buildInsights } from '../model/insights';
 import { mediansByPlatform, multipleOf, splitPeriods } from '../model/report';
 import { useSourcesAttention } from './AnalyticsSources';
@@ -19,7 +18,6 @@ import { CrossPostedPanel } from './CrossPostedPanel';
 import { TrendingPanel } from './TrendingPanel';
 import { FollowersGoalsPanel } from './FollowersGoalsPanel';
 import { FormatsPanel } from './FormatsPanel';
-import { RubricsPanel } from './RubricsPanel';
 import { InsightsPanel } from './InsightsPanel';
 import { ItemDrawer } from './ItemDrawer';
 import { ItemsTable } from './ItemsTable';
@@ -110,11 +108,6 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
       )
     };
   }, [report, platform, days]);
-  // Telegram rubrics (plan B3): their own read, so a new pick or rubric shows without rebuilding the cached report.
-  const showRubrics = platform === undefined || platform === 'telegram';
-  const rubricsQuery = useQuery({ ...contentRubricsQueryOptions(days), enabled: showRubrics });
-  const rubrics =
-    derived && rubricsQuery.data ? rubricStats(derived.current, rubricsQuery.data, derived.at, timezone) : undefined;
 
   if (reportQuery.isError && report === undefined) {
     const requestId = reportQuery.error instanceof ApiError ? reportQuery.error.requestId : undefined;
@@ -146,9 +139,6 @@ export function AnalyticsBoard({ timezone, view, onViewChange, onOpenSettings }:
               <PlatformTiles report={report} platform={platform} days={days} />
               <InsightsPanel insights={derived?.insights} days={days} onOpenItem={open} />
               <FormatsPanel series={derived?.series} onOpen={open} />
-              {showRubrics && !rubricsQuery.isError ? (
-                <RubricsPanel summary={rubrics} onOpen={open} onOpenSettings={onOpenSettings} />
-              ) : null}
               <TrendingPanel
                 items={derived?.current}
                 baselines={baselines}

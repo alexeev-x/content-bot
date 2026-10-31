@@ -10,5 +10,3 @@ export { DashboardItemDrawer } from './ui/DashboardItemDrawer';
 export { PlatformLogo } from './ui/PlatformLogo';
 export { useSourcesAttention } from './ui/AnalyticsSources';
 export { AnalyticsSkeleton } from './ui/AnalyticsSkeleton';
-export { RubricsSettings } from './ui/RubricsSettings';
-export { PostRubricSelect } from './ui/PostRubricSelect';

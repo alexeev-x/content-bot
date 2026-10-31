@@ -34,3 +34,25 @@ export function mskParts(utc: number): { day: string; hour: number; minute: numb
 export function mskDaysBetween(a: number, b: number): number {
   return mskDayIndex(b) - mskDayIndex(a);
 }
+
+/** The UTC instant of a Moscow day (`YYYY-MM-DD`) at `minuteOfDay` minutes after its midnight. */
+export function fromMsk(day: string, minuteOfDay: number): number {
+  return Date.parse(`${day}T00:00:00Z`) - MSK_OFFSET_MS + minuteOfDay * 60_000;
+}
+
+/** The Moscow day `days` after `day` (both `YYYY-MM-DD`). */
+export function addMskDays(day: string, days: number): string {
+  return new Date(Date.parse(`${day}T00:00:00Z`) + days * DAY_MS).toISOString().slice(0, 10);
+}
+
+/** Minutes since the Moscow midnight of `utc`. */
+export function mskMinuteOfDay(utc: number): number {
+  const parts = mskParts(utc);
+  return parts.hour * 60 + parts.minute;
+}
+
+/** `HH:MM` → minutes after midnight. */
+export function minuteOf(hhmm: string): number {
+  const [hours, minutes] = hhmm.split(':').map(Number);
+  return (hours ?? 0) * 60 + (minutes ?? 0);
+}
