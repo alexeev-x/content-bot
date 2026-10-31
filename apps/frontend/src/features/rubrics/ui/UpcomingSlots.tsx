@@ -177,7 +177,9 @@ export function UpcomingSlots({ today }: { today: string }) {
           onRetry={() => void slots.refetch()}
         />
       ) : shown.length === 0 ? (
-        <p className={styles.meta}>{copy.slots.empty}</p>
+        <div className={styles.panelBody}>
+          <p className={styles.meta}>{copy.slots.empty}</p>
+        </div>
       ) : (
         <ul className={styles.slotRows}>
           {shown.map((slot) => (

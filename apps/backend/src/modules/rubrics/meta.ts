@@ -579,6 +579,9 @@ export const RUBRIC_META: Record<RubricKey, RubricMeta> = {
 
 /**
  * Rubrics whose inner rules the scheduler keeps (MASTER-PLAN stages 4–6): only these may go out. Since stage 6
- * (31.10.2026) that is every rubric; a rubric added later stays out of it until its rules are coded.
+ * (31.10.2026) that is every rubric but «Открытка», still the owner's unapproved draft (31.10.2026: «она и не должна
+ * выходить»); a rubric added later stays out of it until its rules are coded and the owner approves it.
  */
-export const INNER_RULES_READY: ReadonlySet<RubricKey> = new Set<RubricKey>(Object.keys(RUBRIC_META) as RubricKey[]);
+export const INNER_RULES_READY: ReadonlySet<RubricKey> = new Set<RubricKey>(
+  (Object.keys(RUBRIC_META) as RubricKey[]).filter((key) => key !== 'greeting_card')
+);

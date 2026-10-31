@@ -53,9 +53,11 @@ export function RubricsRehearsal() {
   if (!data.active)
     return (
       <Panel title="Репетиция не идёт">
-        <p className={styles.meta}>
-          Недельный тест включается на DEV настройкой RUBRIC_REHEARSAL_PACE=week и переключателем в «Рубриках».
-        </p>
+        <div className={styles.panelBody}>
+          <p className={styles.meta}>
+            Включите «Автопубликация рубрик» в разделе «Рубрики» и выберите тестовый канал: начнётся недельный тест.
+          </p>
+        </div>
       </Panel>
     );
   const items = onlyBad ? data.items.filter((item) => item.verdict === 'bad') : data.items;
@@ -75,7 +77,9 @@ export function RubricsRehearsal() {
       </Panel>
       <Panel title="Слоты">
         {items.length === 0 ? (
-          <p className={styles.meta}>{onlyBad ? 'Всё как задумано.' : 'Слотов ещё нет.'}</p>
+          <div className={styles.panelBody}>
+            <p className={styles.meta}>{onlyBad ? 'Всё как задумано.' : 'Слотов ещё нет.'}</p>
+          </div>
         ) : (
           <ul className={styles.slotRows}>
             {items.map((item) => {

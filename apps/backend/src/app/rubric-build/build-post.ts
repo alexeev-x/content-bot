@@ -77,8 +77,10 @@ export async function postFromSample(
   const title = RUBRIC_TITLES[rubric];
   const poll = sample.poll === null ? null : `${sample.poll.question} — ${sample.poll.options.join(' / ')}`;
   // The caption is written while the scene is drawn.
-  // A rubric that is one poll with its picture has no text to write.
-  const pollOnly = sample.pictureInPoll === true && sample.poll !== null;
+  // A rubric that is one poll with its picture has no text to write; nor has a bare poll with no text and no picture
+  // (27 «Ты на линии», «Что выберешь?»): an empty text post before it cannot even be approved (EMPTY_BODY).
+  const pollOnly =
+    sample.poll !== null && (sample.pictureInPoll === true || (sample.text.trim() === '' && sample.picture === null));
   // Fixed captions (a riddle and its answer) are final as written: no AI either.
   const noWriter = pollOnly || sample.ownText === true;
   const caption =

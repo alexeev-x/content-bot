@@ -153,7 +153,45 @@
 .link[aria-current='page'] svg {
   color: var(--color-accent-text);
 }
+.chevron {
+  display: inline-flex;
+  margin-left: auto;
+  color: var(--color-text-muted);
+}
+/* The lab's pages under «Тестирование»: quieter rows indented to the item's label, a hairline on the left. */
+.subnav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 0 var(--space-2) var(--space-5);
+  padding: 0 0 0 var(--space-3);
+  border-left: 1px solid var(--color-border-subtle);
+  list-style: none;
+}
+.sublink {
+  display: flex;
+  align-items: center;
+  min-height: var(--size-button-sm);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--radius-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-heading);
+  text-decoration: none;
+  transition:
+    background-color var(--motion-fast),
+    color var(--motion-fast);
+}
+.sublink:hover {
+  background: var(--color-surface-2);
+  color: var(--color-text);
+}
+.sublink[aria-current='page'] {
+  background: var(--color-selected-bg);
+  color: var(--color-text);
+}
 .link:focus-visible,
+.sublink:focus-visible,
 .tab:focus-visible {
   outline: var(--focus-ring-width) solid var(--color-focus-ring);
   outline-offset: var(--focus-ring-offset);

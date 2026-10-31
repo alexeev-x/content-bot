@@ -54,19 +54,27 @@ function NavLink({
   item,
   incidentsCount,
   onNavigate,
-  iconOnly = false
+  iconOnly = false,
+  expanded
 }: {
   item: NavItem;
   incidentsCount: number;
   onNavigate?: () => void;
   /** Collapsed sidebar: the label stays for assistive tech and moves into a tooltip. */
   iconOnly?: boolean;
+  /** An item with a submenu: whether the branch is open (a chevron shows it). */
+  expanded?: boolean;
 }) {
   const link = (
     <Link to={target(item)} activeOptions={{ exact: item.exact ?? false }} className={styles.link} onClick={onNavigate}>
       <Icon name={item.icon} size={20} />
       <span className={iconOnly ? styles.linkLabelHidden : styles.linkLabel}>{item.label}</span>
       {item.badge === 'incidents' && incidentsCount > 0 ? <NavBadge count={incidentsCount} /> : null}
+      {expanded === undefined || iconOnly ? null : (
+        <span className={styles.chevron} aria-hidden="true">
+          <Icon name={expanded ? 'chevron-down' : 'chevron-right'} size={16} />
+        </span>
+      )}
     </Link>
   );
   return iconOnly ? (
@@ -79,12 +87,20 @@ function NavLink({
 }
 
 function SidebarNav({ incidentsCount, collapsed }: { incidentsCount: number; collapsed: boolean }) {
+  const pathname = useRouterState({ select: (state) => state.location.pathname });
+  // A submenu opens like a tree branch: only while one of its pages is open, so a click on the item opens it.
+  const isOpen = (item: NavItem) => pathname === item.to || pathname.startsWith(`${item.to}/`);
   return (
     <nav aria-label={ru.nav.label} className={styles.nav}>
       {NAV_ITEMS.filter((item) => !item.pinned).map((item) => (
         <Fragment key={item.to}>
-          <NavLink item={item} incidentsCount={incidentsCount} iconOnly={collapsed} />
-          {item.children !== undefined && !collapsed ? (
+          <NavLink
+            item={item}
+            incidentsCount={incidentsCount}
+            iconOnly={collapsed}
+            {...(item.children === undefined ? {} : { expanded: isOpen(item) })}
+          />
+          {item.children !== undefined && !collapsed && isOpen(item) ? (
             <ul className={styles.subnav} aria-label={item.label}>
               {item.children.map((child) => (
                 <li key={child.to}>

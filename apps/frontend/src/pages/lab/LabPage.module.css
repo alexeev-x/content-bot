@@ -34,3 +34,10 @@
   border-color: var(--color-accent);
   color: var(--color-text);
 }
+
+/* With the side menu shown, its submenu already lists these pages. */
+@media (min-width: 860px) {
+  .sections {
+    display: none;
+  }
+}
