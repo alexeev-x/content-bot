@@ -31,7 +31,8 @@ import type { Container } from '../container';
 import { buildRubricPost } from '../rubric-build/build-post';
 import { fillBareFinds, heroMatchSource, trackerFinds } from '../rubric-build/sources';
 import type { BuildDeps, BuiltMedia, BuiltRubricPost } from '../rubric-build/types';
-import { schedulerCapabilities, schedulerMode } from '../rubric-scheduler/runtime';
+import { rehearsalPace, schedulerCapabilities, schedulerMode, STUBBED_NEEDS } from '../rubric-scheduler/runtime';
+import { stubPost } from '../rubric-scheduler/rehearsal-stub';
 import { notifySchedulerFailure } from './rubric-notices';
 import { RUBRIC_ACTOR } from './rubric-actor';
 import { stratzAccess } from '../stats-access';
@@ -328,8 +329,11 @@ async function storeFollowUp(
   return { postId: created.id, revision: approved.revision, kind: 'text' };
 }
 
+type CandidateContainer = Pick<Container, 'clock' | 'rubricSlots' | 'rubricSchedulerSettings' | 'rubricBreakers'> &
+  Parameters<typeof notifySchedulerFailure>[0];
+
 /** The slot passes to its next candidate, or ends `skipped` when none is left (a content skip). */
-async function giveWay(container: Container, slot: SlotRow, code: string, step: string): Promise<void> {
+async function giveWay(container: CandidateContainer, slot: SlotRow, code: string, step: string): Promise<void> {
   const now = container.clock.now();
   const next = slot.candidates[slot.candIdx + 1];
   if (next !== undefined && now < slot.slotAt - 5 * 60_000) {
@@ -361,7 +365,12 @@ async function giveWay(container: Container, slot: SlotRow, code: string, step: 
 }
 
 /** Where a failed build goes: the next candidate of the slot (planned again at once), else the slot ends empty. */
-async function failCandidate(container: Container, slot: SlotRow, code: string, step: string): Promise<void> {
+export async function failCandidate(
+  container: CandidateContainer,
+  slot: SlotRow,
+  code: string,
+  step: string
+): Promise<void> {
   const now = container.clock.now();
   const rubric = slot.candidates[slot.candIdx] ?? slot.rubricKey;
   // «Nothing to say now» is no failure: no failure mark, no breaker (§12).
@@ -448,44 +457,66 @@ export async function runRubricBuild(
       finishedAt: container.clock.now()
     });
 
+  // The week-long DEV test: a staged build failure, and a stub for what needs the AI, STRATZ or the match base.
+  const env = container.schedulerEnv;
+  const rehearsing = rehearsalPace(env, schedulerMode(env)) !== null;
+  const stub = rehearsing && RUBRIC_META[rubric].needs.some((need) => STUBBED_NEEDS.includes(need));
+  const staged = rehearsing ? await container.rubricRehearsal.scenarioOf(slot.id).catch(() => null) : null;
+  if (staged !== null) {
+    // The build dies without a word (its lease runs out and the tick takes the slot back): once, or every time.
+    if ((staged.scenario === 'build_crash' && slot.attempt === 1) || staged.scenario === 'build_late') {
+      await container.rubricRehearsal.fire(slot.id);
+      return;
+    }
+    if (staged.scenario === 'build_fail' && slot.candIdx === 0) {
+      await container.rubricRehearsal.fire(slot.id);
+      const code = RUBRIC_META[rubric].needs.includes('browser') ? 'PICTURE_RENDER_FAILED' : 'REHEARSAL_BUILD_FAILED';
+      await record('failed', 'data', code, 'Репетиция: сбой сборки устроен нарочно');
+      await failCandidate(container, slot, code, 'data');
+      return;
+    }
+  }
+
   let built: BuiltRubricPost;
   try {
     history = await slotHistory(container, rubric, slot.id);
     const bet = slot.dedupeKey.startsWith('bet-result:') ? await betOf(container) : undefined;
     // A dated card's slot names it: `card:<id>:<year>`.
     const cardId = slot.dedupeKey.startsWith('card:') ? slot.dedupeKey.split(':')[1] : undefined;
-    built = await buildRubricPost(
-      {
-        ...(await buildDeps(
-          container,
+    built = stub
+      ? stubPost(rubric, slot)
+      : await buildRubricPost(
+          {
+            ...(await buildDeps(
+              container,
+              rubric,
+              requestId,
+              (each) => (turn = each),
+              (ms) => (browserMs += ms)
+            )),
+            history,
+            // The horoscope's round of tellers and the last three shame heroes come from the slots' facts: a build writes
+            // nothing, so a build that never goes out takes nobody's turn.
+            tellers: {
+              used: async () => history.own.find((post) => post.facts.tellers !== undefined)?.facts.tellers ?? [],
+              remember: async () => undefined
+            },
+            shameHeroes: {
+              used: async () =>
+                history.own
+                  .flatMap((post) => (post.facts.shameHero === undefined ? [] : [post.facts.shameHero]))
+                  .slice(0, 3),
+              remember: async () => undefined
+            },
+            ...(bet === undefined ? {} : { bet }),
+            ...(cardId === undefined ? {} : { cardId }),
+            greetingPicture: greetingPictureOf(container)
+          },
           rubric,
-          requestId,
-          (each) => (turn = each),
-          (ms) => (browserMs += ms)
-        )),
-        history,
-        // The horoscope's round of tellers and the last three shame heroes come from the slots' facts: a build writes
-        // nothing, so a build that never goes out takes nobody's turn.
-        tellers: {
-          used: async () => history.own.find((post) => post.facts.tellers !== undefined)?.facts.tellers ?? [],
-          remember: async () => undefined
-        },
-        shameHeroes: {
-          used: async () =>
-            history.own
-              .flatMap((post) => (post.facts.shameHero === undefined ? [] : [post.facts.shameHero]))
-              .slice(0, 3),
-          remember: async () => undefined
-        },
-        ...(bet === undefined ? {} : { bet }),
-        ...(cardId === undefined ? {} : { cardId }),
-        greetingPicture: greetingPictureOf(container)
-      },
-      rubric,
-      {
-        strict: true
-      }
-    );
+          {
+            strict: true
+          }
+        );
   } catch (error) {
     const reason = error instanceof AppError ? (error.details?.['reason'] ?? error.code) : 'BUILD_FAILED';
     // An event rubric with nothing fitting (fewer than three nerfed heroes, no trap) skips quietly, as a content skip.
@@ -502,7 +533,7 @@ export async function runRubricBuild(
 
   // A text too close to one of the rubric's last twenty posts does not go out (§1.7): the next candidate tries.
   const earlier = history.own.slice(0, 20).flatMap((post) => (post.facts.sig === undefined ? [] : [post.facts.sig]));
-  if (built.text !== '' && closest(built.text, earlier) >= SIMILAR_AT) {
+  if (!stub && built.text !== '' && closest(built.text, earlier) >= SIMILAR_AT) {
     await record('skipped', 'data', 'TOO_SIMILAR', null);
     await failCandidate(container, slot, 'TOO_SIMILAR', 'similarity');
     return;

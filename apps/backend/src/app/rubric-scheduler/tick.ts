@@ -2,7 +2,6 @@ import { prepareAnswer } from '../workflows/rubric-first-guess';
 import { listRecentPublications } from '../../modules/publishing';
 import { deletePost } from '../../modules/lifecycle';
 import {
-  BUILD_ATTEMPTS_MAX,
   BUILD_LEASE_MS,
   type ChannelPost,
   exitOf,
@@ -19,8 +18,9 @@ import { rubricDescriptors } from '../rubric-catalog';
 import { RUBRIC_ACTOR } from '../workflows/rubric-actor';
 import { projectSlot } from '../workflows/rubric-project';
 import { releaseSlot } from '../workflows/rubric-release';
+import { failCandidate } from '../workflows/rubric-build';
 import { schedulerState } from './locks';
-import { schedulerCapabilities } from './runtime';
+import { planCapabilities, rehearsalPace } from './runtime';
 import { notifySchedulerFailure } from '../workflows/rubric-notices';
 import { readEvents } from './event-sources';
 import { closePoll } from '../workflows/rubric-poll-close';
@@ -41,6 +41,11 @@ const LOOKBACK_MS = 7 * DAY_MS;
 function nextMonday(day: string): string {
   const weekday = mskWeekday(fromMsk(day, 12 * 60));
   return addMskDays(day, ((8 - weekday) % 7) + (weekday === 1 ? 7 : 0));
+}
+
+/** The week-long test's first day: its first check, or now before there is one. */
+async function rehearsalStart(container: Pick<Container, 'rubricRehearsal'>, now: number): Promise<number> {
+  return (await container.rubricRehearsal.startedAt().catch(() => null)) ?? now;
 }
 
 /** Deletes the studio posts of a slot that will never go out (an off switch, a missed release). */
@@ -103,6 +108,7 @@ export type SchedulerContainer = Pick<
   | 'systemState'
   | 'rubricAnalyticsSources'
   | 'rubricHourSlots'
+  | 'rubricRehearsal'
 >;
 
 export async function runRubricSchedulerTick(
@@ -135,12 +141,18 @@ export async function runRubricSchedulerTick(
     }
     await container.rubricSchedulerSettings.markCleanupDone(now);
   }
-  if (state.locks.length > 0 || state.destination === null) return { ...counts, locked: 1 };
+  if (state.locks.length > 0 || state.destination === null) {
+    // Locked: nothing new is planned, built or released, but posts already handed to publishing are still followed
+    // (sent / unknown, polls closed), so a sent post is never written off as missed and keeps counting.
+    if (state.settings !== null) await followReleased(container, now, state.destination?.chatId ?? null, counts);
+    return { ...counts, locked: 1 };
+  }
 
   const settings = container.rubricSchedulerSettings;
   // Over the day's Browser Rendering cap no picture rubric is planned or built until the Moscow day turns (stage P).
   const browserSpent = (await browserUsedToday(slots, now)) >= browserCapMs(container.schedulerEnv, state.mode);
-  const capabilities = schedulerCapabilities(container.schedulerEnv, state.mode);
+  const capabilities = planCapabilities(container.schedulerEnv, state.mode);
+  const pace = rehearsalPace(container.schedulerEnv, state.mode);
   if (browserSpent) capabilities.delete('browser');
   if (await settings.claimStep('plan', now, now + PLAN_EVERY_MS)) {
     try {
@@ -157,14 +169,20 @@ export async function runRubricSchedulerTick(
           channel: await channelPosts(container, ours, now),
           latestPatchAt: await container.latestPatchAt(),
           horoscopeAnchorWeek: anchorWeek,
-          events: await readEvents(container, now),
+          events: await readEvents(container, now, pace === null ? null : await rehearsalStart(container, now)),
           // The learned hours (stage 8; none before migration 0122) and one trial hour in five pool slots.
           hourSlots: await container.rubricHourSlots().catch(() => ({})),
-          explore: true
+          explore: true,
+          ...(pace === null ? {} : { pace })
         }
       );
       counts.planned = planned.inserted;
       counts.superseded = planned.superseded;
+      // The week-long DEV test: every new slot gets its check (and maybe a staged failure), ended ones a verdict.
+      if (pace !== null) {
+        counts.rehearsalEnlisted = await container.rubricRehearsal.enlist(now);
+        counts.rehearsalJudged = await container.rubricRehearsal.judgeOpen(now);
+      }
       await settings.stepDone('plan', now, null);
     } catch (error) {
       await settings.stepDone('plan', now, error instanceof Error ? error.name.slice(0, 80) : 'PLAN_FAILED');
@@ -196,8 +214,16 @@ export async function runRubricSchedulerTick(
   let projections = 0;
   for (const slot of await slots.due(now, DUE_PER_TICK)) {
     const status = slot.status as LiveStatus;
-    // Past its deadline with nothing done: the slot ends where its state says (§7).
+    // Past its deadline with nothing done: the slot ends where its state says (§7). A post handed to publishing is
+    // looked up once more first: it may have gone out after the last look.
     if (now > slot.deadlineAt) {
+      if (FOLLOWED.has(status)) {
+        const moved = await projectSlot(container, slot, state.destination.chatId);
+        if (moved !== null) {
+          counts[moved] = (counts[moved] ?? 0) + 1;
+          continue;
+        }
+      }
       const to = exitOf(status);
       if (
         await slots.transition({
@@ -249,23 +275,32 @@ export async function runRubricSchedulerTick(
         break;
       }
       case 'building': {
-        // The lease ran out: the build died. Try again while there is time, else the slot ends empty.
-        const again = slot.attempt < BUILD_ATTEMPTS_MAX && now < slot.slotAt - 15 * 60_000;
-        await slots.transition({
-          id: slot.id,
-          from: 'building',
-          attempt: slot.attempt,
-          to: again ? 'planned' : 'empty',
-          now,
-          set: again
-            ? { leaseUntil: null, nextActionAt: now }
-            : { leaseUntil: null, errorCode: 'BUILD_TIMEOUT', errorStep: 'data' }
-        });
+        // The lease ran out: the build died (CPU, memory). Rebuilding the same rubric would pay AI and Browser again
+        // for the same death, so it counts as the candidate's failure (breaker included) and the next one goes.
+        await failCandidate(container, slot, 'BUILD_LOST', 'data');
+        counts.buildLost = (counts.buildLost ?? 0) + 1;
         break;
       }
       case 'ready': {
         if (releases >= RELEASES_PER_TICK) break;
         releases += 1;
+        // A patch landed after the build began: its numbers may be the old patch's, so the post yields (H2).
+        const patchAt = await container.latestPatchAt();
+        if (patchAt !== null && patchAt > slot.buildAt) {
+          if (
+            await slots.transition({
+              id: slot.id,
+              from: 'ready',
+              to: 'superseded',
+              now,
+              set: { errorCode: 'PATCH_CHANGED', errorStep: 'release', leaseUntil: null }
+            })
+          ) {
+            counts.patchChanged = (counts.patchChanged ?? 0) + 1;
+            await dropPosts(container, slot);
+          }
+          break;
+        }
         const ready = await prepareAnswer(container, slot, state.destination.chatId);
         const outcome = await releaseSlot(container, ready, state.destination.id);
         counts[`release_${outcome}`] = (counts[`release_${outcome}`] ?? 0) + 1;
@@ -276,21 +311,70 @@ export async function runRubricSchedulerTick(
       case 'unknown': {
         if (projections >= PROJECTIONS_PER_TICK) break;
         projections += 1;
-        const moved = await projectSlot(container, slot, state.destination.chatId);
-        if (moved === null) {
-          // Nothing new: look again later, on the state's own rhythm.
-          const times = scheduleOf(status, { slotAt: slot.slotAt, buildAt: slot.buildAt }, now);
-          await slots.transition({
-            id: slot.id,
-            from: slot.status,
-            to: slot.status,
-            now,
-            set: { nextActionAt: times.nextActionAt }
-          });
-        } else counts[moved] = (counts[moved] ?? 0) + 1;
+        await followSlot(container, slot, now, state.destination.chatId, counts);
         break;
       }
     }
   }
   return { ...counts, builds, releases, projections };
+}
+
+const FOLLOWED = new Set<LiveStatus>(['released', 'waiting_parent', 'unknown']);
+
+// Reads the publication of a slot handed to publishing; with nothing new, looks again on the state's own rhythm.
+async function followSlot(
+  container: SchedulerContainer,
+  slot: SlotRow,
+  now: number,
+  chatId: string | null,
+  counts: Record<string, number>
+): Promise<void> {
+  const moved = await projectSlot(container, slot, chatId);
+  if (moved !== null) {
+    counts[moved] = (counts[moved] ?? 0) + 1;
+    return;
+  }
+  const status = slot.status as LiveStatus;
+  if (now > slot.deadlineAt) {
+    const to = exitOf(status);
+    if (
+      await container.rubricSlots.transition({
+        id: slot.id,
+        from: slot.status,
+        to,
+        now,
+        set: { errorCode: 'DEADLINE', leaseUntil: null }
+      })
+    )
+      counts[to] = (counts[to] ?? 0) + 1;
+    return;
+  }
+  const times = scheduleOf(status, { slotAt: slot.slotAt, buildAt: slot.buildAt }, now);
+  await container.rubricSlots.transition({
+    id: slot.id,
+    from: slot.status,
+    to: slot.status,
+    now,
+    set: { nextActionAt: times.nextActionAt }
+  });
+}
+
+// While locked: only slots already handed to publishing move (and open polls close on time).
+async function followReleased(
+  container: SchedulerContainer,
+  now: number,
+  chatId: string | null,
+  counts: Record<string, number>
+): Promise<void> {
+  let projections = 0;
+  for (const slot of await container.rubricSlots.due(now, DUE_PER_TICK)) {
+    if (projections >= PROJECTIONS_PER_TICK) break;
+    if (slot.kind === 'poll_close') {
+      projections += 1;
+      await closePoll(container, slot, now);
+    } else if (FOLLOWED.has(slot.status as LiveStatus)) {
+      projections += 1;
+      await followSlot(container, slot, now, chatId, counts);
+    }
+  }
 }

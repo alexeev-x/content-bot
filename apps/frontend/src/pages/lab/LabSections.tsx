@@ -1,7 +1,7 @@
 import { LabAutopublish } from '../../features/lab-autopublish';
 import { BackgroundJobsEditor, useOwnerTimezone } from '../../features/owner-settings';
 import { RubricSamplesList } from '../../features/rubric-samples';
-import { RubricsRareStates } from '../../features/rubrics';
+import { RubricsRareStates, RubricsRehearsal } from '../../features/rubrics';
 import styles from './LabPage.module.css';
 
 export function LabRubrics() {
@@ -31,6 +31,18 @@ export function LabAutopublishSection() {
 
 export function LabBackground() {
   return <BackgroundJobsEditor />;
+}
+
+export function LabRehearsal() {
+  return (
+    <div className={styles.panel}>
+      <p className={styles.intro}>
+        Недельный тест планировщика на DEV: все рубрики за неделю, примерно каждый четвёртый слот с нарочным сбоем.
+        Здесь видно, что должно было случиться, что случилось и как задумано ли. Рубрики с ИИ выходят заглушкой.
+      </p>
+      <RubricsRehearsal />
+    </div>
+  );
 }
 
 export function LabStates() {

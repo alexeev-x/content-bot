@@ -28,9 +28,8 @@ export type AppEnv = Env & {
   FORECAST_CAPABILITIES?: string;
   /** The rubric scheduler: «on» on production, «rehearsal» on DEV (wrangler.jsonc vars); anything else forecasts only. */
   RUBRIC_SCHEDULER?: string;
-  /** DEV rehearsal: the test channel's destination id and its chat id (the only chat the rehearsal may post to). */
-  RUBRIC_REHEARSAL_DESTINATION_ID?: string;
-  RUBRIC_REHEARSAL_CHAT_ID?: string;
+  /** DEV only: «week» runs the rehearsal at the week-long test's pace (wrangler.jsonc env.dev.vars). */
+  RUBRIC_REHEARSAL_PACE?: string;
   /** Browser Rendering time a day for the rubrics, in ms (default 12 min on production, 4 on DEV). */
   BROWSER_DAILY_CAP_MS?: string;
 };

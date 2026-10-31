@@ -1,7 +1,7 @@
 import { addMskDays, fromMsk, minuteOf, mskParts, mskWeekday } from '../../../shared/msk-time';
 import { type ConstraintContext, fitsSlot, violations } from './constraints';
 import type { EventCandidate } from './triggers';
-import type { ChannelPost, ForecastSlot, Need, RubricDescriptor, Weight } from './types';
+import type { ChannelPost, ForecastSlot, Need, Pace, RubricDescriptor, Weight } from './types';
 
 // The scheduler's plan of pool rubrics and weekly anchors over Moscow days (docs/scheduler/area-backend-core.md §5):
 // base slots 12:30 and 19:00 with a stable jitter of ±20 minutes, a morning slot at 08:00 for the rubrics that keep
@@ -48,6 +48,8 @@ export interface PlanInput {
   hourSlots?: Readonly<Record<string, Partial<Record<'day' | 'evening', number>>>>;
   /** Trial hours on (the hour learning runs): one pool slot in five goes an hour off its time. */
   explore?: boolean;
+  /** The DEV week-long rehearsal's faster pace; never on production. */
+  pace?: Pace;
 }
 
 export const HOUR_GROUPS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
@@ -70,14 +72,14 @@ export function missingNeeds(rubric: RubricDescriptor, capabilities: ReadonlySet
  * The start-up seed (§13): with no history every pool rubric would be due at once, so each gets a «last post» that
  * spreads them over the first weeks in a stable order.
  */
-export function seedLastSent(rubrics: RubricDescriptor[], now: number): Record<string, number> {
+export function seedLastSent(rubrics: RubricDescriptor[], now: number, restDivisor = 1): Record<string, number> {
   const pool = rubrics
     .filter((rubric) => rubric.trigger === 'pool' && rubric.restDays !== null)
     .sort((a, b) => stableHash(a.key) - stableHash(b.key) || a.key.localeCompare(b.key));
   const seeded: Record<string, number> = {};
   pool.forEach((rubric, index) => {
-    const rest = rubric.restDays ?? 7;
-    const offset = Math.min(index * (7 / POOL_PER_WEEK), rest - 1);
+    const rest = (rubric.restDays ?? 7) / restDivisor;
+    const offset = Math.min((index * (7 / POOL_PER_WEEK)) / restDivisor, rest - 1 / restDivisor);
     seeded[rubric.key] = now - (rest - offset) * DAY_MS;
   });
   return seeded;
@@ -107,8 +109,10 @@ function isHoroscopeWeek(day: string, anchorWeek: string | null): boolean {
 /** The forecast of the next `days` Moscow days, today included (slots already past are left out). */
 export function plan(input: PlanInput): { slots: ForecastSlot[]; ineligible: Ineligible[] } {
   const byKey = new Map(input.rubrics.map((rubric) => [rubric.key, rubric]));
-  const context: ConstraintContext = { rubrics: byKey };
-  const seeded = seedLastSent(input.rubrics, input.now);
+  const pace = input.pace;
+  const restDivisor = pace?.restDivisor ?? 1;
+  const context: ConstraintContext = { rubrics: byKey, ...(pace === undefined ? {} : { pace }) };
+  const seeded = seedLastSent(input.rubrics, input.now, restDivisor);
   const last: Record<string, number> = { ...seeded };
   for (const [key, at] of Object.entries(input.lastSent)) if (at !== undefined) last[key] = at;
   const ineligible = input.rubrics
@@ -152,7 +156,7 @@ export function plan(input: PlanInput): { slots: ForecastSlot[]; ineligible: Ine
     rubric.silentAfterPatchDays !== null &&
     input.lastHeroPatchAt !== null &&
     at >= input.lastHeroPatchAt &&
-    at < input.lastHeroPatchAt + rubric.silentAfterPatchDays * DAY_MS;
+    at < input.lastHeroPatchAt + (rubric.silentAfterPatchDays / restDivisor) * DAY_MS;
 
   const fits = (rubric: RubricDescriptor, at: number, anchor = false) =>
     at > input.now &&
@@ -219,52 +223,54 @@ export function plan(input: PlanInput): { slots: ForecastSlot[]; ineligible: Ine
         ...(trials.evening === null ? {} : { explore: true })
       },
       { part: 'day', minute: trials.day ?? usual.day, ...(trials.day === null ? {} : { explore: true }) },
-      { part: 'morning', minute: MORNING_SLOT }
+      { part: 'morning', minute: MORNING_SLOT },
+      ...(pace?.extraMinutes ?? []).map((minute) => ({
+        part: minute < 17 * 60 ? ('day' as const) : ('evening' as const),
+        minute: jittered(day, minute, 3 + minute)
+      }))
     ];
     // The day's slots are filled most overdue first, whichever slot that rubric fits: a rubric that only takes the day
     // slot is not starved by the evening always going first.
-    const open = [...parts];
+    const open = parts.map((_, index) => index);
     while (open.length > 0) {
       const candidates = open
-        .flatMap(({ part, minute }) =>
-          runnable
+        .flatMap((slotNo) => {
+          const { part, minute } = parts[slotNo] ?? { part: 'day' as const, minute: DAY_SLOT };
+          return runnable
             .filter((rubric) => rubric.trigger === 'pool' && rubric.restDays !== null)
             .map((rubric) => {
               const at = fromMsk(day, minuteFor(rubric, minute));
               const since = (at - (last[rubric.key] ?? 0)) / DAY_MS;
-              return { rubric, part, at, ratio: since / (rubric.restDays ?? 1), since };
-            })
-        )
+              return { rubric, part, slotNo, at, ratio: since / ((rubric.restDays ?? 1) / restDivisor), since };
+            });
+        })
         .filter(({ rubric, at, part, ratio }) => ratio >= 1 && fitsSlot(rubric, at, part) && fits(rubric, at))
         // The most overdue first, then the longest wait, then the evening, then a stable hash.
         .sort(
           (a, b) =>
             b.ratio - a.ratio ||
             b.since - a.since ||
-            parts.findIndex((each) => each.part === a.part) - parts.findIndex((each) => each.part === b.part) ||
+            a.slotNo - b.slotNo ||
             stableHash(`${day}:${a.rubric.key}`) - stableHash(`${day}:${b.rubric.key}`)
         );
       const chosen = candidates[0];
       if (chosen === undefined) break;
       // Up to two fallbacks that fit the same slot: the build tries them when the chosen one fails.
       const alternates = candidates
-        .filter((each) => each.part === chosen.part && each.rubric.key !== chosen.rubric.key)
+        .filter((each) => each.slotNo === chosen.slotNo && each.rubric.key !== chosen.rubric.key)
         .slice(0, 2)
         .map((each) => each.rubric.key);
-      const trialHour = parts.find((each) => each.part === chosen.part)?.explore === true;
+      const trialHour = parts[chosen.slotNo]?.explore === true;
       place(
         chosen.rubric,
         chosen.at,
         'rest',
-        `Отдых ${chosen.rubric.restDays ?? 0} дн. прошёл${trialHour ? ' · пробный час' : ''}`,
+        `Отдых ${chosen.rubric.restDays ?? 0} дн.${pace === undefined ? '' : ` ÷ ${restDivisor}`} прошёл${trialHour ? ' · пробный час' : ''}`,
         alternates,
         undefined,
         trialHour
       );
-      open.splice(
-        open.findIndex((each) => each.part === chosen.part),
-        1
-      );
+      open.splice(open.indexOf(chosen.slotNo), 1);
     }
   }
   slots.sort((a, b) => a.at - b.at);

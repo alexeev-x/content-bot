@@ -190,7 +190,7 @@ function InsideRubric({ rubric, onRubric }: { rubric: RubricKey; onRubric: (rubr
     { id: 'channel', header: 'К каналу', align: 'end' as const, cell: (row: PostRow) => times(row.xChannel) },
     {
       id: 'status',
-      header: '',
+      header: 'Данные',
       width: 130,
       compactSlot: 'trailing' as const,
       cell: (row: PostRow) => (

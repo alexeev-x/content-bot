@@ -41,6 +41,7 @@ function renderWidget(item: LayoutItem, env: Omit<WidgetEnv, 'phone'>, phone: bo
           onNewPost={env.onNewPost}
           events={env.dayEvents}
           onOpenActivity={env.onOpenActivity}
+          rubricSlots={dashboard?.rubricSlots}
         />
       );
     case 'nextPublication':

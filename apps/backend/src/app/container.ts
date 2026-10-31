@@ -10,6 +10,7 @@ import {
   type WeekSlotsSource
 } from '../modules/rubric-analytics';
 import { createRubricAnalyticsSources, createWeekSlotsSource } from './rubric-analytics/sources';
+import { createRehearsalJournal, type RehearsalJournal } from './rubric-scheduler/rehearsal-journal';
 import { latestPatchPublishedAt, recentDotaItems } from '../modules/dota';
 import {
   createD1BreakerRepository,
@@ -248,6 +249,8 @@ export interface Container {
   ) => Promise<{ externalId: string; publishedAt: number }[]>;
   /** The Worker's settings the rubric scheduler reads: its mode, the rehearsal channel, its capabilities. */
   schedulerEnv: ContainerEnv;
+  /** The DEV week-long rehearsal's journal (migration 0123); written only there. */
+  rubricRehearsal: RehearsalJournal;
   /** When the newest patch note was published: the rubrics' quiet week after a patch. */
   latestPatchAt: () => Promise<number | null>;
   postRevisions: PostRevisionSource;
@@ -381,10 +384,9 @@ export interface Container {
 // still answer there, so the database is resolved when a store is first used, and its absence
 // is a 503 instead of a crash.
 export interface ContainerEnv {
-  /** The rubric scheduler's mode and the DEV rehearsal's channel (app/rubric-scheduler/runtime.ts). */
+  /** The rubric scheduler's mode and the DEV week-long test's pace (app/rubric-scheduler/runtime.ts). */
   RUBRIC_SCHEDULER?: string;
-  RUBRIC_REHEARSAL_DESTINATION_ID?: string;
-  RUBRIC_REHEARSAL_CHAT_ID?: string;
+  RUBRIC_REHEARSAL_PACE?: string;
   FORECAST_CAPABILITIES?: string;
   BROWSER_DAILY_CAP_MS?: string;
   DB?: D1Database;
@@ -629,6 +631,9 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get rubricSlots() {
       return createD1SlotRepository(db());
+    },
+    get rubricRehearsal() {
+      return createRehearsalJournal(db());
     },
     get latestPatchAt() {
       return () => latestPatchPublishedAt(db());

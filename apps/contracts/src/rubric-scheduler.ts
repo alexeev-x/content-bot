@@ -18,7 +18,6 @@ export const rubricLockSchema = z.enum([
   'LAB_OFF',
   'NO_DESTINATION',
   'DESTINATION_DISABLED',
-  'REHEARSAL_DESTINATION',
   'PUBLISHING_OFF'
 ]);
 export type RubricLock = z.infer<typeof rubricLockSchema>;
@@ -181,3 +180,53 @@ export const rubricSlotParamsSchema = z.strictObject({ id: z.uuid() });
  * CONFLICT 409 (details.reason ALREADY_RELEASED | NOT_LIVE).
  */
 export const skipRubricSlotInputSchema = z.strictObject({});
+
+/** GET /api/v1/rubrics/{key}/slots: the rubric's last 30 slots, newest first — went out or not, and why. */
+export const rubricHistorySchema = z.object({ slots: z.array(rubricSlotSchema).max(30) });
+export type RubricHistoryDto = z.infer<typeof rubricHistorySchema>;
+
+export const rehearsalScenarioSchema = z.enum([
+  'none',
+  'build_crash',
+  'build_fail',
+  'build_late',
+  'tg_429',
+  'tg_timeout',
+  'tg_forbidden'
+]);
+export type RehearsalScenario = z.infer<typeof rehearsalScenarioSchema>;
+export const rehearsalVerdictSchema = z.enum(['pending', 'ok', 'bad', 'void']);
+
+/**
+ * GET /api/v1/rubrics/rehearsal: the DEV week-long test's journal (migration 0123) — each slot, the failure staged for
+ * it, the verdict and why. `active` false everywhere but that test (then the lists are empty). Errors: 503
+ * MIGRATION_PENDING while 0123 is not applied.
+ */
+export const rubricRehearsalSchema = z.object({
+  active: z.boolean(),
+  startedAt: z.iso.datetime().nullable(),
+  counts: z.object({
+    ok: z.number().int().min(0),
+    bad: z.number().int().min(0),
+    void: z.number().int().min(0),
+    pending: z.number().int().min(0)
+  }),
+  items: z
+    .array(
+      z.object({
+        slotId: z.uuid(),
+        rubricKey: rubricKeySchema,
+        kind: z.string().max(20),
+        at: z.iso.datetime(),
+        scenario: rehearsalScenarioSchema,
+        fired: z.boolean(),
+        verdict: rehearsalVerdictSchema,
+        state: rubricSlotStateSchema.nullable(),
+        code: z.string().max(80).nullable(),
+        note: z.string().max(300).nullable(),
+        checkedAt: z.iso.datetime().nullable()
+      })
+    )
+    .max(400)
+});
+export type RubricRehearsalDto = z.infer<typeof rubricRehearsalSchema>;

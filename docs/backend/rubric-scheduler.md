@@ -9,14 +9,13 @@ released to publishing a minute before their slot with a deadline, read back unt
 | `RUBRIC_SCHEDULER` | Mode | Posts to | Capabilities |
 |---|---|---|---|
 | `on` (production) | live | the channel the owner picks in «Рубрики» | from the bindings: Browser Rendering, the AI, STRATZ, the match base |
-| `rehearsal` (DEV) | rehearsal | only `RUBRIC_REHEARSAL_DESTINATION_ID` whose chat id is `RUBRIC_REHEARSAL_CHAT_ID` | Browser Rendering only: no AI, STRATZ or match base |
+| `rehearsal` (DEV) | rehearsal | the channel the owner picks in «Рубрики» | Browser Rendering only: no AI, STRATZ or match base |
 | anything else | forecast only | nowhere | — |
 
 ## Locks (`app/rubric-scheduler/locks.ts`)
 
 The tick does nothing while any holds; «Рубрики» shows each: `NOT_HERE`, `SCHEMA` (0119 missing), `SWITCHED_OFF`,
-`LAB_OFF` (DEV: «Рубрики» off in Фоновые задачи), `NO_DESTINATION`, `DESTINATION_DISABLED`, `REHEARSAL_DESTINATION`
-(the rehearsal channel is not set, or a chat other than the test channel), `PUBLISHING_OFF`. Switching off cancels the
+`LAB_OFF` (DEV: «Рубрики» off in Фоновые задачи), `NO_DESTINATION`, `DESTINATION_DISABLED`, `PUBLISHING_OFF`. Switching off cancels the
 slots not yet released once (their studio posts deleted); released ones finish in publishing.
 
 ## The tick (`app/rubric-scheduler/tick.ts`, Cron step `rubric-scheduler`)
@@ -33,7 +32,7 @@ slots not yet released once (their studio posts deleted); released ones finish i
 | State | Next action | Deadline → exit |
 |---|---|---|
 | `planned` | build at slot − 3 h: claim (`building`, lease 15 min) and queue `rubric_build` | slot + 4 min → `empty` |
-| `building` | lease over: again (3 attempts while ≥ 15 min remain) or `empty` | slot + 4 min → `empty` |
+| `building` | lease over: `BUILD_LOST` — the candidate fails (rubric breaker counts it), the next candidate or `empty` | slot + 4 min → `empty` |
 | `ready` | slot − 1 min: release | slot + 4 min → `missed` (posts deleted) |
 | `released` | read the publications back every minute | slot + 30 min → `missed` |
 | `unknown` | read back every 10 min until the owner reconciles in «Публикации» | 7 days → `unresolved` |
@@ -146,3 +145,17 @@ other slot. One pool slot in five goes an hour off its time (a trial hour), so o
 Four weeks from the first scored post the step only logs advice (`rubric_learning_log`); then it applies through
 conditional writes (`rubric_settings.rest_source = 'learned'`, `rubric_hour_slots`), unless the owner turned it off in
 «Рубрики» → «Аналитика» → «Обучение» (owner, 31.10.2026: answer 10). A replay of the step logs and applies nothing twice.
+
+## The DEV week-long test (stage 10, migration 0123)
+
+`RUBRIC_REHEARSAL_PACE=week` in DEV vars only (`app/rubric-scheduler/runtime.ts` `rehearsalPace`); production never reads it (mode `live`).
+
+- **Pace** (`WEEK_PACE`, the plan's `PlanInput.pace`): rests, «apart» days and the quiet after a patch ÷ 8; slots at 10:00, 14:30, 16:30, 21:00 besides 12:30 and 19:00; ≤ 8 posts and 6 rubrics a day, 1 h apart; ≤ 2 interactive a day, 4 h apart; «same week» means the same day. Polls close after 2 h, 04's answer after 1 h (`rubric-after-send.ts`).
+- **Stubs**: a rubric that needs the AI, STRATZ or the match base is planned (`planCapabilities`) and built as a stub text (`rehearsal.ts` `stubPost`, with a stub poll for poll rubrics); no paid call. The similarity check skips stubs.
+- **Events** (`event-sources.ts`): the newest patch counts as out on the test's first day (its chain runs); «Валв-тайм» on day 1, the bet and an announcement on day 2, game-file finds on day 3.
+- **Staged failures** (`scenarioFor`): one slot in four, in turn — `build_crash` (the first build dies; the lost lease counts as `BUILD_LOST` and the next candidate goes), `build_fail` (the first candidate fails; the next one goes), `build_late` (every build dies; the slot ends empty), `tg_429`, `tg_timeout` (the job goes `unknown`, never re-sent), `tg_forbidden` (`send_failed`, rest not spent). Telegram failures are answered by `rehearsal-send.ts` through `DispatchDeps.rehearse` after the send mark, once per slot; Telegram is not called.
+- **Journal** `rubric_rehearsal_checks` (`rehearsal-journal.ts`): the plan step (every 30 min) enlists new slots and judges ended ones (`judge`: ok / bad / void with a Russian note; a slot live 26 h past its time is «stuck»). `GET /api/v1/rubrics/rehearsal`, page `/lab/rehearsal`.
+
+## Why a rubric post did not go out
+
+The slot keeps it: `rubric_slots.status`, `error_code`, `error_step` and every step in `rubric_slot_attempts`. The Russian wording of each code is `apps/contracts/src/rubric-reasons.ts`. «Рубрики» shows a rubric's last 30 slots («История», `GET /api/v1/rubrics/{key}/slots`); «Лента дня» marks rubric posts and shows the day's slots that are not a publication with their reason (`dashboard-routes.ts` adds `rubricKey` and `rubricSlots`).

@@ -18,6 +18,7 @@ import { rateLimit } from './rate-limit';
 import { rubricCapabilities, rubricDescriptors } from './rubric-catalog';
 import { readCalendar, readRubricList, readSchedulerStatus, readSlotDetail } from './rubric-scheduler/read-models';
 import { skipSlot, updateRubric, updateScheduler } from './rubric-scheduler/owner-actions';
+import { readRehearsal, readRubricHistory } from './rubric-scheduler/read-history';
 import { limitBody, validated } from './validation';
 
 // «Рубрики» (rubric scheduler): its state and switch, its slots, every rubric and the 35-day forecast. Thin handlers:
@@ -119,6 +120,18 @@ export const rubricRoutes = new Hono<AppBindings>()
       const detail = await readSlotDetail(container, c.req.valid('param').id);
       return c.json(detail);
     }
+  )
+  .get('/rehearsal', async (c) => {
+    try {
+      return c.json(await readRehearsal(c.get('container')));
+    } catch (error) {
+      if (error instanceof Error && /no such table/i.test(error.message))
+        throw new AppError('UNAVAILABLE', 'The rehearsal journal is missing', { reason: 'MIGRATION_PENDING' });
+      throw error;
+    }
+  })
+  .get('/:key/slots', validated('param', rubricKeyParamsSchema), async (c) =>
+    c.json(await readRubricHistory(c.get('container'), c.req.valid('param').key))
   )
   .get('/', async (c) => c.json({ items: await readRubricList(c.get('container')) }))
   .patch(

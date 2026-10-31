@@ -4,6 +4,7 @@ import { runRubricSchedulerTick } from '../../src/app/rubric-scheduler/tick';
 import { runDispatchNow } from '../../src/app/workflows/dispatch-now';
 import { runRubricBuild } from '../../src/app/workflows/rubric-build';
 import { afterSlotSent } from '../../src/app/workflows/rubric-after-send';
+import { releaseSlot } from '../../src/app/workflows/rubric-release';
 import { closePoll } from '../../src/app/workflows/rubric-poll-close';
 import { testDb } from '../helpers/db';
 import { fakeTransport, type FakeTransport, SENT } from '../helpers/dispatch';
@@ -89,10 +90,78 @@ beforeEach(async () => {
   destinationId = (await seedDestination(api, { chatId: '-1001234567' })).id;
 });
 
+// Switched on, «Цитата дня» planned first; returns that slot still `planned`.
+async function planFirst() {
+  await switchOn();
+  await tick();
+  // Riddles read Valve's live numbers: out of these tests.
+  await testDb().prepare("UPDATE rubric_settings SET enabled = 0 WHERE rubric_key = 'on_lane'").run();
+  await testDb().prepare("UPDATE rubric_slots SET status = 'superseded' WHERE rubric_key = 'on_lane'").run();
+  await testDb()
+    .prepare("UPDATE rubric_settings SET last_sent_at = ?1 WHERE rubric_key = 'quote_of_day'")
+    .bind(START - 60 * 86_400_000)
+    .run();
+  await testDb().prepare("UPDATE rubric_step_marks SET next_due_at = 0 WHERE step = 'plan'").run();
+  await tick();
+  const [first] = (await slots()).filter((slot) => slot.status === 'planned');
+  if (first === undefined) throw new Error('nothing planned');
+  return first;
+}
+
+async function buildFirst() {
+  const first = await planFirst();
+  clock.set(first.build_at);
+  await tick();
+  const job = jobs.find((each) => each.kind === 'rubric_build' && each.slotId === first.id);
+  await runRubricBuild(container(), { slotId: first.id, attempt: job?.attempt ?? 0 }, 'test');
+  return first;
+}
+
+const statusOf = async (id: string) => (await slots()).find((slot) => slot.id === id)?.status;
+
 describe('the rubric scheduler', () => {
   it('does nothing while switched off', async () => {
     expect(await tick()).toMatchObject({ locked: 1 });
     expect(await slots()).toEqual([]);
+  });
+
+  it('still counts a post sent after the switch went off', async () => {
+    const first = await buildFirst();
+    clock.set(first.slot_at - 60_000);
+    await tick();
+    clock.set(first.slot_at);
+    await runDispatchNow(container(), 'test');
+    await testDb().prepare('UPDATE rubric_scheduler_settings SET enabled = 0, off_cleanup_done = 0 WHERE id = 1').run();
+    // Well past the released deadline: the post is read back as sent, not written off as missed.
+    clock.set(first.slot_at + 60 * 60_000);
+    await tick();
+    expect(await statusOf(first.id)).toBe('sent');
+  });
+
+  it('cancels its publication when the slot left ready during the release', async () => {
+    const first = await buildFirst();
+    const stale = await container().rubricSlots.byId(first.id);
+    if (stale === null) throw new Error('no slot');
+    // The owner skipped the slot while the release was creating its publication.
+    await testDb().prepare("UPDATE rubric_slots SET status = 'cancelled' WHERE id = ?1").bind(first.id).run();
+    clock.set(first.slot_at - 60_000);
+    expect(await releaseSlot(container(), stale, destinationId)).toBe('lost');
+    const rows = await testDb().prepare('SELECT status FROM jobs').all<{ status: string }>();
+    expect(rows.results.length).toBeGreaterThan(0);
+    expect(rows.results.every((row) => row.status === 'cancelled')).toBe(true);
+  });
+
+  it('fails the candidate whose build died, instead of building it again', async () => {
+    const first = await planFirst();
+    clock.set(first.build_at);
+    await tick();
+    expect(await statusOf(first.id)).toBe('building');
+    clock.set(first.build_at + 16 * 60_000);
+    await tick();
+    const after = (await slots()).find((slot) => slot.id === first.id);
+    expect(after?.error_code).toBe('BUILD_LOST');
+    // The next candidate takes the slot, or with none left it ends empty: never the same rubric again.
+    expect(after?.status === 'empty' || after?.rubric_key !== first.rubric_key).toBe(true);
   });
 
   it('takes a slot from the plan to a sent post', async () => {
@@ -158,16 +227,60 @@ describe('the rubric scheduler', () => {
     });
   });
 
-  it('never posts outside the test channel in rehearsal', async () => {
-    await switchOn();
-    expect(
-      await tick({
-        RUBRIC_SCHEDULER: 'rehearsal',
-        RUBRIC_REHEARSAL_DESTINATION_ID: destinationId,
-        RUBRIC_REHEARSAL_CHAT_ID: '-100999'
-      })
-    ).toMatchObject({ locked: 1 });
+  it('rehearses only into the channel the owner picked', async () => {
+    await testDb().prepare('UPDATE rubric_scheduler_settings SET enabled = 1 WHERE id = 1').run();
+    expect(await tick({ RUBRIC_SCHEDULER: 'rehearsal' })).toMatchObject({ locked: 1 });
     expect(await slots()).toEqual([]);
+    await switchOn();
+    expect(await tick({ RUBRIC_SCHEDULER: 'rehearsal' })).not.toMatchObject({ locked: 1 });
+  });
+
+  it('runs the week-long test: each slot checked, a staged lost channel never reaching Telegram', async () => {
+    const week = { RUBRIC_SCHEDULER: 'rehearsal', RUBRIC_REHEARSAL_PACE: 'week' } as const;
+    await switchOn();
+    await tick(week);
+    await testDb().prepare("UPDATE rubric_settings SET enabled = 0 WHERE rubric_key = 'on_lane'").run();
+    await testDb().prepare("UPDATE rubric_slots SET status = 'superseded' WHERE rubric_key = 'on_lane'").run();
+    await testDb().prepare("UPDATE rubric_step_marks SET next_due_at = 0 WHERE step = 'plan'").run();
+    await tick(week);
+    const planned = (await slots()).filter((slot) => slot.status === 'planned');
+    // How many fit is the plan's own test (plan.test.ts): here every planned slot must have its check.
+    expect(planned.length).toBeGreaterThan(0);
+    const checks = await testDb()
+      .prepare('SELECT slot_id, scenario FROM rubric_rehearsal_checks')
+      .all<{ slot_id: string; scenario: string }>();
+    // Replanned slots keep their check (their verdict is «не в счёт»); every live one has its own.
+    const checked = new Set(checks.results.map((row) => row.slot_id));
+    expect(planned.every((slot) => checked.has(slot.id))).toBe(true);
+
+    const [first] = planned;
+    if (first === undefined) throw new Error('nothing planned');
+    await testDb()
+      .prepare("UPDATE rubric_rehearsal_checks SET scenario = 'tg_forbidden' WHERE slot_id = ?1")
+      .bind(first.id)
+      .run();
+    clock.set(first.build_at);
+    await tick(week);
+    const job = jobs.find((each) => each.kind === 'rubric_build' && each.slotId === first.id);
+    await runRubricBuild(container(week), { slotId: first.id, attempt: job?.attempt ?? 0 }, 'test');
+    expect((await slots()).find((slot) => slot.id === first.id)?.status).toBe('ready');
+    clock.set(first.slot_at - 60_000);
+    await tick(week);
+    clock.set(first.slot_at);
+    await runDispatchNow(container(week), 'test');
+    // The staged answer stood in for Telegram: nothing was sent.
+    expect(transport.calls).toEqual([]);
+    clock.set(first.slot_at + 2 * 60_000);
+    await tick(week);
+    expect((await slots()).find((slot) => slot.id === first.id)?.status).toBe('send_failed');
+
+    await testDb().prepare("UPDATE rubric_step_marks SET next_due_at = 0 WHERE step = 'plan'").run();
+    await tick(week);
+    const check = await testDb()
+      .prepare('SELECT fired, verdict, status FROM rubric_rehearsal_checks WHERE slot_id = ?1')
+      .bind(first.id)
+      .first<{ fired: number; verdict: string; status: string }>();
+    expect(check).toEqual({ fired: 1, verdict: 'ok', status: 'send_failed' });
   });
 });
 

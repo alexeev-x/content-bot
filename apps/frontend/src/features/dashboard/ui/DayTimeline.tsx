@@ -1,9 +1,15 @@
-import type { ActivityItemDto, DashboardPublicationDto } from '@alexeev/contracts';
-import { Link } from '@tanstack/react-router';
+import {
+  type ActivityItemDto,
+  type DashboardDto,
+  type DashboardPublicationDto,
+  RUBRIC_TITLES,
+  rubricSlotReason
+} from '@alexeev/contracts';
+import { Link, useNavigate } from '@tanstack/react-router';
 import type { CSSProperties } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
 import { formatClock } from '../../../shared/lib/clock';
-import { Button, Icon, Skeleton, statusMeta, Tooltip } from '../../../shared/ui';
+import { Button, Icon, type IconName, Skeleton, statusMeta, type StatusGroup, Tooltip } from '../../../shared/ui';
 import { activityView, groupByTime } from '../model/activity-view';
 import { dayPercent, placeMarkers } from '../model/timeline';
 import { avatarLetter, toneStyle } from '../model/tone';
@@ -18,6 +24,37 @@ const GAP_PHONE = 11;
 const GAP_DESKTOP = 3.5;
 const HOURS = [0, 3, 6, 9, 12, 15, 18, 21, 24];
 
+type RubricSlot = NonNullable<DashboardDto['rubricSlots']>[number];
+type Entry =
+  | { kind: 'publication'; scheduledAt: string; item: DashboardPublicationDto }
+  | { kind: 'slot'; scheduledAt: string; slot: RubricSlot };
+
+/** A rubric slot's tone on the line: being prepared, out, not out, or set aside. */
+function slotTone(state: RubricSlot['state']): { group: StatusGroup; icon: IconName } {
+  switch (state) {
+    case 'planned':
+      return { group: 'pending', icon: 'clock' };
+    case 'building':
+    case 'ready':
+    case 'released':
+    case 'waiting_parent':
+      return { group: 'active', icon: 'loader' };
+    case 'unknown':
+    case 'unresolved':
+      return { group: 'unknown', icon: 'help' };
+    case 'sent':
+      return { group: 'done', icon: 'check-circle' };
+    case 'partial':
+      return { group: 'retry', icon: 'retry' };
+    case 'send_failed':
+    case 'missed':
+    case 'empty':
+      return { group: 'failed', icon: 'x-circle' };
+    default:
+      return { group: 'muted', icon: 'minus-circle' };
+  }
+}
+
 type Props = {
   items: readonly DashboardPublicationDto[] | undefined;
   total: number;
@@ -30,6 +67,8 @@ type Props = {
   /** The day's studio events for the second lane; undefined while loading. Sends already show as markers. */
   events?: readonly ActivityItemDto[] | undefined;
   onOpenActivity?: (items: readonly ActivityItemDto[]) => void;
+  /** The day's rubric slots that are not a publication (yet): being prepared, or not out and why. */
+  rubricSlots?: DashboardDto['rubricSlots'];
 };
 
 // Events closer than one dot width (percent of the day) share a dot: ~1.5 h on desktop, ~3 h on a phone.
@@ -47,20 +86,31 @@ export function DayTimeline({
   onOpenPublication,
   onNewPost,
   events,
-  onOpenActivity
+  onOpenActivity,
+  rubricSlots
 }: Props) {
+  const navigate = useNavigate();
   const eventGroups = groupByTime(
     (events ?? [])
       .filter((event) => event.action !== 'job.succeeded')
       .map((event) => ({ event, percent: dayPercent(event.at, day) })),
     phone ? EVENT_GAP_PHONE : EVENT_GAP_DESKTOP
   );
-  const markers = items ? placeMarkers(items, day, phone ? GAP_PHONE : GAP_DESKTOP, LANES) : [];
+  const entries: Entry[] = items
+    ? [
+        ...items.map((item) => ({ kind: 'publication' as const, scheduledAt: item.scheduledAt, item })),
+        ...(rubricSlots ?? []).map((slot) => ({ kind: 'slot' as const, scheduledAt: slot.at, slot }))
+      ]
+    : [];
+  const markers = placeMarkers(entries, day, phone ? GAP_PHONE : GAP_DESKTOP, LANES);
   const nowPercent = dayPercent(now.getTime(), day);
-  const empty = items !== undefined && items.length === 0;
+  const empty = items !== undefined && items.length === 0 && (rubricSlots ?? []).length === 0;
   const showEvents = onOpenActivity !== undefined;
   const sent = items?.filter((item) => item.status === 'sent').length ?? 0;
-  const problems = items?.filter((item) => item.status === 'failed' || item.status === 'unknown').length ?? 0;
+  // A rubric slot that ended without going out is a problem of the day too.
+  const problems =
+    (items?.filter((item) => item.status === 'failed' || item.status === 'unknown').length ?? 0) +
+    (rubricSlots ?? []).filter((slot) => slotTone(slot.state).group === 'failed').length;
   const eventCount = eventGroups.reduce((sum, group) => sum + group.length, 0);
   return (
     <Widget
@@ -108,10 +158,60 @@ export function DayTimeline({
             {/* While loading, the scale stays empty: placeholder dots sat where no publication was and jumped away. */}
             {items === undefined ? null : (
               <ul className={styles.markers} aria-label={copy.line.title}>
-                {markers.map(({ item, percent, lane }) => {
+                {markers.map(({ item: entry, percent, lane }) => {
+                  if (entry.kind === 'slot') {
+                    const { slot } = entry;
+                    const tone = slotTone(slot.state);
+                    const clock = formatClock(slot.at, timezone);
+                    const reason = rubricSlotReason(slot.code);
+                    const status = copy.line.slotStatus(copy.line.slotStates[slot.state], reason);
+                    const title = RUBRIC_TITLES[slot.rubricKey];
+                    return (
+                      <li
+                        key={slot.slotId}
+                        className={styles.markerSlot}
+                        data-lane={lane}
+                        style={
+                          { insetInlineStart: percent + '%', '--lane': lane, ...toneStyle(tone.group) } as CSSProperties
+                        }
+                      >
+                        <Tooltip
+                          content={
+                            <span className={styles.tip}>
+                              <strong>{copy.line.rubric(title)}</strong>
+                              <span>
+                                {clock} · {status}
+                              </span>
+                            </span>
+                          }
+                        >
+                          <AriaButton
+                            className={styles.marker}
+                            data-rubric="slot"
+                            aria-label={copy.line.slotMarker(title, clock, status)}
+                            onPress={() => void navigate({ to: '/rubrics' })}
+                          >
+                            {phone ? (
+                              <Icon name={tone.icon} size={16} />
+                            ) : (
+                              <>
+                                <span className={styles.letter}>{copy.line.rubricLetter}</span>
+                                <span className={styles.badge}>
+                                  <Icon name={tone.icon} size={10} />
+                                </span>
+                              </>
+                            )}
+                          </AriaButton>
+                        </Tooltip>
+                      </li>
+                    );
+                  }
+                  const { item } = entry;
                   const meta = statusMeta(item.status);
                   const clock = formatClock(item.scheduledAt, timezone);
-                  const status = item.postOrigin ? copy.line.byAi(meta.label, item.postOrigin.source) : meta.label;
+                  const byAi = item.postOrigin ? copy.line.byAi(meta.label, item.postOrigin.source) : meta.label;
+                  const rubric = item.rubricKey == null ? null : RUBRIC_TITLES[item.rubricKey];
+                  const status = rubric === null ? byAi : copy.line.rubric(rubric) + ' · ' + byAi;
                   return (
                     <li
                       key={item.publicationId}
@@ -134,6 +234,7 @@ export function DayTimeline({
                       >
                         <AriaButton
                           className={styles.marker}
+                          data-rubric={rubric === null ? undefined : 'post'}
                           aria-label={copy.line.marker(item.postTitle, item.destinationName, clock, status)}
                           onPress={() => onOpenPublication(item.publicationId)}
                         >
@@ -141,7 +242,9 @@ export function DayTimeline({
                             <Icon name={meta.icon} size={16} />
                           ) : (
                             <>
-                              <span className={styles.letter}>{avatarLetter(item.destinationName)}</span>
+                              <span className={styles.letter}>
+                                {rubric === null ? avatarLetter(item.destinationName) : copy.line.rubricLetter}
+                              </span>
                               <span className={styles.badge}>
                                 <Icon name={meta.icon} size={10} />
                               </span>

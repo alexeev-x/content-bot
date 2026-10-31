@@ -23,6 +23,7 @@ import { Route as SourcesRouteImport } from './routes/sources';
 import { Route as LabIndexRouteImport } from './routes/lab.index';
 import { Route as LabAutopublishRouteImport } from './routes/lab.autopublish';
 import { Route as LabBackgroundRouteImport } from './routes/lab.background';
+import { Route as LabRehearsalRouteImport } from './routes/lab.rehearsal';
 import { Route as LabRubricsRouteImport } from './routes/lab.rubrics';
 import { Route as LabStatesRouteImport } from './routes/lab.states';
 import { Route as PostsIndexRouteImport } from './routes/posts/index';
@@ -106,6 +107,11 @@ const LabAutopublishRoute = LabAutopublishRouteImport.update({
 const LabBackgroundRoute = LabBackgroundRouteImport.update({
   id: '/background',
   path: '/background',
+  getParentRoute: () => LabRoute,
+} as any);
+const LabRehearsalRoute = LabRehearsalRouteImport.update({
+  id: '/rehearsal',
+  path: '/rehearsal',
   getParentRoute: () => LabRoute,
 } as any);
 const LabRubricsRoute = LabRubricsRouteImport.update({
@@ -193,6 +199,7 @@ export interface FileRoutesByFullPath {
   '/sources': typeof SourcesRoute;
   '/lab/autopublish': typeof LabAutopublishRoute;
   '/lab/background': typeof LabBackgroundRoute;
+  '/lab/rehearsal': typeof LabRehearsalRoute;
   '/lab/rubrics': typeof LabRubricsRoute;
   '/lab/states': typeof LabStatesRoute;
   '/posts/$id': typeof PostsIdRouteWithChildren;
@@ -221,6 +228,7 @@ export interface FileRoutesByTo {
   '/sources': typeof SourcesRoute;
   '/lab/autopublish': typeof LabAutopublishRoute;
   '/lab/background': typeof LabBackgroundRoute;
+  '/lab/rehearsal': typeof LabRehearsalRoute;
   '/lab/rubrics': typeof LabRubricsRoute;
   '/lab/states': typeof LabStatesRoute;
   '/posts/$id': typeof PostsIdRouteWithChildren;
@@ -252,6 +260,7 @@ export interface FileRoutesById {
   '/sources': typeof SourcesRoute;
   '/lab/autopublish': typeof LabAutopublishRoute;
   '/lab/background': typeof LabBackgroundRoute;
+  '/lab/rehearsal': typeof LabRehearsalRoute;
   '/lab/rubrics': typeof LabRubricsRoute;
   '/lab/states': typeof LabStatesRoute;
   '/posts/$id': typeof PostsIdRouteWithChildren;
@@ -284,6 +293,7 @@ export interface FileRouteTypes {
     | '/sources'
     | '/lab/autopublish'
     | '/lab/background'
+    | '/lab/rehearsal'
     | '/lab/rubrics'
     | '/lab/states'
     | '/posts/$id'
@@ -312,6 +322,7 @@ export interface FileRouteTypes {
     | '/sources'
     | '/lab/autopublish'
     | '/lab/background'
+    | '/lab/rehearsal'
     | '/lab/rubrics'
     | '/lab/states'
     | '/posts/$id'
@@ -342,6 +353,7 @@ export interface FileRouteTypes {
     | '/sources'
     | '/lab/autopublish'
     | '/lab/background'
+    | '/lab/rehearsal'
     | '/lab/rubrics'
     | '/lab/states'
     | '/posts/$id'
@@ -476,6 +488,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof LabBackgroundRouteImport;
       parentRoute: typeof LabRoute;
     };
+    '/lab/rehearsal': {
+      id: '/lab/rehearsal';
+      path: '/rehearsal';
+      fullPath: '/lab/rehearsal';
+      preLoaderRoute: typeof LabRehearsalRouteImport;
+      parentRoute: typeof LabRoute;
+    };
     '/lab/rubrics': {
       id: '/lab/rubrics';
       path: '/rubrics';
@@ -580,6 +599,7 @@ declare module '@tanstack/react-router' {
 interface LabRouteChildren {
   LabAutopublishRoute: typeof LabAutopublishRoute;
   LabBackgroundRoute: typeof LabBackgroundRoute;
+  LabRehearsalRoute: typeof LabRehearsalRoute;
   LabRubricsRoute: typeof LabRubricsRoute;
   LabStatesRoute: typeof LabStatesRoute;
   LabIndexRoute: typeof LabIndexRoute;
@@ -588,6 +608,7 @@ interface LabRouteChildren {
 const LabRouteChildren: LabRouteChildren = {
   LabAutopublishRoute: LabAutopublishRoute,
   LabBackgroundRoute: LabBackgroundRoute,
+  LabRehearsalRoute: LabRehearsalRoute,
   LabRubricsRoute: LabRubricsRoute,
   LabStatesRoute: LabStatesRoute,
   LabIndexRoute: LabIndexRoute,

@@ -2,6 +2,7 @@ import type { WeekBlockRepository } from '../modules/rubric-analytics';
 import { readRubricWeekLines } from './rubric-analytics/week-lines';
 import { schedulerMode } from './rubric-scheduler/runtime';
 import { runRubricSchedulerTick } from './rubric-scheduler/tick';
+import { rehearsalSendFault } from './rubric-scheduler/rehearsal-send';
 import { AppError } from '../shared/app-error';
 import type { BackgroundJob } from '@alexeev/contracts';
 import {
@@ -109,6 +110,7 @@ type TickContainer = Pick<
   | 'clock'
   | 'rubricAnalyticsSources'
   | 'rubricHourSlots'
+  | 'rubricRehearsal'
   | 'logger'
   | 'publishing'
   | 'settings'
@@ -278,6 +280,7 @@ export async function handleScheduled(
 
   if (container.publishing.enabled) {
     await step('dispatch', async () => {
+      const rehearse = rehearsalSendFault(container);
       const summary = await dispatchDueJobs({
         repo: dispatchJobs,
         posts: container.postRevisions,
@@ -285,7 +288,8 @@ export async function handleScheduled(
         clock,
         logger,
         newId: container.newId,
-        random: container.random
+        random: container.random,
+        ...(rehearse === undefined ? {} : { rehearse })
       });
       if (summary.errors > 0) {
         failures += 1;

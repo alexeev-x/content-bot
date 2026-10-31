@@ -164,6 +164,13 @@
   cursor: pointer;
   transition: transform var(--motion-fast) ease-out;
 }
+/* A rubric post is a rounded square, a rubric slot not yet a publication a dashed one (owner, 31.10.2026). */
+.marker[data-rubric] {
+  border-radius: var(--radius-2);
+}
+.marker[data-rubric='slot'] {
+  border-style: dashed;
+}
 .marker[data-hovered] {
   transform: scale(1.12);
 }

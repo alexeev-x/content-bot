@@ -9,6 +9,8 @@ import {
   getRubricForecast,
   getRubricList,
   getRubricSchedulerStatus,
+  getRubricHistory,
+  getRubricRehearsal,
   getRubricSlot,
   listRubricChannels,
   skipRubricSlot,
@@ -24,6 +26,8 @@ const rubricKeys = {
   calendar: (from: string, to: string) => [...rubricKeys.all, 'calendar', from, to] as const,
   list: () => [...rubricKeys.all, 'list'] as const,
   slot: (id: string) => [...rubricKeys.all, 'slot', id] as const,
+  history: (key: string) => [...rubricKeys.all, 'history', key] as const,
+  rehearsal: () => [...rubricKeys.all, 'rehearsal'] as const,
   channels: () => [...rubricKeys.all, 'channels'] as const,
   compare: (days: number) => [...rubricKeys.all, 'compare', days] as const,
   posts: (rubric: string, days: string) => [...rubricKeys.all, 'posts', rubric, days] as const,
@@ -109,6 +113,23 @@ export function rubricListQueryOptions() {
   });
 }
 
+export function rubricHistoryQueryOptions(key: RubricKey) {
+  return queryOptions({
+    queryKey: rubricKeys.history(key),
+    queryFn: ({ signal }) => getRubricHistory(key, signal),
+    staleTime: 30_000
+  });
+}
+
+export function rubricRehearsalQueryOptions() {
+  return queryOptions({
+    queryKey: rubricKeys.rehearsal(),
+    queryFn: ({ signal }) => getRubricRehearsal(signal),
+    staleTime: 30_000,
+    refetchInterval: 60_000
+  });
+}
+
 export function rubricSlotQueryOptions(id: string) {
   return queryOptions({
     queryKey: rubricKeys.slot(id),
@@ -131,7 +152,8 @@ function useRubricMutation<TInput, TResult>(mutationFn: (input: TInput) => Promi
   return useMutation({
     mutationFn,
     retry: false,
-    onSuccess: () => client.invalidateQueries({ queryKey: rubricKeys.all })
+    // Also after a refusal: a 409 means the screen is stale, and the next try needs the fresh revision.
+    onSettled: () => client.invalidateQueries({ queryKey: rubricKeys.all })
   });
 }
 

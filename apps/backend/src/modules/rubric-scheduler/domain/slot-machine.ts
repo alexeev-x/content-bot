@@ -33,8 +33,6 @@ const MINUTE_MS = 60_000;
 export const BUILD_LEAD_MS = 3 * 60 * MINUTE_MS;
 /** How long one build may take before the tick takes it back. */
 export const BUILD_LEASE_MS = 15 * MINUTE_MS;
-/** A build tried this many times ends the candidate. */
-export const BUILD_ATTEMPTS_MAX = 3;
 /** Released a minute before its time, so the dispatcher's next tick sends it on time. */
 export const RELEASE_LEAD_MS = MINUTE_MS;
 /** A ready post not released by then is missed: it would go out late. */

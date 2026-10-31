@@ -100,12 +100,11 @@
         "STATS_BRIDGE_URL": "https://alexeev-stats.onrender.com,https://content-bot-stats-bridge.vercel.app",
         "ANALYTICS_TELEGRAM_CHANNEL": "alexeev_x",
         "ANALYTICS_YOUTUBE_CHANNEL_ID": "UCE-VQmi1Qym7MrEzHg9ngjA",
-        // The rubric scheduler rehearses into the test channel without AI (owner, 30.10.2026). The test channel's
-        // destination id and chat id: until both are set the rehearsal stays locked (REHEARSAL_DESTINATION).
+        // The rubric scheduler rehearses without AI into the channel the owner picks in «Рубрики» (owner, 31.10.2026).
         "RUBRIC_SCHEDULER": "rehearsal",
+        // The week-long test (owner, 31.10.2026): every rubric within a week, staged failures, a journal in /lab.
+        "RUBRIC_REHEARSAL_PACE": "week",
         "BROWSER_DAILY_CAP_MS": "240000",
-        "RUBRIC_REHEARSAL_DESTINATION_ID": "",
-        "RUBRIC_REHEARSAL_CHAT_ID": "",
         // DEV forecasts what production would plan.
         "FORECAST_CAPABILITIES": "browser,ai_text,ai_image,ai_upscale,stratz,stats_db"
       }

@@ -156,6 +156,8 @@ function probe(
         return Promise.resolve({ jobAttempts: 0, resolvedIncidents: 0, auditRows: 0 });
       }
     },
+    // The DEV week-long test never runs here: production's scheduler mode.
+    schedulerEnv: {},
     ownerMessenger: null,
     ownerChatId: null,
     systemState: {

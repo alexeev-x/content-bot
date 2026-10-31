@@ -16,6 +16,7 @@ export async function projectSlot(
     | 'rubricSchedulerSettings'
     | 'audience'
     | 'rubricBets'
+    | 'schedulerEnv'
     | 'newId'
     | 'logger'
   >,

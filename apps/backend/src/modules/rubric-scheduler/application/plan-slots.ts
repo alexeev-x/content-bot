@@ -37,6 +37,8 @@ export interface PlanSlotsInput {
   /** Learned slot starts by day group (stage 8) and whether trial hours are on. */
   hourSlots?: PlanInput['hourSlots'];
   explore?: boolean;
+  /** The DEV week-long rehearsal's pace; never on production. */
+  pace?: PlanInput['pace'];
 }
 
 /** Whether a slot is past re-planning: being built or about to be. */
@@ -128,7 +130,8 @@ export async function planSlots(
     horoscopeAnchorWeek: input.horoscopeAnchorWeek,
     events: input.events.filter((event) => !taken.has(event.dedupeKey)),
     ...(input.hourSlots === undefined ? {} : { hourSlots: input.hourSlots }),
-    ...(input.explore === undefined ? {} : { explore: input.explore })
+    ...(input.explore === undefined ? {} : { explore: input.explore }),
+    ...(input.pace === undefined ? {} : { pace: input.pace })
   });
 
   const descriptors = new Map(input.rubrics.map((rubric) => [rubric.key, rubric]));

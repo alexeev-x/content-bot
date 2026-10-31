@@ -1,5 +1,5 @@
 import { mskDayIndex, mskMinuteOfDay, mskWeekday } from '../../../shared/msk-time';
-import type { ChannelPost, RubricDescriptor, Violation } from './types';
+import type { ChannelPost, Pace, RubricDescriptor, Violation } from './types';
 
 // The owner's hard rules over every post of the channel, ours and the news (RUBRICS_SCHEDULER.md, release-model.md):
 // a candidate post either fits all of them at its time or is not placed. Pure: the same occupants give the same answer.
@@ -10,6 +10,7 @@ export const WINDOW_TO_MINUTE = 23 * 60;
 export const DAY_POSTS_MAX = 3;
 export const DAY_RUBRICS_MAX = 2;
 export const GAP_MS = 2 * HOUR_MS;
+const INTERACTIVE_DAY_MAX = 1;
 const INTERACTIVE_WEEK_MAX = 4;
 const INTERACTIVE_GAP_MS = 40 * HOUR_MS;
 /** Three news posts in a day make it heavy: one rubric at most, and a light one. */
@@ -39,6 +40,8 @@ export interface ConstraintContext {
   rubrics: ReadonlyMap<string, RubricDescriptor>;
   /** Whether this candidate is an anchor (horoscope Monday): the day may then carry a third rubric. */
   anchor?: boolean;
+  /** The DEV week-long rehearsal's looser limits; absent: the owner's rules. */
+  pace?: Pace;
 }
 
 export function violations(
@@ -47,26 +50,35 @@ export function violations(
   context: ConstraintContext
 ): Violation[] {
   const found: Violation[] = [];
+  const pace = context.pace;
+  const dayPostsMax = pace?.dayPosts ?? DAY_POSTS_MAX;
+  const dayRubricsMax = pace?.dayRubrics ?? DAY_RUBRICS_MAX;
+  const gapMs = pace?.gapMs ?? GAP_MS;
+  const restDivisor = pace?.restDivisor ?? 1;
   const minute = mskMinuteOfDay(candidate.at);
   if (minute < WINDOW_FROM_MINUTE || minute > WINDOW_TO_MINUTE) found.push('WINDOW');
 
   const day = mskDayIndex(candidate.at);
   const sameDay = occupants.filter((post) => mskDayIndex(post.at) === day);
-  if (sameDay.length + 1 > DAY_POSTS_MAX) found.push('DAY_POSTS');
+  if (sameDay.length + 1 > dayPostsMax) found.push('DAY_POSTS');
   const rubricsToday = sameDay.filter((post) => post.rubric !== null);
-  if (rubricsToday.length + 1 > DAY_RUBRICS_MAX + (context.anchor === true ? 1 : 0)) found.push('DAY_RUBRICS');
+  if (rubricsToday.length + 1 > dayRubricsMax + (context.anchor === true ? 1 : 0)) found.push('DAY_RUBRICS');
   const newsToday = sameDay.length - rubricsToday.length;
   if (newsToday >= HEAVY_DAY_NEWS && (rubricsToday.length > 0 || candidate.weight !== 'L')) found.push('HEAVY_DAY');
 
-  if (occupants.some((post) => Math.abs(post.at - candidate.at) < GAP_MS)) found.push('GAP');
+  if (occupants.some((post) => Math.abs(post.at - candidate.at) < gapMs)) found.push('GAP');
 
   if (candidate.interactive) {
     const interactive = occupants.filter((post) => post.interactive);
-    if (interactive.some((post) => mskDayIndex(post.at) === day)) found.push('INTERACTIVE_DAY');
-    if (interactive.some((post) => Math.abs(post.at - candidate.at) < INTERACTIVE_GAP_MS))
+    if (
+      interactive.filter((post) => mskDayIndex(post.at) === day).length + 1 >
+      (pace?.interactiveDay ?? INTERACTIVE_DAY_MAX)
+    )
+      found.push('INTERACTIVE_DAY');
+    if (interactive.some((post) => Math.abs(post.at - candidate.at) < (pace?.interactiveGapMs ?? INTERACTIVE_GAP_MS)))
       found.push('INTERACTIVE_GAP');
     const window = interactive.filter((post) => Math.abs(post.at - candidate.at) < 7 * 24 * HOUR_MS);
-    if (window.length + 1 > INTERACTIVE_WEEK_MAX) found.push('INTERACTIVE_WEEK');
+    if (window.length + 1 > (pace?.interactiveWeek ?? INTERACTIVE_WEEK_MAX)) found.push('INTERACTIVE_WEEK');
   }
 
   if (candidate.family !== null && rubricsToday.some((post) => post.family === candidate.family))
@@ -82,11 +94,14 @@ export function violations(
     if (pairedDay && mskDayIndex(post.at) === day) found.push('SAME_DAY');
     const pairedWeek =
       (own?.sameWeek.includes(post.rubric) ?? false) || (other?.sameWeek.includes(candidate.rubric) ?? false);
-    if (pairedWeek && mskWeekIndex(post.at) === week) found.push('SAME_WEEK');
+    // A week shrinks to a day in the rehearsal: the whole test is one week.
+    if (pairedWeek && (pace === undefined ? mskWeekIndex(post.at) === week : mskDayIndex(post.at) === day))
+      found.push('SAME_WEEK');
     const apart =
       own?.apart.find((rule) => rule.key === post.rubric)?.days ??
       other?.apart.find((rule) => rule.key === candidate.rubric)?.days;
-    if (apart !== undefined && Math.abs(post.at - candidate.at) < apart * 24 * HOUR_MS) found.push('APART');
+    if (apart !== undefined && Math.abs(post.at - candidate.at) < (apart / restDivisor) * 24 * HOUR_MS)
+      found.push('APART');
   }
 
   if (runLength([...occupants], candidate) > (candidate.weight === 'V' ? V_RUN_MAX : L_RUN_MAX))

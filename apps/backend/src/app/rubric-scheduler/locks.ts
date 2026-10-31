@@ -1,19 +1,12 @@
 import type { SchedulerSettings } from '../../modules/rubric-scheduler';
 import type { Container } from '../container';
-import { rehearsalTarget, type SchedulerEnv, schedulerMode, type SchedulerMode } from './runtime';
+import { type SchedulerEnv, schedulerMode, type SchedulerMode } from './runtime';
 
 // What stops the scheduler right now (area-backend-core §14). Locks are state, never errors: «Рубрики» shows them and
 // the tick does nothing while any holds. Only the off-switch cleanup still runs.
 
 export type LockCode =
-  | 'NOT_HERE'
-  | 'SCHEMA'
-  | 'SWITCHED_OFF'
-  | 'LAB_OFF'
-  | 'NO_DESTINATION'
-  | 'DESTINATION_DISABLED'
-  | 'REHEARSAL_DESTINATION'
-  | 'PUBLISHING_OFF';
+  'NOT_HERE' | 'SCHEMA' | 'SWITCHED_OFF' | 'LAB_OFF' | 'NO_DESTINATION' | 'DESTINATION_DISABLED' | 'PUBLISHING_OFF';
 
 export interface SchedulerState {
   mode: SchedulerMode;
@@ -43,15 +36,13 @@ export async function schedulerState(
   if (!container.publishing.enabled) locks.push('PUBLISHING_OFF');
   if (mode === 'rehearsal' && !(await labOn())) locks.push('LAB_OFF');
 
-  // The rehearsal posts only to the test channel, whatever the switch names; live posts where the owner chose.
-  const rehearsal = mode === 'rehearsal' ? rehearsalTarget(env) : null;
-  const destinationId = mode === 'rehearsal' ? (rehearsal?.destinationId ?? null) : settings.destinationId;
+  // Both modes post where the owner chose in «Рубрики» (owner, 31.10.2026: DEV picks its channel like autoposting).
+  const destinationId = settings.destinationId;
   let destination: SchedulerState['destination'] = null;
-  if (destinationId === null) locks.push(mode === 'rehearsal' ? 'REHEARSAL_DESTINATION' : 'NO_DESTINATION');
+  if (destinationId === null) locks.push('NO_DESTINATION');
   else {
     const record = await container.destinations.findById(destinationId);
     if (record === null || !record.enabled) locks.push('DESTINATION_DISABLED');
-    else if (rehearsal !== null && record.chatId !== rehearsal.chatId) locks.push('REHEARSAL_DESTINATION');
     else destination = { id: record.id, chatId: record.chatId, title: record.title };
   }
   return { mode, settings, locks, destination };

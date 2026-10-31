@@ -49,6 +49,7 @@ export async function resetDb(): Promise<void> {
       'rubric_week_blocks',
       'rubric_learning_log',
       'rubric_hour_slots',
+      'rubric_rehearsal_checks',
       'tg_comments',
       'tg_comment_threads',
       'tg_post_audience',

@@ -1,8 +1,16 @@
 export { plan, seedLastSent, stableHash, missingNeeds, type PlanInput } from './domain/plan';
 export { violations, fitsSlot } from './domain/constraints';
-export type { ChannelPost, ForecastSlot, Need, RubricDescriptor, RubricSlot, Violation, Weight } from './domain/types';
+export type {
+  ChannelPost,
+  ForecastSlot,
+  Need,
+  Pace,
+  RubricDescriptor,
+  RubricSlot,
+  Violation,
+  Weight
+} from './domain/types';
 export {
-  BUILD_ATTEMPTS_MAX,
   BUILD_LEASE_MS,
   COUNTING_STATUSES,
   ENDED_STATUSES,

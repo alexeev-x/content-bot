@@ -54,7 +54,7 @@ export function SlotState({ state }: { state: RubricSlotDto['state'] }) {
 
 const SKIPPABLE: readonly RubricSlotDto['state'][] = ['planned', 'building', 'ready'];
 
-function SlotDrawer({ id, onClose }: { id: string; onClose: () => void }) {
+export function SlotDrawer({ id, onClose }: { id: string; onClose: () => void }) {
   const slot = useQuery(rubricSlotQueryOptions(id));
   const skip = useSkipRubricSlot();
   const toast = useToast();
@@ -79,7 +79,7 @@ function SlotDrawer({ id, onClose }: { id: string; onClose: () => void }) {
         <Skeleton width="100%" height={160} />
       ) : slot.isError ? (
         <ErrorState
-          message={copy.error}
+          message={copy.loadError}
           requestId={slot.error instanceof ApiError ? slot.error.requestId : undefined}
           onRetry={() => void slot.refetch()}
         />
@@ -139,7 +139,19 @@ function SlotDrawer({ id, onClose }: { id: string; onClose: () => void }) {
                 setConfirming(false);
                 toast.show({ tone: 'success', title: copy.slots.skipDone });
               },
-              onError: () => toast.show({ tone: 'error', title: copy.slots.skipFailed })
+              onError: (error) => {
+                const reason = error instanceof ApiError ? error.details?.['reason'] : undefined;
+                toast.show({
+                  tone: 'error',
+                  title:
+                    reason === 'ALREADY_RELEASED'
+                      ? copy.slots.skipReleased
+                      : reason === 'NOT_LIVE'
+                        ? copy.slots.skipEnded
+                        : copy.slots.skipFailed
+                });
+                setConfirming(false);
+              }
             })
           }
         />
@@ -160,7 +172,7 @@ export function UpcomingSlots({ today }: { today: string }) {
         <Skeleton width="100%" height={96} />
       ) : slots.isError ? (
         <ErrorState
-          message={copy.error}
+          message={copy.loadError}
           requestId={slots.error instanceof ApiError ? slots.error.requestId : undefined}
           onRetry={() => void slots.refetch()}
         />
@@ -173,7 +185,7 @@ export function UpcomingSlots({ today }: { today: string }) {
               <button
                 type="button"
                 className={styles.slotRow}
-                aria-label={copy.slots.open(RUBRIC_TITLES[slot.rubricKey], mskWhen(slot.at))}
+                aria-label={`${copy.slots.open(RUBRIC_TITLES[slot.rubricKey], mskWhen(slot.at))}: ${copy.slots.states[slot.state]}`}
                 onClick={() => setOpen(slot.id)}
               >
                 <time dateTime={slot.at} className={styles.slotWhen}>

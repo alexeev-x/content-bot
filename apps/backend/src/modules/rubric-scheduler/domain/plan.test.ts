@@ -211,4 +211,41 @@ describe('plan', () => {
   it('is the same plan for the same input', () => {
     expect(run([])).toEqual(run([]));
   });
+
+  it('puts every pool rubric out within a week at the DEV rehearsal pace, and only then', () => {
+    const pace = {
+      restDivisor: 8,
+      extraMinutes: [10 * 60, 14 * 60 + 30, 16 * 60 + 30, 21 * 60],
+      dayPosts: 8,
+      dayRubrics: 6,
+      gapMs: 60 * 60_000,
+      interactiveDay: 2,
+      interactiveGapMs: 4 * 60 * 60_000,
+      interactiveWeek: 14
+    };
+    const fast = plan({ ...base(), days: 7, pace }).slots;
+    for (const each of POOL.filter((one) => one.trigger === 'pool'))
+      expect(
+        fast.some((slot) => slot.rubric === each.key),
+        each.key
+      ).toBe(true);
+    // Without the pace the same week keeps the owner's two rubrics a day.
+    const usual = plan({ ...base(), days: 7 }).slots;
+    const perDay = new Map<number, number>();
+    for (const slot of usual) perDay.set(mskDayIndex(slot.at), (perDay.get(mskDayIndex(slot.at)) ?? 0) + 1);
+    expect(Math.max(...perDay.values())).toBeLessThanOrEqual(3);
+    expect(fast.length).toBeGreaterThan(usual.length);
+  });
 });
+
+function base() {
+  return {
+    now: NOW,
+    rubrics: POOL,
+    lastSent: {},
+    channel: [],
+    capabilities: ALL,
+    lastHeroPatchAt: null,
+    horoscopeAnchorWeek: '2026-11-09'
+  };
+}

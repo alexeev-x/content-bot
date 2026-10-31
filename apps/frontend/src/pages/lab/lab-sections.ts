@@ -3,5 +3,6 @@ export const LAB_SECTIONS = [
   { to: '/lab/rubrics', label: 'Рубрики' },
   { to: '/lab/autopublish', label: 'Автопубликация' },
   { to: '/lab/background', label: 'Фоновые задачи' },
+  { to: '/lab/rehearsal', label: 'Репетиция' },
   { to: '/lab/states', label: 'Редкие состояния' }
 ] as const;

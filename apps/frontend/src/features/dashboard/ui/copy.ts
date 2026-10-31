@@ -59,6 +59,29 @@ export const copy = {
       `${count} ${pluralRu(count, 'публикация', 'публикации', 'публикаций')} за день, слева направо от 00:00 до 24:00`,
     marker: (title: string, channel: string, clock: string, status: string) =>
       `${clock}, ${status}: «${title}», ${channel}`,
+    /** A rubric post or slot (owner, 31.10.2026: rubrics show as rubrics on the day line). */
+    rubric: (title: string) => `Рубрика «${title}»`,
+    rubricLetter: 'Р',
+    slotStatus: (state: string, reason: string | null) => (reason === null ? state : state + ': ' + reason),
+    slotMarker: (title: string, clock: string, status: string) => `${clock}, рубрика «${title}»: ${status}`,
+    slotStates: {
+      planned: 'готовится',
+      building: 'собирается',
+      ready: 'собрана, ждёт времени',
+      released: 'отправляется',
+      waiting_parent: 'ждёт первый пост',
+      unknown: 'неизвестно, вышла ли',
+      sent: 'вышла',
+      partial: 'вышла частично',
+      unresolved: 'не проверено',
+      send_failed: 'не вышла',
+      missed: 'не вышла',
+      empty: 'не вышла',
+      skipped: 'пропуск',
+      yielded: 'уступила место',
+      cancelled: 'отменена',
+      superseded: 'заменена'
+    },
     /** The status of a post the AI wrote: published on its own (`auto`) or approved by the owner. */
     byAi: (status: string, source: 'bot' | 'studio' | 'auto') =>
       `${status} · ${source === 'auto' ? 'опубликовал ИИ' : 'написал ИИ'}`

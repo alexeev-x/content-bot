@@ -39,6 +39,11 @@ export interface DispatchDeps {
   newId: () => string;
   /** In [0, 1): spreads retries so rate-limited jobs do not all return in the same minute. */
   random: () => number;
+  /**
+   * The DEV week-long rehearsal only: a staged Telegram answer for this post, used instead of sending (after the mark,
+   * like a real send). Absent on production.
+   */
+  rehearse?: (postId: string) => Promise<SendOutcome | null>;
 }
 
 export interface DispatchSummary {
@@ -228,13 +233,16 @@ async function dispatchJob(deps: DispatchDeps, jobId: string, budget: TickBudget
     return 'not_sent';
   }
 
-  const outcome = await sendOnce(deps, target.chatId, {
-    ...message,
-    media,
-    options: revision.sendOptions,
-    poll,
-    richHtml
-  });
+  const staged = deps.rehearse === undefined ? null : await deps.rehearse(target.postId).catch(() => null);
+  const outcome =
+    staged ??
+    (await sendOnce(deps, target.chatId, {
+      ...message,
+      media,
+      options: revision.sendOptions,
+      poll,
+      richHtml
+    }));
   return resolveSent(deps, budget, claimed, startedAt, context, outcome);
 }
 

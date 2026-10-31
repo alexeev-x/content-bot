@@ -52,7 +52,8 @@
   list-style: none;
 }
 
-.slotRow {
+.slotRow,
+.journalRow {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
@@ -69,11 +70,13 @@
   cursor: pointer;
 }
 
-.slotRow:hover {
+.slotRow:hover,
+.journalRow:hover {
   background: var(--color-surface-2);
 }
 
-.slotRow:focus-visible {
+.slotRow:focus-visible,
+.journalRow:focus-visible {
   outline: 2px solid var(--color-accent);
   outline-offset: 2px;
 }
@@ -135,7 +138,7 @@
 .rubricControls {
   display: flex;
   flex-wrap: wrap;
-  align-items: end;
+  align-items: center;
   justify-content: space-between;
   gap: var(--space-3);
 }
@@ -148,11 +151,24 @@
 }
 
 @media (width < 600px) {
-  .slotRow {
+  .slotRow,
+  .journalRow {
     grid-template-columns: minmax(0, 1fr) auto;
   }
 
   .slotWhen {
     grid-column: 1 / -1;
   }
+}
+
+.stack {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.journalPills {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: end;
+  gap: var(--space-1);
 }

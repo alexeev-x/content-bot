@@ -1,4 +1,4 @@
-import { createPublication, createPublicationSeries } from '../../modules/publishing';
+import { cancelPublication, createPublication, createPublicationSeries } from '../../modules/publishing';
 import { NOT_AFTER_MS, scheduleOf, type SlotRow } from '../../modules/rubric-scheduler';
 import { AppError } from '../../shared/app-error';
 import { describeError } from '../../platform/error-detail';
@@ -56,7 +56,7 @@ export async function releaseSlot(
   };
   const scheduledAt = new Date(slot.slotAt).toISOString();
   const notAfter = slot.slotAt + NOT_AFTER_MS;
-  let publicationIds: string[];
+  let created: { id: string; revision: number }[];
   try {
     const [first] = posts;
     if (posts.length === 1 && first !== undefined) {
@@ -66,7 +66,7 @@ export async function releaseSlot(
         notAfter,
         input: { postId: first.postId, revision: first.revision, destinationId, scheduledAt, timezone: MOSCOW }
       });
-      publicationIds = [publication.id];
+      created = [{ id: publication.id, revision: publication.revision }];
     } else {
       const series = await createPublicationSeries(deps, {
         actor: RUBRIC_ACTOR,
@@ -81,9 +81,21 @@ export async function releaseSlot(
           intervalMinutes: SERIES_INTERVAL_MINUTES
         }
       });
-      publicationIds = series.publications.map((publication) => publication.id);
+      created = series.publications.map((publication) => ({ id: publication.id, revision: publication.revision }));
     }
   } catch (error) {
+    // Another tick holds this slot's key, or D1/network failed for a moment: the slot stays ready and the next
+    // tick replays the same key (same publication); the ready deadline still ends it as missed.
+    if (!(error instanceof AppError) || error.details?.['reason'] === 'IN_FLIGHT') {
+      container.logger.warn({
+        component: 'rubric_scheduler',
+        operation: 'release',
+        status: 'retry',
+        jobId: slot.id,
+        errorCode: error instanceof AppError ? error.code : 'RELEASE_ERROR'
+      });
+      return 'lost';
+    }
     // Refused for good (the post changed, the channel went away): the slot ends; never retried into a late post.
     await container.rubricSlots.recordAttempt({
       slotId: slot.id,
@@ -93,7 +105,7 @@ export async function releaseSlot(
       outcome: 'failed',
       provider: null,
       httpStatus: null,
-      errorCode: error instanceof AppError ? (error.details?.['reason'] ?? error.code) : 'RELEASE_FAILED',
+      errorCode: error.details?.['reason'] ?? error.code,
       message: describeError(error),
       startedAt: now,
       finishedAt: container.clock.now()
@@ -104,13 +116,14 @@ export async function releaseSlot(
       to: 'send_failed',
       now,
       set: {
-        errorCode: error instanceof AppError ? (error.details?.['reason'] ?? error.code) : 'RELEASE_FAILED',
+        errorCode: error.details?.['reason'] ?? error.code,
         errorStep: 'release'
       }
     }))
       ? 'failed'
       : 'lost';
   }
+  const publicationIds = created.map((publication) => publication.id);
   const times = scheduleOf('released', { slotAt: slot.slotAt, buildAt: slot.buildAt }, now);
   const moved = await container.rubricSlots.transition({
     id: slot.id,
@@ -124,7 +137,27 @@ export async function releaseSlot(
       deadlineAt: times.deadlineAt
     }
   });
+  if (!moved) {
+    // The slot left ready meanwhile (skipped, switched off, or another tick released it). Unless that tick released
+    // these same publications, they must not go out under a slot that no longer counts them.
+    const current = await container.rubricSlots.byId(slot.id);
+    if (current?.status !== 'released' || current.publicationId !== publicationIds[0])
+      for (const publication of created)
+        await cancelPublication(
+          { repo: container.publications, now, notifier: silentNotifier },
+          { actor: RUBRIC_ACTOR, id: publication.id, input: { revision: publication.revision } }
+        ).catch((error: unknown) => {
+          container.logger.error({
+            component: 'rubric_scheduler',
+            operation: 'release_orphan_cancel',
+            status: 'failed',
+            jobId: publication.id,
+            errorCode: error instanceof AppError ? error.code : 'CANCEL_FAILED'
+          });
+        });
+    return 'lost';
+  }
   // A post due within the minute goes now rather than at the next tick.
-  if (moved && slot.slotAt <= now + 60_000) await kickDispatch(container).catch(() => undefined);
-  return moved ? 'released' : 'lost';
+  if (slot.slotAt <= now + 60_000) await kickDispatch(container).catch(() => undefined);
+  return 'released';
 }

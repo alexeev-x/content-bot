@@ -2,14 +2,21 @@ import { RUBRIC_META, type RubricKey } from '../../modules/rubrics';
 import { type SlotRow } from '../../modules/rubric-scheduler';
 import { mskParts } from '../../shared/msk-time';
 import type { Container } from '../container';
+import { rehearsalPace, schedulerMode } from '../rubric-scheduler/runtime';
 
 // What follows a rubric post that went out (area-backend-core §11.2): its poll is registered with the audience module
 // and gets a `poll_close` slot at its close time (24 h polls, 7-day quizzes and bets); a «Кого понерфят?» bet opens,
 // its result closes it. Each step is idempotent: a repeated read-back changes nothing.
 
 const HOUR_MS = 3_600_000;
+/** The week-long DEV test closes polls and answers riddles sooner, so a week sees many of them. */
+const REHEARSAL_POLL_HOURS = 2;
+const REHEARSAL_FOLLOW_UP_MINUTES = 60;
 
-type AfterSendContainer = Pick<Container, 'audience' | 'rubricSlots' | 'rubricBets' | 'newId' | 'clock' | 'logger'>;
+type AfterSendContainer = Pick<
+  Container,
+  'audience' | 'rubricSlots' | 'rubricBets' | 'newId' | 'clock' | 'logger' | 'schedulerEnv'
+>;
 
 export async function afterSlotSent(
   container: AfterSendContainer,
@@ -18,6 +25,7 @@ export async function afterSlotSent(
 ): Promise<void> {
   const meta = RUBRIC_META[slot.rubricKey as RubricKey];
   const now = container.clock.now();
+  const rehearsing = rehearsalPace(container.schedulerEnv, schedulerMode(container.schedulerEnv)) !== null;
   const chatId = sent.chatId === null ? NaN : Number(sent.chatId);
   // The poll is the last message of the post (a picture, then its poll).
   const pollMessage = Number(sent.messageIds.at(-1));
@@ -27,7 +35,7 @@ export async function afterSlotSent(
     Number.isSafeInteger(chatId) &&
     Number.isSafeInteger(pollMessage)
   ) {
-    const closesAt = sent.at + meta.poll.closeAfterHours * HOUR_MS;
+    const closesAt = sent.at + (rehearsing ? REHEARSAL_POLL_HOURS : meta.poll.closeAfterHours) * HOUR_MS;
     await container.audience
       .registerPoll({ pollId: sent.pollId, chatId, messageId: pollMessage, publishedAt: sent.at, closesAt })
       .catch(() => undefined);
@@ -75,7 +83,8 @@ export async function afterSlotSent(
   const followUp = slot.build?.followUp;
   if (followUp !== undefined && slot.kind !== 'follow_up') {
     for (let attempt = 0; attempt < 6; attempt += 1) {
-      const at = Math.ceil((sent.at + followUp.afterMinutes * 60_000) / 60_000) * 60_000 + attempt * 10 * 60_000;
+      const after = rehearsing ? REHEARSAL_FOLLOW_UP_MINUTES : followUp.afterMinutes;
+      const at = Math.ceil((sent.at + after * 60_000) / 60_000) * 60_000 + attempt * 10 * 60_000;
       const id = container.newId();
       const inserted = await container.rubricSlots.insert(
         [

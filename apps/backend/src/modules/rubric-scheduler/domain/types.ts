@@ -35,6 +35,23 @@ export interface RubricDescriptor {
   hasPoll: boolean;
 }
 
+/**
+ * The DEV week-long rehearsal's pace (owner, 31.10.2026: «тест будет неделя»): rests and «apart» days shortened, more
+ * slots a day, looser gaps, so every rubric goes out within a week. Never on production.
+ */
+export interface Pace {
+  /** Rests, «apart» days and the quiet after a patch are divided by this. */
+  restDivisor: number;
+  /** Extra slot starts (Moscow minutes) besides the usual two; before 17:00 they are day slots, after evening ones. */
+  extraMinutes: number[];
+  dayPosts: number;
+  dayRubrics: number;
+  gapMs: number;
+  interactiveDay: number;
+  interactiveGapMs: number;
+  interactiveWeek: number;
+}
+
 /** A post in the channel, ours or the news, at its (planned) time. */
 export interface ChannelPost {
   at: number;

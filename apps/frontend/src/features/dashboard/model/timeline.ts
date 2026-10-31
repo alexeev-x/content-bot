@@ -1,6 +1,6 @@
 import type { DashboardPublicationDto } from '@alexeev/contracts';
 
-export type Marker = { item: DashboardPublicationDto; percent: number; lane: number };
+export type Marker<T = DashboardPublicationDto> = { item: T; percent: number; lane: number };
 
 /** Position of an instant inside its owner-zone day, 0..100 (a 23 or 25 hour day still spans the whole track). */
 export function dayPercent(iso: string | number, day: { from: string; to: string }): number {
@@ -14,12 +14,12 @@ export function dayPercent(iso: string | number, day: { from: string; to: string
  * Markers sorted by time. Neighbours closer than `gap` percent drop into the next lane so two sends scheduled
  * minutes apart stay separate, focusable targets.
  */
-export function placeMarkers(
-  items: readonly DashboardPublicationDto[],
+export function placeMarkers<T extends { scheduledAt: string }>(
+  items: readonly T[],
   day: { from: string; to: string },
   gap: number,
   lanes: number
-): Marker[] {
+): Marker<T>[] {
   const sorted = [...items].sort((a, b) => Date.parse(a.scheduledAt) - Date.parse(b.scheduledAt));
   const lastInLane: number[] = [];
   return sorted.map((item) => {

@@ -35,7 +35,7 @@ export async function updateScheduler(
   const now = container.clock.now();
   const current = await container.rubricSchedulerSettings.read();
   const destinationId = input.destinationId === undefined ? current.destinationId : input.destinationId;
-  if (input.enabled && destinationId === null && schedulerMode(container.schedulerEnv) === 'live')
+  if (input.enabled && destinationId === null)
     throw new AppError('VALIDATION_ERROR', 'Choose the channel first', { reason: 'DESTINATION_REQUIRED' });
   if (destinationId !== null) {
     const destination = await container.destinations.findById(destinationId);

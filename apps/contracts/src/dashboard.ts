@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { publicationStatusSchema } from './publications';
 import { postOriginSchema } from './post-origin';
+import { rubricKeySchema } from './rubric-keys';
+import { rubricSlotStateSchema } from './rubric-scheduler';
 
 /** The longest day the client may ask for: a 25-hour DST day plus slack. */
 export const DASHBOARD_MAX_RANGE_MS = 48 * 60 * 60 * 1000;
@@ -8,6 +10,7 @@ export const DASHBOARD_ATTENTION_LIMIT = 5;
 export const DASHBOARD_TODAY_LIMIT = 8;
 export const DASHBOARD_UPCOMING_LIMIT = 5;
 export const DASHBOARD_RECENT_SENT_LIMIT = 5;
+export const DASHBOARD_RUBRIC_SLOTS_LIMIT = 12;
 /** `attentionTotal` never exceeds this: 99 means "99 or more". */
 export const DASHBOARD_ATTENTION_TOTAL_CAP = 99;
 /** `todayTotal` never exceeds this. */
@@ -41,7 +44,9 @@ export const dashboardPublicationSchema = z.object({
   postTitle: z.string(),
   destinationName: z.string(),
   /** Studio-only: who wrote the post (as `PostDto.origin`); null — the owner. */
-  postOrigin: postOriginSchema.nullable().optional()
+  postOrigin: postOriginSchema.nullable().optional(),
+  /** The rubric this publication is a post of (the scheduler released it); absent or null — not a rubric. */
+  rubricKey: rubricKeySchema.nullable().optional()
 });
 export type DashboardPublicationDto = z.infer<typeof dashboardPublicationSchema>;
 
@@ -81,6 +86,23 @@ export const dashboardSchema = z.object({
   upcoming: z.array(dashboardPublicationSchema).max(DASHBOARD_UPCOMING_LIMIT),
   /** The last 5 `sent` publications, latest scheduled first. */
   recentSent: z.array(dashboardSentSchema).max(DASHBOARD_RECENT_SENT_LIMIT),
+  /**
+   * The rubric slots of [from, to) not (yet) a publication: still being prepared, or ended without going out (built
+   * too late, failed, no data…) with why. «Лента дня» shows them beside the posts. Absent where the scheduler does not
+   * run.
+   */
+  rubricSlots: z
+    .array(
+      z.object({
+        slotId: z.uuid(),
+        rubricKey: rubricKeySchema,
+        at: z.iso.datetime(),
+        state: rubricSlotStateSchema,
+        code: z.string().max(80).nullable()
+      })
+    )
+    .max(DASHBOARD_RUBRIC_SLOTS_LIMIT)
+    .optional(),
   generatedAt: z.iso.datetime()
 });
 export type DashboardDto = z.infer<typeof dashboardSchema>;

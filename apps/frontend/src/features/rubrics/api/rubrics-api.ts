@@ -5,6 +5,8 @@ import {
   rubricLearningSchema,
   rubricPostsSchema,
   rubricCalendarSchema,
+  rubricHistorySchema,
+  rubricRehearsalSchema,
   rubricForecastSchema,
   rubricItemSchema,
   rubricListSchema,
@@ -33,6 +35,14 @@ export function getRubricCalendar(from: string, to: string, signal?: AbortSignal
 
 export function getRubricList(signal?: AbortSignal) {
   return apiRequest('/api/v1/rubrics', rubricListSchema, { signal });
+}
+
+export function getRubricHistory(key: RubricKey, signal?: AbortSignal) {
+  return apiRequest(`/api/v1/rubrics/${key}/slots`, rubricHistorySchema, { signal });
+}
+
+export function getRubricRehearsal(signal?: AbortSignal) {
+  return apiRequest('/api/v1/rubrics/rehearsal', rubricRehearsalSchema, { signal });
 }
 
 export function getRubricSlot(id: string, signal?: AbortSignal) {

@@ -2,6 +2,7 @@ import { dispatchDueJobs } from '../../modules/publishing';
 import { getOwnerOperationsSettings } from '../../modules/settings';
 import type { Container } from '../container';
 import { notifyOwnerOfDeliveries } from '../notifications/sent-notice';
+import { rehearsalSendFault } from '../rubric-scheduler/rehearsal-send';
 
 // A publication due now is sent at once instead of on the next Cron tick (review 24.10.2026: every automatic post
 // waited 30 s on average, up to a minute). The queue message only wakes the same dispatcher Cron runs: the conditional
@@ -25,6 +26,7 @@ export async function runDispatchNow(container: Container, requestId: string): P
   if (!container.publishing.enabled) return;
   const { clock, logger } = container;
   const startedAt = clock.now();
+  const rehearse = rehearsalSendFault(container);
   const summary = await dispatchDueJobs({
     repo: container.dispatchJobs,
     posts: container.postRevisions,
@@ -32,7 +34,8 @@ export async function runDispatchNow(container: Container, requestId: string): P
     clock,
     logger,
     newId: container.newId,
-    random: container.random
+    random: container.random,
+    ...(rehearse === undefined ? {} : { rehearse })
   });
   logger.info({
     component: 'dispatch_now',

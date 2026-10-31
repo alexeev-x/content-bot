@@ -1,3 +1,4 @@
+import { rubricSlotReason } from '@alexeev/contracts';
 // «Рубрики» copy, kept beside the feature like the bot's.
 export const rubricsCopy = {
   title: 'Рубрики',
@@ -12,6 +13,8 @@ export const rubricsCopy = {
   empty: 'В ближайшие 35 дней рубрик нет',
   emptyHint: 'Ни одна рубрика не отдохнула или все слоты заняты другими постами.',
   error: 'Не удалось получить прогноз. Повторите запрос.',
+  loadError: 'Не удалось загрузить. Повторите запрос.',
+  migrationPending: 'Нужна миграция базы: раздел заработает после неё.',
   loading: 'Считаем прогноз…',
   unavailableTitle: (count: number) => `Не могут выходить на этом сервере: ${count}`,
   needs: {
@@ -30,12 +33,14 @@ export const rubricsCopy = {
     switch: 'Рубрики выходят сами',
     channel: 'Канал',
     channelPlaceholder: 'Выберите канал',
-    rehearsal: (title: string) => `Репетиция на DEV: в тестовый канал «${title}», без ИИ.`,
+    rehearsal: (title: string) => `Репетиция на DEV: в канал «${title}», без ИИ.`,
     effective: { running: 'Работает', switched_off: 'Выключена', locked: 'Остановлена', unavailable: 'Только прогноз' },
     next: (title: string, when: string) => `Следующая: «${title}», ${when} МСК`,
     lastPlan: (when: string) => `План пересчитан в ${when} МСК`,
     browser: (used: number, cap: number) => `Картинки сегодня: ${used} из ${cap} мин браузера`,
     saveError: 'Не удалось изменить. Обновите страницу и повторите.',
+    stale: 'Пока вы смотрели, настройки изменились. Экран обновлён — повторите.',
+    channelsError: 'Не удалось загрузить список каналов.',
     locks: {
       NOT_HERE: 'На этом сервере планировщик не работает: только прогноз.',
       NOT_BUILT: 'Планировщик ещё не включён на этом сервере: только прогноз.',
@@ -44,7 +49,6 @@ export const rubricsCopy = {
       LAB_OFF: 'На DEV включите «Рубрики» в Настройки → Фоновые задачи.',
       NO_DESTINATION: 'Выберите канал.',
       DESTINATION_DISABLED: 'Канал выключен или удалён: выберите другой.',
-      REHEARSAL_DESTINATION: 'Тестовый канал репетиции не задан (RUBRIC_REHEARSAL_DESTINATION_ID и _CHAT_ID).',
       PUBLISHING_OFF: 'Публикация выключена на сервере (PUBLISHING_ENABLED).'
     }
   },
@@ -75,13 +79,23 @@ export const rubricsCopy = {
     fallbacks: 'Запасные рубрики',
     attempts: 'Шаги',
     noAttempts: 'Шагов ещё не было.',
-    problem: (code: string, step: string | null) => (step === null ? `Код: ${code}` : `Шаг ${step}, код: ${code}`),
+    problem: (code: string, step: string | null) =>
+      `${rubricSlotReason(code) ?? code}${step === null ? ` (код ${code})` : ` (шаг ${step}, код ${code})`}`,
     skip: 'Пропустить слот',
     skipTitle: (title: string, when: string) => `Пропустить «${title}» ${when}?`,
     skipBody: 'Пост не выйдет, рубрика сохранит очередь и выйдет в другой день. Если пост уже собран, он удалится.',
     skipDone: 'Слот пропущен',
     skipFailed: 'Не удалось пропустить слот',
+    skipReleased: 'Пост уже передан в публикацию: отмените его в «Публикациях».',
+    skipEnded: 'Слот уже закончился.',
     outcomes: { ok: 'готово', failed: 'сбой', skipped: 'пропуск', degraded: 'с потерями' }
+  },
+  history: {
+    open: (title: string) => `История «${title}»`,
+    button: 'История',
+    title: (title: string) => `«${title}»: когда выходила и почему нет`,
+    empty: 'Слотов ещё не было.',
+    slot: (when: string) => `Открыть слот ${when}`
   },
   list: {
     caption: 'Все рубрики канала',
@@ -98,7 +112,7 @@ export const rubricsCopy = {
     saved: 'Сохранено',
     enabled: (title: string) => `«${title}» выходит`,
     lastPost: (when: string, seeded: boolean) =>
-      seeded ? `Первый выход по плану: ${when}` : `Последний пост: ${when}`,
+      seeded ? 'Ещё не выходила: очередь по плану' : `Последний пост: ${when}`,
     noLastPost: 'Ещё не выходила',
     next: (when: string) => `Следующий: ${when} МСК`,
     restError: 'Отдых — от 7 до 60 дней.'

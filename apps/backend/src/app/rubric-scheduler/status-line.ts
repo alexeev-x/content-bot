@@ -11,7 +11,6 @@ const LOCKS: Record<RubricSchedulerStatusDto['locks'][number]['code'], string> =
   LAB_OFF: 'выключены в фоновых задачах',
   NO_DESTINATION: 'не выбран канал',
   DESTINATION_DISABLED: 'канал выключен',
-  REHEARSAL_DESTINATION: 'не задан тестовый канал',
   PUBLISHING_OFF: 'публикация выключена'
 };
 

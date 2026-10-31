@@ -14,7 +14,7 @@ import { rubricCapabilities } from '../rubric-catalog';
 import { rubricDescriptors } from '../rubric-catalog';
 import { browserCapMs, browserUsedToday } from './browser-budget';
 import { schedulerState } from './locks';
-import { schedulerCapabilities, schedulerMode } from './runtime';
+import { planCapabilities, schedulerMode } from './runtime';
 
 // What «Рубрики» reads: the scheduler's state, its slots and every rubric, composed from the scheduler's own tables.
 
@@ -106,7 +106,7 @@ export async function readCalendar(container: ReadContainer, from: string, to: s
 export async function readRubricList(container: ReadContainer): Promise<RubricItemDto[]> {
   const settings = new Map((await container.rubricSchedulerSettings.rubrics()).map((row) => [row.rubricKey, row]));
   const env = container.schedulerEnv;
-  const capabilities = schedulerCapabilities(env, schedulerMode(env));
+  const capabilities = planCapabilities(env, schedulerMode(env));
   const live = (await container.rubricSlots.live()).filter((slot) =>
     (LIVE_STATUSES as readonly string[]).includes(slot.status)
   );

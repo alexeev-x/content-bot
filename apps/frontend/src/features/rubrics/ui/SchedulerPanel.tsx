@@ -2,7 +2,17 @@ import { RUBRIC_TITLES, type RubricSchedulerStatusDto } from '@alexeev/contracts
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
-import { Banner, ErrorState, Panel, Select, Skeleton, StatusPill, Switch, type StatusGroup } from '../../../shared/ui';
+import {
+  Banner,
+  ErrorState,
+  Panel,
+  Select,
+  Skeleton,
+  StatusPill,
+  Switch,
+  type StatusGroup,
+  useToast
+} from '../../../shared/ui';
 import { rubricChannelsQueryOptions, rubricStatusQueryOptions, useUpdateRubricScheduler } from '../api/rubrics-queries';
 import { mskTime, mskWhen } from '../model/msk';
 import { rubricsCopy as copy } from './copy';
@@ -21,10 +31,12 @@ const EFFECTIVE: Record<
 /** «Автопубликация рубрик»: the state, the switch, the channel and whatever stops the scheduler now. */
 export function SchedulerPanel() {
   const status = useQuery(rubricStatusQueryOptions());
-  const live = status.data?.mode === 'live';
-  const channels = useQuery({ ...rubricChannelsQueryOptions(), enabled: live });
+  // Live and the DEV rehearsal both post where the owner picks (owner, 31.10.2026).
+  const picks = status.data?.mode === 'live' || status.data?.mode === 'rehearsal';
+  const channels = useQuery({ ...rubricChannelsQueryOptions(), enabled: picks });
   const update = useUpdateRubricScheduler();
   const [channel, setChannel] = useState<string | null>(null);
+  const toast = useToast();
 
   if (status.isPending)
     return (
@@ -38,7 +50,7 @@ export function SchedulerPanel() {
     return (
       <Panel>
         <ErrorState
-          message={copy.scheduler.saveError}
+          message={copy.loadError}
           requestId={status.error instanceof ApiError ? status.error.requestId : undefined}
           onRetry={() => void status.refetch()}
         />
@@ -46,12 +58,31 @@ export function SchedulerPanel() {
     );
 
   const data = status.data;
-  const runs = data.mode === 'live' || data.mode === 'rehearsal';
   const chosen = channel ?? data.destination?.id ?? null;
   const effective = EFFECTIVE[data.effective];
-  const channelOptions = (channels.data?.items ?? [])
+  const listed = (channels.data?.items ?? [])
     .filter((item) => item.kind === 'channel')
     .map((item) => ({ id: item.id, label: item.title }));
+  // The channel in use stays shown while the list loads, fails, or no longer offers it (switched off).
+  const current = data.destination;
+  const channelOptions =
+    current === null || listed.some((item) => item.id === current.id)
+      ? listed
+      : [{ id: current.id, label: current.title }, ...listed];
+  const save = (input: { enabled: boolean; destinationId: string | null }) =>
+    update.mutate(
+      { ...input, revision: data.revision },
+      {
+        onError: (error) => {
+          // The server keeps what it had: the picker shows that again.
+          setChannel(null);
+          toast.show({
+            tone: 'error',
+            title: error instanceof ApiError && error.status === 409 ? copy.scheduler.stale : copy.scheduler.saveError
+          });
+        }
+      }
+    );
 
   return (
     <Panel>
@@ -60,29 +91,27 @@ export function SchedulerPanel() {
           <h2 className={styles.panelTitle}>{copy.scheduler.title}</h2>
           <StatusPill label={copy.scheduler.effective[data.effective]} group={effective.group} icon={effective.icon} />
         </div>
-        {runs ? (
+        {picks ? (
           <div className={styles.controls}>
             <Switch
               isSelected={data.enabled}
-              isDisabled={update.isPending || (live && chosen === null && !data.enabled)}
-              onChange={(enabled) =>
-                update.mutate({ enabled, revision: data.revision, ...(live ? { destinationId: chosen } : {}) })
-              }
+              isDisabled={update.isPending || (chosen === null && !data.enabled)}
+              onChange={(enabled) => save({ enabled, destinationId: chosen })}
             >
               {copy.scheduler.switch}
             </Switch>
-            {live ? (
-              <Select
-                label={copy.scheduler.channel}
-                placeholder={copy.scheduler.channelPlaceholder}
-                options={channelOptions}
-                value={chosen}
-                onChange={(id) => {
-                  setChannel(id);
-                  if (data.enabled) update.mutate({ enabled: true, destinationId: id, revision: data.revision });
-                }}
-              />
-            ) : null}
+            <Select
+              label={copy.scheduler.channel}
+              placeholder={copy.scheduler.channelPlaceholder}
+              options={channelOptions}
+              value={chosen}
+              isDisabled={update.isPending}
+              onChange={(id) => {
+                setChannel(id);
+                if (data.enabled) save({ enabled: true, destinationId: id });
+              }}
+            />
+            {channels.isError ? <p className={styles.meta}>{copy.scheduler.channelsError}</p> : null}
           </div>
         ) : null}
         {data.mode === 'rehearsal' && data.destination !== null ? (
