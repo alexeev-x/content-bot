@@ -32,6 +32,10 @@
   flex: 1;
   min-width: 0;
 }
+/* Position dots: only on the narrow strip. */
+.dots {
+  display: none;
+}
 /* Narrow: one card and the edge of the next, swiped sideways and snapping to each card. */
 @container (max-width: 40rem) {
   .track {
@@ -53,5 +57,24 @@
   }
   .card:only-child {
     flex-basis: 100%;
+  }
+  .dots {
+    display: flex;
+    justify-content: center;
+    gap: var(--space-1);
+    padding-block-start: var(--space-2);
+  }
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: var(--radius-pill);
+    background: var(--color-border-strong, var(--color-border-subtle));
+    transition:
+      width var(--motion-fast),
+      background-color var(--motion-fast);
+  }
+  .dot[data-active] {
+    width: 16px;
+    background: var(--color-accent);
   }
 }

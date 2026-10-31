@@ -101,7 +101,7 @@ word; no picture uploaded, no post. The bank is copied from `.logs/handoff/rubri
 
 ## All rubrics and their own rules (stage 6)
 
-Every rubric runs (`INNER_RULES_READY` holds all of `RUBRIC_META`). A builder that finds nothing worth posting returns a
+Every rubric runs except «Открытка», the owner's unapproved draft (`INNER_RULES_READY`, 31.10.2026). A builder that finds nothing worth posting returns a
 content skip (`CONTENT_SKIP`): the slot's next candidate tries, else the slot ends `skipped`. «Факты Валв» (14) takes
 its numbers from Valve's live data at build time (`modules/rubrics/valve-values.ts`, the on-lane pattern); an entry
 without live numbers rests 7 days after a patch. The other history rules: 10 and 12 never take the same hero twice in a
