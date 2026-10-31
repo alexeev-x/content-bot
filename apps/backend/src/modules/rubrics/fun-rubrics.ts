@@ -1,4 +1,5 @@
-import { pick, poll, type RubricContext, type RubricSample, shuffled } from './types';
+import { pick, poll, type RubricContext, type RubricSample, shuffled, noData, contentSkip } from './types';
+import { fill, readValues, spell, type ValueRef } from './valve-values';
 import { shuffledOrder } from './bank-order';
 import { escapeHtml } from './picture';
 
@@ -446,7 +447,14 @@ export async function confess(context: RubricContext): Promise<RubricSample> {
 // plain words — a bold heading, the rule with its number, one comparison from home life — final as written. The numbers
 // were checked on Liquipedia and the game's files on 28.10.2026 and are re-checked after a patch. All three comparisons
 // rotate, so reactions can later show which kind lands; ids stay stable for that.
-type Mechanic = { id: number; title: string; rule: string; comparisons: readonly [string, string, string] };
+type Mechanic = {
+  id: number;
+  title: string;
+  /** `{name}` stands for a Valve number of `values`, read when the post is built. */
+  rule: string;
+  comparisons: readonly [string, string, string];
+  values?: Record<string, ValueRef>;
+};
 
 const MECHANICS: readonly Mechanic[] = [
   {
@@ -1405,7 +1413,13 @@ const HIDDEN_DETAILS: readonly Mechanic[] = [
   {
     id: 56,
     title: 'Врождёнка Войда',
-    rule: 'Вражеские снаряды атак по Войду и союзникам в 1200 от него замедляются на 40%, когда до цели остаётся 500.',
+    rule: 'Вражеские снаряды атак по Войду и союзникам в {radius} от него замедляются на {slow}%, когда до цели остаётся {distance}.',
+    // Valve's datafeed, faceless_void_distortion_field (checked 31.10.2026: 1200, 40, 500).
+    values: {
+      radius: spell('faceless_void', 'faceless_void_distortion_field', 'friendly_hero_distance'),
+      slow: spell('faceless_void', 'faceless_void_distortion_field', 'attack_projectile_slow'),
+      distance: spell('faceless_void', 'faceless_void_distortion_field', 'slow_distance_max')
+    },
     comparisons: [
       'Как Почта России: последние пятьсот метров посылка идёт неделю.',
       'Как батино «щас приду»: был рядом, а так и не дошёл.',
@@ -1455,6 +1469,8 @@ const HIDDEN_DETAILS: readonly Mechanic[] = [
 ];
 
 const EXPLAIN_BANK: readonly Mechanic[] = [...MECHANICS, ...HIDDEN_DETAILS];
+/** A game-wide number rests this long after a patch (answer 8). */
+const PATCH_REST_MS = 7 * 86_400_000;
 
 // The bank of 100 the owner approved on 29.10.2026, in a shuffled order without repeats; each round of the bank takes
 // the next of an entry's three comparisons, so a mechanic comes back with another joke.
@@ -1467,9 +1483,21 @@ export async function explainDumb(context: RubricContext): Promise<RubricSample>
       ? pick(EXPLAIN_BANK, context.random)
       : (EXPLAIN_BANK[shuffledOrder(round, size)[turn % size] ?? 0] ?? pick(EXPLAIN_BANK, context.random));
   const comparison = turn === undefined ? pick(chosen.comparisons, context.random) : chosen.comparisons[round % 3];
+  // Numbers from Valve where the game has them; a rule with a number Valve does not publish (a game-wide constant)
+  // rests for a week after every patch, so a changed number is never repeated as true (owner, 31.10.2026: answer 8).
+  let rule = chosen.rule;
+  if (chosen.values !== undefined) {
+    const values = await readValues(context, chosen.values);
+    if (typeof values === 'string') throw noData(`Valve numbers of «${chosen.title}»: ${values}`);
+    rule = fill(rule, values);
+  } else if (/\d/.test(rule) && context.history !== undefined) {
+    const latest = Math.max(0, ...(await context.sources.patches()).map((patch) => patch.timestamp * 1000));
+    if (context.now - latest < PATCH_REST_MS) throw contentSkip(`«${chosen.title}» rests a week after the patch`);
+  }
   return {
     picture: null,
-    text: [`Объясняю как дебилу: ${chosen.title}`, chosen.rule, '', comparison].join('\n'),
+    text: [`Объясняю как дебилу: ${chosen.title}`, rule, '', comparison].join('\n'),
+    facts: { bankLine: String(chosen.id), topic: chosen.title },
     footer: '🤯 — не знал · 🗿 — я олд',
     boldLead: true,
     noPicture: true,

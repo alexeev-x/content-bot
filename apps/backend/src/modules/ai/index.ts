@@ -132,3 +132,5 @@ export { type AuthorProfileRepository, createD1AuthorProfileRepository } from '.
 export { createD1ReviewRepository, type ReviewRepository, type ReviewResultRow } from './d1-review-repository';
 export type { ReviewVideo, ReviewVideoSource } from './ports';
 export { readVideoReview, type ReviewDeps, runVideoReviews, REVIEWS_PER_TICK } from './video-reviews';
+export { classifyComments, COMMENT_THEME_KINDS } from './comment-themes';
+export { AI_LEXICON } from './pack.generated';

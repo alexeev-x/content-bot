@@ -1,14 +1,26 @@
 import { readPublicationOutcomes } from '../../modules/publishing';
 import { projectedStatus, scheduleOf, type SlotRow, type SlotStatus } from '../../modules/rubric-scheduler';
 import type { Container } from '../container';
+import { afterSlotSent } from './rubric-after-send';
 
 // A released slot follows its publications (area-backend-core §11.1): all sent → sent (the rubric's rest starts from
 // the real send time); some sent and some not → partial; any unconfirmed → unknown, until the owner reconciles it in
 // «Публикации»; dropped past `not_after` → missed. Publishing owns delivery: the slot only reads it.
 
 export async function projectSlot(
-  container: Pick<Container, 'clock' | 'publicationOutcomes' | 'rubricSlots' | 'rubricSchedulerSettings'>,
-  slot: SlotRow
+  container: Pick<
+    Container,
+    | 'clock'
+    | 'publicationOutcomes'
+    | 'rubricSlots'
+    | 'rubricSchedulerSettings'
+    | 'audience'
+    | 'rubricBets'
+    | 'newId'
+    | 'logger'
+  >,
+  slot: SlotRow,
+  chatId: string | null = null
 ): Promise<SlotStatus | null> {
   const now = container.clock.now();
   const ids = slot.build?.publications ?? (slot.publicationId === null ? [] : [slot.publicationId]);
@@ -48,7 +60,9 @@ export async function projectSlot(
     }
   });
   if (!moved) return null;
-  if ((next === 'sent' || next === 'partial') && sentAt !== null)
+  if ((next === 'sent' || next === 'partial') && sentAt !== null) {
     await container.rubricSchedulerSettings.rubricSent(slot.rubricKey, sentAt);
+    await afterSlotSent(container, slot, { at: sentAt, pollId, messageIds, chatId });
+  }
   return next;
 }

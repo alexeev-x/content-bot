@@ -25,10 +25,19 @@ export type {
   SlotAttemptRow,
   SlotBuild,
   SlotRepository,
-  SlotRow
+  SlotRow,
+  BreakerRepository,
+  BetRepository,
+  OpenBet,
+  StepHealth
 } from './application/ports';
 export { FORECAST_DAYS, type Forecast, readForecast } from './application/read-forecast';
 export { planSlots, type PlanSlotsInput, seedRubricSettings } from './application/plan-slots';
 export { createD1SchedulerSettingsRepository } from './infrastructure/d1-settings-repository';
 export { createD1SlotRepository } from './infrastructure/d1-slot-repository';
 export { createD1NoticeRepository } from './infrastructure/d1-notice-repository';
+export { createD1BreakerRepository } from './infrastructure/d1-breaker-repository';
+export { createD1BetRepository } from './infrastructure/d1-bet-repository';
+export { baseVersion, eventCandidates, type EventCandidate, patchChains, valveMarks } from './domain/triggers';
+export { createD1LearnedSettings, readHourSlots } from './infrastructure/d1-learned-settings';
+export { DEFAULT_SLOT_MINUTES, HOUR_GROUPS } from './domain/plan';

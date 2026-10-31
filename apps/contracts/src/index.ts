@@ -16,6 +16,7 @@ export * from './posts';
 export * from './publications';
 export * from './rubric-keys';
 export * from './rubric-scheduler';
+export * from './rubric-analytics';
 export * from './rubric-samples';
 export * from './settings';
 export * from './sources';

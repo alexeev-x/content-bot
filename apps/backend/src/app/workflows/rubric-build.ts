@@ -1,4 +1,8 @@
-import { createBrowserPictureRenderer, type BrowserBinding } from '../../integrations/browser-render/browser-render';
+import {
+  createBrowserPictureRenderer,
+  type BrowserBinding,
+  type PictureRenderer
+} from '../../integrations/browser-render/browser-render';
 import {
   drawAnketaScene,
   drawForgottenScene,
@@ -8,8 +12,18 @@ import {
   writeRubricCaptionTyped
 } from '../../modules/ai';
 import { approvePost, createPost, uploadPostMedia } from '../../modules/content';
-import { RUBRIC_META, RUBRIC_TITLES, type RubricKey } from '../../modules/rubrics';
-import { scheduleOf, type SlotRow } from '../../modules/rubric-scheduler';
+import {
+  closest,
+  parseRubricFacts,
+  SIMILAR_AT,
+  textSignature,
+  RUBRIC_META,
+  RUBRIC_TITLES,
+  type RubricFacts,
+  type RubricHistory,
+  type RubricKey
+} from '../../modules/rubrics';
+import { COUNTING_STATUSES, scheduleOf, type SlotBuild, type SlotRow } from '../../modules/rubric-scheduler';
 import { getOwnerOperationsSettings } from '../../modules/settings';
 import { describeError } from '../../platform/error-detail';
 import { AppError } from '../../shared/app-error';
@@ -38,12 +52,73 @@ const isBrowserBinding = (value: unknown): value is BrowserBinding =>
 
 type BankTurn = { bankSize: number; turn: number } | null;
 
+const DAY_MS = 86_400_000;
+
+/** The owner's card pictures in R2 (`static/greeting/<id>.png`), uploaded by the owner; null while missing. */
+export function greetingPictureOf(
+  container: Pick<Container, 'schedulerEnv'>
+): (cardId: string) => Promise<Uint8Array | null> {
+  return async (cardId) => {
+    const bucket = container.schedulerEnv.MEDIA_BUCKET;
+    if (bucket === undefined || !/^[a-z0-9_]{1,60}$/.test(cardId)) return null;
+    const object = await bucket.get(`static/greeting/${cardId}.png`);
+    return object === null ? null : new Uint8Array(await object.arrayBuffer());
+  };
+}
+
+/** The open bet as its result build needs it: its heroes, its look and the channel's votes. */
+async function betOf(container: Container): Promise<NonNullable<BuildDeps['bet']>> {
+  const open = await container.rubricBets.open();
+  if (open === null) throw new AppError('UNAVAILABLE', 'No open bet', { reason: 'NO_OPEN_BET' });
+  const post = await container.rubricSlots.byId(open.postSlotId);
+  const look = typeof post?.facts?.['look'] === 'string' ? (post.facts['look'] as string) : null;
+  const votes = open.pollId === null ? null : await container.audience.pollState(open.pollId).catch(() => null);
+  return { heroIds: open.heroIds, look, votes: votes?.options ?? null };
+}
+
+/** A slot's stored facts, or none when they do not parse (an older or damaged row never blocks a build). */
+function factsOf(value: Record<string, unknown> | null): RubricFacts {
+  try {
+    return value === null ? {} : parseRubricFacts(value);
+  } catch {
+    return {};
+  }
+}
+
+/** The rubric's own posts (newest first) and the other rubrics' posts of the last week, from the slots (§1.2). */
+async function slotHistory(container: Container, rubric: string, slotId: string): Promise<RubricHistory> {
+  const now = container.clock.now();
+  const counting = (slot: SlotRow) => slot.id !== slotId && COUNTING_STATUSES.includes(slot.status);
+  const own = (await container.rubricSlots.ofRubric(rubric, 60)).filter(counting);
+  const others = (await container.rubricSlots.between(now - 7 * DAY_MS, now + 2 * DAY_MS)).filter(
+    (slot) => counting(slot) && slot.rubricKey !== rubric
+  );
+  const post = (slot: SlotRow) => ({ rubric: slot.rubricKey, at: slot.slotAt, facts: factsOf(slot.facts) });
+  return { own: own.map(post), others: others.map(post).sort((a, b) => b.at - a.at) };
+}
+
+/** The renderer with each screenshot's time reported: the daily Browser Rendering cap counts it (stage P). */
+function timed(renderer: PictureRenderer, onBrowser: (ms: number) => void): PictureRenderer {
+  return {
+    ...renderer,
+    async render(...args) {
+      const started = Date.now();
+      try {
+        return await renderer.render(...args);
+      } finally {
+        onBrowser(Date.now() - started);
+      }
+    }
+  };
+}
+
 /** The deps of a scheduler build: no owner chat, no counters written, the AI only where the mode allows it. */
 async function buildDeps(
   container: Container,
   rubric: RubricKey,
   requestId: string,
-  onTurn: (turn: BankTurn) => void
+  onTurn: (turn: BankTurn) => void,
+  onBrowser: (ms: number) => void
 ): Promise<BuildDeps> {
   const env = container.schedulerEnv;
   const mode = schedulerMode(env);
@@ -83,7 +158,9 @@ async function buildDeps(
       }
     },
     renderer:
-      capabilities.has('browser') && isBrowserBinding(env.BROWSER) ? createBrowserPictureRenderer(env.BROWSER) : null,
+      capabilities.has('browser') && isBrowserBinding(env.BROWSER)
+        ? timed(createBrowserPictureRenderer(env.BROWSER), onBrowser)
+        : null,
     ai: capabilities.has('ai_text')
       ? {
           caption: (input) => writeRubricCaptionTyped(aiDeps, input),
@@ -203,11 +280,108 @@ async function storePosts(
   return posts;
 }
 
+/** The follow-up post (04's answer) as one approved studio post, built now with the first (§11.2). */
+async function storeFollowUp(
+  container: Container,
+  slot: SlotRow,
+  rubric: RubricKey,
+  followUp: NonNullable<BuiltRubricPost['followUp']>
+): Promise<{ postId: string; revision: number; kind: 'text' | 'poll' }> {
+  const now = () => container.clock.now();
+  const created = await createPost(
+    { repo: container.posts, idempotency: container.idempotency, now: now(), newId: container.newId },
+    {
+      actor: RUBRIC_ACTOR,
+      idempotencyKey: `rubric:${slot.id}:${slot.attempt}:follow-up`,
+      input: { kind: 'text', title: `${RUBRIC_TITLES[rubric]}: ответ`, body: followUp.text, entities: [] }
+    }
+  );
+  let revision = created.revision;
+  if (followUp.picture !== null) {
+    const storage = container.mediaStorage;
+    if (storage === undefined)
+      throw new AppError('UNAVAILABLE', 'Media storage is not bound', { reason: 'MEDIA_STORAGE_MISSING' });
+    revision = (
+      await uploadPostMedia(
+        { repo: container.postMedia, storage, now: now(), newId: container.newId },
+        {
+          postId: created.id,
+          revision,
+          fileName: `${rubric}-answer.png`,
+          contentType: 'image/png',
+          contentLength: followUp.picture.length,
+          body: new Blob([followUp.picture]).stream(),
+          actor: RUBRIC_ACTOR,
+          idempotencyKey: `rubric:${slot.id}:${slot.attempt}:follow-up:media`,
+          hidden: true
+        }
+      )
+    ).revision;
+  }
+  // A riddle's answer stays a draft until its release, where «Первым угадал» may be written into it; any other
+  // follow-up is approved now.
+  if (followUp.guessHero !== undefined) return { postId: created.id, revision, kind: 'text' };
+  const approved = await approvePost(
+    { repo: container.posts, now: now() },
+    { actor: RUBRIC_ACTOR, id: created.id, input: { revision } }
+  );
+  return { postId: created.id, revision: approved.revision, kind: 'text' };
+}
+
+/** The slot passes to its next candidate, or ends `skipped` when none is left (a content skip). */
+async function giveWay(container: Container, slot: SlotRow, code: string, step: string): Promise<void> {
+  const now = container.clock.now();
+  const next = slot.candidates[slot.candIdx + 1];
+  if (next !== undefined && now < slot.slotAt - 5 * 60_000) {
+    await container.rubricSlots.transition({
+      id: slot.id,
+      from: 'building',
+      attempt: slot.attempt,
+      to: 'planned',
+      now,
+      set: {
+        candIdx: slot.candIdx + 1,
+        rubricKey: next,
+        nextActionAt: now,
+        leaseUntil: null,
+        errorCode: code,
+        errorStep: step
+      }
+    });
+    return;
+  }
+  await container.rubricSlots.transition({
+    id: slot.id,
+    from: 'building',
+    attempt: slot.attempt,
+    to: 'skipped',
+    now,
+    set: { leaseUntil: null, errorCode: code, errorStep: step }
+  });
+}
+
 /** Where a failed build goes: the next candidate of the slot (planned again at once), else the slot ends empty. */
 async function failCandidate(container: Container, slot: SlotRow, code: string, step: string): Promise<void> {
   const now = container.clock.now();
   const rubric = slot.candidates[slot.candIdx] ?? slot.rubricKey;
+  // «Nothing to say now» is no failure: no failure mark, no breaker (§12).
+  if (code === 'CONTENT_SKIP') return giveWay(container, slot, code, step);
   await container.rubricSchedulerSettings.rubricFailed(rubric, now, code);
+  // Three failures in three days rest the rubric for two days instead of failing every slot (§12).
+  const breaker = await container.rubricBreakers.recordFailure({
+    scope: 'rubric',
+    key: rubric,
+    now,
+    code,
+    windowMs: 3 * 86_400_000,
+    threshold: 3,
+    openMs: 2 * 86_400_000
+  });
+  if (breaker.opened)
+    await notifySchedulerFailure(container, {
+      key: `breaker:${rubric}`,
+      text: `«${RUBRIC_TITLES[rubric as RubricKey] ?? rubric}» трижды не собралась за три дня: отдыхает двое суток. Последняя причина: ${code}.`
+    });
   const next = slot.candidates[slot.candIdx + 1];
   if (next !== undefined && now < slot.slotAt - 5 * 60_000) {
     await container.rubricSlots.transition({
@@ -252,6 +426,8 @@ export async function runRubricBuild(
   }
   const startedAt = container.clock.now();
   let turn: BankTurn = null;
+  let browserMs = 0;
+  let history: RubricHistory = { own: [], others: [] };
   const record = (
     outcome: 'ok' | 'failed' | 'skipped' | 'degraded',
     step: 'data' | 'store',
@@ -274,18 +450,81 @@ export async function runRubricBuild(
 
   let built: BuiltRubricPost;
   try {
-    built = await buildRubricPost(await buildDeps(container, rubric, requestId, (each) => (turn = each)), rubric, {
-      strict: true
-    });
+    history = await slotHistory(container, rubric, slot.id);
+    const bet = slot.dedupeKey.startsWith('bet-result:') ? await betOf(container) : undefined;
+    // A dated card's slot names it: `card:<id>:<year>`.
+    const cardId = slot.dedupeKey.startsWith('card:') ? slot.dedupeKey.split(':')[1] : undefined;
+    built = await buildRubricPost(
+      {
+        ...(await buildDeps(
+          container,
+          rubric,
+          requestId,
+          (each) => (turn = each),
+          (ms) => (browserMs += ms)
+        )),
+        history,
+        // The horoscope's round of tellers and the last three shame heroes come from the slots' facts: a build writes
+        // nothing, so a build that never goes out takes nobody's turn.
+        tellers: {
+          used: async () => history.own.find((post) => post.facts.tellers !== undefined)?.facts.tellers ?? [],
+          remember: async () => undefined
+        },
+        shameHeroes: {
+          used: async () =>
+            history.own
+              .flatMap((post) => (post.facts.shameHero === undefined ? [] : [post.facts.shameHero]))
+              .slice(0, 3),
+          remember: async () => undefined
+        },
+        ...(bet === undefined ? {} : { bet }),
+        ...(cardId === undefined ? {} : { cardId }),
+        greetingPicture: greetingPictureOf(container)
+      },
+      rubric,
+      {
+        strict: true
+      }
+    );
   } catch (error) {
-    const code = error instanceof AppError ? (error.details?.['reason'] ?? error.code) : 'BUILD_FAILED';
-    await record('failed', 'data', code, describeError(error));
+    const reason = error instanceof AppError ? (error.details?.['reason'] ?? error.code) : 'BUILD_FAILED';
+    // An event rubric with nothing fitting (fewer than three nerfed heroes, no trap) skips quietly, as a content skip.
+    const code = reason === 'NO_DATA' && slot.kind === 'event' ? 'CONTENT_SKIP' : reason;
+    await record(code === 'CONTENT_SKIP' ? 'skipped' : 'failed', 'data', code, describeError(error));
     await failCandidate(container, slot, code, 'data');
+    if (code === 'CONTENT_SKIP') return;
     await notifySchedulerFailure(container, {
       key: `build:${rubric}:${code}`,
       text: `«${RUBRIC_TITLES[rubric]}» не собрана: ${describeError(error)}`
     });
     return;
+  }
+
+  // A text too close to one of the rubric's last twenty posts does not go out (§1.7): the next candidate tries.
+  const earlier = history.own.slice(0, 20).flatMap((post) => (post.facts.sig === undefined ? [] : [post.facts.sig]));
+  if (built.text !== '' && closest(built.text, earlier) >= SIMILAR_AT) {
+    await record('skipped', 'data', 'TOO_SIMILAR', null);
+    await failCandidate(container, slot, 'TOO_SIMILAR', 'similarity');
+    return;
+  }
+
+  // A hero is never in two rubric posts within 72 hours (RUBRICS_SCHEDULER.md «hero gate»): the candidate gives way.
+  if (RUBRIC_META[rubric].heroGate === 'cross72h') {
+    const now = container.clock.now();
+    const heroes = new Set(built.facts.heroIds ?? []);
+    const recent = await container.rubricSlots.between(now - 3 * DAY_MS, now + 2 * DAY_MS);
+    const clash = recent.some(
+      (other) =>
+        other.id !== slot.id &&
+        COUNTING_STATUSES.includes(other.status) &&
+        Math.abs(other.slotAt - slot.slotAt) < 3 * DAY_MS &&
+        (factsOf(other.facts).heroIds ?? []).some((hero) => heroes.has(hero))
+    );
+    if (clash) {
+      await record('skipped', 'data', 'HERO_RECENT', null);
+      await failCandidate(container, slot, 'HERO_RECENT', 'data');
+      return;
+    }
   }
 
   // A bank that must not repeat (a riddle solved once) pauses at its end instead of going round (§11.3).
@@ -311,8 +550,16 @@ export async function runRubricBuild(
   }
 
   let posts;
+  let followUp: SlotBuild['followUp'];
   try {
     posts = await storePosts(container, slot, rubric, built);
+    // A follow-up waiting for the next patch is not the scheduler's (06 builds its result as its own slot).
+    if (built.followUp !== null && built.followUp.afterMinutes !== null)
+      followUp = {
+        afterMinutes: built.followUp.afterMinutes,
+        posts: [await storeFollowUp(container, slot, rubric, built.followUp)],
+        ...(built.followUp.guessHero === undefined ? {} : { guessHero: built.followUp.guessHero })
+      };
   } catch (error) {
     const code = error instanceof AppError ? (error.details?.['reason'] ?? error.code) : 'STORE_FAILED';
     await record('failed', 'store', code, describeError(error));
@@ -339,8 +586,11 @@ export async function runRubricBuild(
         degradations: built.degradations,
         hasPicture: built.picture !== null || built.album.length > 0,
         hasPoll: built.poll !== null,
-        bankTurn: used?.turn ?? null
-      }
+        bankTurn: used?.turn ?? null,
+        browserMs,
+        ...(followUp === undefined ? {} : { followUp })
+      },
+      facts: factsOf({ ...built.facts, sig: textSignature(built.text) })
     }
   });
 }

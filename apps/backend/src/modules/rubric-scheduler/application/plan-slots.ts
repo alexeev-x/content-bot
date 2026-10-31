@@ -1,6 +1,7 @@
 import { mskParts } from '../../../shared/msk-time';
-import { plan, seedLastSent } from '../domain/plan';
+import { plan, seedLastSent, type PlanInput } from '../domain/plan';
 import { BUILD_LEAD_MS, scheduleOf } from '../domain/slot-machine';
+import type { EventCandidate } from '../domain/triggers';
 import type { ChannelPost, Need, RubricDescriptor } from '../domain/types';
 import type { NewSlot, RubricSettingRow, SchedulerSettingsRepository, SlotRepository, SlotRow } from './ports';
 
@@ -24,11 +25,18 @@ export interface PlanSlotsInput {
   rubrics: RubricDescriptor[];
   /** Rubrics whose inner rules are coded: the only ones that may go out (§11 «Stage 4»). */
   ready: ReadonlySet<string>;
+  /** Rubrics resting behind an open breaker. */
+  blocked: ReadonlySet<string>;
   capabilities: ReadonlySet<Need>;
   /** The channel's other posts (the news, the owner's): never our own rubric posts. */
   channel: ChannelPost[];
   latestPatchAt: number | null;
   horoscopeAnchorWeek: string | null;
+  /** Event and chain rubrics due now (domain/triggers.ts). */
+  events: EventCandidate[];
+  /** Learned slot starts by day group (stage 8) and whether trial hours are on. */
+  hourSlots?: PlanInput['hourSlots'];
+  explore?: boolean;
 }
 
 /** Whether a slot is past re-planning: being built or about to be. */
@@ -75,7 +83,10 @@ export async function planSlots(
   const byKey = new Map(settings.map((row) => [row.rubricKey, row]));
 
   const today = mskParts(now).day;
-  const recent = await deps.slots.between(now - 7 * DAY_MS, now + (PLAN_DAYS + 1) * DAY_MS);
+  // Housekeeping slots (a poll's close, a follow-up) are not posts the plan places or moves.
+  const recent = (await deps.slots.between(now - 7 * DAY_MS, now + (PLAN_DAYS + 1) * DAY_MS)).filter(
+    (slot) => slot.kind !== 'poll_close'
+  );
   const counted = recent.filter((slot) =>
     ['building', 'ready', 'released', 'waiting_parent', 'unknown', 'sent', 'partial', 'unresolved'].includes(
       slot.status
@@ -95,6 +106,7 @@ export async function planSlots(
     const row = byKey.get(rubric.key);
     return (
       input.ready.has(rubric.key) &&
+      !input.blocked.has(rubric.key) &&
       row !== undefined &&
       row.enabled &&
       row.pausedReason === null &&
@@ -102,6 +114,8 @@ export async function planSlots(
     );
   });
   const restOf = new Map(settings.map((row) => [row.rubricKey, row.restDays]));
+  // An event already planned, sent or skipped is not planned again.
+  const taken = await deps.slots.taken(input.events.map((event) => event.dedupeKey));
   const result = plan({
     now,
     days: PLAN_DAYS,
@@ -111,7 +125,10 @@ export async function planSlots(
     channel: [...input.channel, ...counted.map(asPost), ...kept.map(asPost)],
     capabilities: input.capabilities,
     lastHeroPatchAt: input.latestPatchAt,
-    horoscopeAnchorWeek: input.horoscopeAnchorWeek
+    horoscopeAnchorWeek: input.horoscopeAnchorWeek,
+    events: input.events.filter((event) => !taken.has(event.dedupeKey)),
+    ...(input.hourSlots === undefined ? {} : { hourSlots: input.hourSlots }),
+    ...(input.explore === undefined ? {} : { explore: input.explore })
   });
 
   const descriptors = new Map(input.rubrics.map((rubric) => [rubric.key, rubric]));
@@ -144,7 +161,12 @@ export async function planSlots(
           id: deps.newId(),
           mskDay: day,
           slotAt: slot.at,
-          kind: rubric.trigger === 'anchor' ? ('anchor' as const) : ('pool' as const),
+          kind:
+            slot.reason.kind === 'event'
+              ? ('event' as const)
+              : rubric.trigger === 'anchor'
+                ? ('anchor' as const)
+                : ('pool' as const),
           rubricKey: slot.rubric,
           candidates: [slot.rubric, ...slot.alternates].slice(0, 3),
           candIdx: 0,
@@ -156,8 +178,9 @@ export async function planSlots(
           weight: rubric.weight === 'L' ? ('L' as const) : ('V' as const),
           interactive: rubric.interactive,
           family: rubric.family,
-          dedupeKey: `${rubric.trigger === 'anchor' ? 'anchor' : 'pool'}:${slot.rubric}:${day}`,
+          dedupeKey: slot.dedupeKey ?? `${rubric.trigger === 'anchor' ? 'anchor' : 'pool'}:${slot.rubric}:${day}`,
           reason: slot.reason,
+          ...(slot.explore === true ? { explore: true } : {}),
           createdAt: now
         }
       ];

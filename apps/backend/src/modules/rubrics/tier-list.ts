@@ -471,7 +471,13 @@ export async function tierList(context: RubricContext): Promise<RubricSample> {
     turn === undefined ? pick(LOOKS, context.random) : (LOOKS[turn % LOOKS.length] ?? pick(LOOKS, context.random));
   try {
     const look = await buildLook(name, ctx, context.random);
-    return { picture: { html: lookPage(look), ...PICTURE_SIZE }, text: VOTE, ownText: true, poll: null };
+    return {
+      picture: { html: lookPage(look), ...PICTURE_SIZE },
+      text: VOTE,
+      ownText: true,
+      facts: { look: name },
+      poll: null
+    };
   } catch (error) {
     const code = codeOf(error);
     if (code === 'STRATZ_TOKEN' || code === 'STRATZ_BLOCKED' || code === 'STRATZ_RATE') throw error;

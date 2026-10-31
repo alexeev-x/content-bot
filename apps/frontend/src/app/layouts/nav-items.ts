@@ -1,5 +1,6 @@
 import type { IconName } from '../../shared/ui';
 import { ru } from '../../shared/lib/ru';
+import { LAB_SECTIONS } from '../../pages/lab/lab-sections';
 import { isLabBuild } from '../environment';
 
 export type NavItem = {
@@ -12,6 +13,8 @@ export type NavItem = {
   badge?: 'incidents';
   /** Sidebar only: pinned at the bottom next to the account area instead of the list. */
   pinned?: boolean;
+  /** Sidebar only: a submenu under the item (the lab's pages). */
+  children?: readonly { to: string; label: string }[];
 };
 
 // Order and paths follow docs/PAGE_MAP.md § Primary navigation.
@@ -27,7 +30,9 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { to: '/media', label: ru.nav.media, icon: 'image', primary: false },
   { to: '/sources', label: ru.nav.sources, icon: 'link', primary: false },
   // «Тестирование» (owner, 26.10.2026): DEV-only tools; a production build has neither the item nor the page.
-  ...(isLabBuild() ? [{ to: '/lab', label: ru.nav.lab, icon: 'flask' as const, primary: false }] : []),
+  ...(isLabBuild()
+    ? [{ to: '/lab', label: ru.nav.lab, icon: 'flask' as const, primary: false, children: LAB_SECTIONS }]
+    : []),
   { to: '/settings', label: ru.nav.settings, icon: 'settings', primary: false, pinned: true }
 ];
 

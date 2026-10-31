@@ -84,6 +84,76 @@ export interface WeeklyData {
   posts: { key: string; title: string; url: string; views: number | null }[];
   /** The channel's most viewed videos per platform, the review's yardstick; absent in older reports. */
   references?: Reference[];
+  /** The rubric scheduler's week (stage 7); absent in older reports and while its block is not built. */
+  rubricWeek?: RubricWeekLines | null;
+}
+
+export type RubricPart = 'views' | 'reactions' | 'comments' | 'votes';
+
+/**
+ * The «Рубрики» block as the report words it (rubric analytics, built each Monday from stored scores; rubric titles
+ * resolved by the app). Every ratio is against the channel's usual post of the 28 days before.
+ */
+export interface RubricWeekLines {
+  posts: number;
+  rows: { title: string; posts: number; x: number | null; parts: Record<RubricPart, number | null>; few: boolean }[];
+  best: { title: string; x: number; part: RubricPart | null } | null;
+  worst: { title: string; x: number; part: RubricPart | null } | null;
+  bestPost: { title: string; x: number; url: string | null } | null;
+  worstPost: { title: string; x: number; url: string | null } | null;
+  rest: { title: string; from: number; to: number; applied: boolean }[];
+  slots: { sent: number; missed: number; empty: number; skipped: number; failed: number; unresolved: number };
+}
+
+const PART_WORD: Record<RubricPart, string> = {
+  views: 'просмотрам',
+  reactions: 'реакциям',
+  comments: 'комментариям',
+  votes: 'голосам'
+};
+const times = (x: number | null) => (x === null ? '—' : `×${x.toFixed(1).replace('.', ',')}`);
+
+/** The block's lines (HTML), or none when the scheduler has no week yet. */
+export function rubricWeekLines(week: RubricWeekLines | null | undefined): string[] {
+  if (week === null || week === undefined) return [];
+  if (week.posts === 0) return ['', '<b>🏷 Рубрики</b> · за неделю ни один пост не дозрел до 24 часов'];
+  const lines = ['', '<b>🏷 Рубрики</b> · против обычного поста канала'];
+  const mark = (label: string, row: RubricWeekLines['best']) =>
+    row === null
+      ? []
+      : [
+          `${label}: «${escapeHtml(row.title)}» ${times(row.x)}${row.part === null ? '' : ` — больше всего по ${PART_WORD[row.part]}`}`
+        ];
+  lines.push(...mark('Лучшая', week.best), ...mark('Худшая', week.worst));
+  const post = (label: string, row: RubricWeekLines['bestPost']) => {
+    if (row === null) return [];
+    const title = `«${escapeHtml(row.title)}»`;
+    return [`${label}: ${row.url === null ? title : `<a href="${escapeHtml(row.url)}">${title}</a>`} ${times(row.x)}`];
+  };
+  lines.push(...post('Лучший пост', week.bestPost), ...post('Худший пост', week.worstPost));
+  for (const row of week.rows.slice(0, 8))
+    lines.push(
+      `• «${escapeHtml(row.title)}» · ${row.posts} ${row.posts === 1 ? 'пост' : row.posts < 5 ? 'поста' : 'постов'} · ${times(row.x)}${row.few ? ' · мало данных' : ` (просм. ${times(row.parts.views)}, реакц. ${times(row.parts.reactions)}, комм. ${times(row.parts.comments)}, голоса ${times(row.parts.votes)})`}`
+    );
+  if (week.rest.length > 0)
+    lines.push(
+      `Отдых: ${week.rest.map((row) => `«${escapeHtml(row.title)}» ${row.from} → ${row.to} дн. (${row.applied ? 'поменял' : 'советую'})`).join('; ')}`
+    );
+  const { missed, empty, failed, unresolved } = week.slots;
+  if (missed + empty + failed + unresolved > 0)
+    lines.push(
+      `Сбои: не вышло ${missed + failed}, пустых сборок ${empty}${unresolved > 0 ? `, ждут сверки ${unresolved}` : ''}`
+    );
+  return lines;
+}
+
+/** Numbers only for the review: no title is free text the model could take an order from. */
+function rubricWeekFacts(week: RubricWeekLines | null | undefined): string[] {
+  if (week === null || week === undefined || week.posts === 0) return [];
+  return week.rows.map(
+    (row) =>
+      `Рубрика канала «${row.title}»: ${times(row.x)} к обычному посту канала, постов ${row.posts}; по просмотрам ${times(row.parts.views)}, по реакциям ${times(row.parts.reactions)}, по комментариям ${times(row.parts.comments)}, по голосам ${times(row.parts.votes)}${row.few ? ' (мало данных)' : ''}`
+  );
 }
 
 /** The owner-zone Monday 00:00 of this week, once it is Monday from WEEKLY_HOUR; else null. */
@@ -101,18 +171,22 @@ export async function readWeeklyData(deps: {
   clock: Clock;
   timezone: string;
   weekEnd: number;
+  /** The rubric scheduler's block for this Monday (stage 7); null while it is not built. */
+  rubricWeek?: () => Promise<RubricWeekLines | null>;
 }): Promise<WeeklyData> {
   const { weekEnd, timezone } = deps;
   // Noon a week back is always inside the previous Monday, whatever a DST change did to the week.
   const weekStart = zonedMidnight(weekEnd - 7 * DAY_MS + 12 * HOUR_MS, timezone);
   const previousStart = zonedMidnight(weekStart - 7 * DAY_MS + 12 * HOUR_MS, timezone);
-  const [recent, checkpoints, followers, goals, formatOf, top] = await Promise.all([
+  const [recent, checkpoints, followers, goals, formatOf, top, rubricWeek] = await Promise.all([
     deps.alerts.readRecent({ itemsFrom: previousStart, limit: ITEM_LIMIT }),
     deps.analytics.readCheckpoints({ publishedFrom: weekEnd - BASELINE_WINDOW_MS }),
     deps.alerts.readFollowers(new Date(previousStart).toISOString().slice(0, 10)),
     readContentGoals({ repo: deps.goals, clock: deps.clock }),
     formatIndex({ repo: deps.analytics, ...(deps.formats ? { formats: deps.formats } : {}) }),
-    deps.analytics.topVideos(REFERENCES_PER_PLATFORM)
+    deps.analytics.topVideos(REFERENCES_PER_PLATFORM),
+    // A missing block (or its table) never holds the report back: it goes out without the line.
+    deps.rubricWeek?.().catch(() => null) ?? Promise.resolve(null)
   ]);
   const week = recent.items.filter((item) => item.publishedAt >= weekStart && item.publishedAt < weekEnd);
   const before = recent.items.filter((item) => item.publishedAt >= previousStart && item.publishedAt < weekStart);
@@ -195,7 +269,8 @@ export async function readWeeklyData(deps: {
     goals: goalRows,
     videos: videoList,
     posts,
-    references: referencesOf(top, (item) => formatById.get(item.id) ?? formatOf(item).format, weekEnd)
+    references: referencesOf(top, (item) => formatById.get(item.id) ?? formatOf(item).format, weekEnd),
+    rubricWeek
   };
 }
 
@@ -254,8 +329,9 @@ export function weeklyReviewFacts(
     ),
     ...rubricWeek(data).map(
       (row) =>
-        `Рубрика ${FORMAT_NAME[row.format]} за неделю: ${signedPercent(row.percent)} к обычному (медиана, роликов на платформах: ${row.cells})`
+        `Формат видео ${FORMAT_NAME[row.format]} за неделю: ${signedPercent(row.percent)} к обычному (медиана, роликов на платформах: ${row.cells})`
     ),
+    ...rubricWeekFacts(data.rubricWeek),
     ...data.videos.map((video) =>
       [
         `${video.key} «${shortTitleOf(video.title, 80)}» · рубрика ${FORMAT_NAME[video.format]}`,
@@ -378,8 +454,9 @@ export function weeklyReportHtml(input: {
   if (rubrics.length > 0)
     lines.push(
       '',
-      `<b>🏷 Рубрики</b> · ${rubrics.map((row) => `${FORMAT_NAME[row.format]} ${signedPercent(row.percent)}`).join(' · ')}`
+      `<b>🎬 Форматы видео</b> · ${rubrics.map((row) => `${FORMAT_NAME[row.format]} ${signedPercent(row.percent)}`).join(' · ')}`
     );
+  lines.push(...rubricWeekLines(data.rubricWeek));
   if (data.videos.length > 0) {
     lines.push('', '<i>Ролики недели; «обыч.» — к обычному для рубрики того же возраста.</i>');
     // One table per platform, as in the daily report (owner, 19.10.2026: «Две таблицы»).
@@ -431,6 +508,7 @@ export async function raiseWeeklyReport(deps: {
   formats?: ItemFormats;
   clock: Clock;
   timezone: string;
+  rubricWeek?: () => Promise<RubricWeekLines | null>;
 }): Promise<{ reportId: string | null; attempted: boolean }> {
   const now = deps.clock.now();
   const weekEnd = weeklyReportWeekEnd(now, deps.timezone);

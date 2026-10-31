@@ -43,6 +43,12 @@ export async function resetDb(): Promise<void> {
   // Children first: jobs reference publications, which reference posts, revisions and destinations.
   await db.batch(
     [
+      'rubric_post_scores',
+      'rubric_comment_themes',
+      'rubric_summary_runs',
+      'rubric_week_blocks',
+      'rubric_learning_log',
+      'rubric_hour_slots',
       'tg_comments',
       'tg_comment_threads',
       'tg_post_audience',

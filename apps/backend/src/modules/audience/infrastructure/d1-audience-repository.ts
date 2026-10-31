@@ -165,6 +165,19 @@ export function createD1AudienceRepository(db: D1Database): AudienceRepository {
         .run();
     },
 
+    async pollState(pollId) {
+      const row = await db
+        .prepare('SELECT voters, options_json, closed FROM tg_polls WHERE poll_id = ?1')
+        .bind(pollId)
+        .first<{ voters: number | null; options_json: string | null; closed: number }>();
+      if (row === null || row.voters === null || row.options_json === null) return null;
+      return {
+        voters: row.voters,
+        options: JSON.parse(row.options_json) as { text: string; voters: number }[],
+        closed: row.closed === 1
+      };
+    },
+
     async threadComments({ channelChatId, channelMessageId, since, limit }) {
       const { results } = await db
         .prepare(

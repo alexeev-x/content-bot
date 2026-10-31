@@ -1,0 +1,154 @@
+.stack {
+  display: grid;
+  gap: var(--space-4);
+}
+
+.body {
+  display: grid;
+  gap: var(--space-3);
+  padding: var(--space-4);
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.muted {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+
+.rubricCell {
+  display: grid;
+  gap: 2px;
+  min-inline-size: 0;
+}
+
+.slices {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(100%, 220px), 1fr));
+  gap: var(--space-3);
+}
+
+.slice {
+  display: grid;
+  align-content: start;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  border: 1px solid var(--color-border-subtle);
+  border-radius: var(--radius-2);
+}
+
+.sliceTitle {
+  margin: 0;
+  font-size: var(--font-size-sm);
+  font-weight: 600;
+}
+
+.sliceRows {
+  display: grid;
+  gap: var(--space-1);
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.sliceRow {
+  display: flex;
+  justify-content: space-between;
+  gap: var(--space-2);
+  font-size: var(--font-size-sm);
+}
+
+.sliceRow[data-mark='best'] {
+  color: var(--color-text);
+  font-weight: 600;
+}
+
+.sliceRow[data-mark='worst'] {
+  color: var(--color-danger);
+}
+
+.commentRow {
+  display: grid;
+  gap: var(--space-1);
+  padding-block: var(--space-2);
+  border-block-end: 1px solid var(--color-border-subtle);
+}
+
+.quote {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.heatScroll {
+  overflow-x: auto;
+}
+
+.heat {
+  border-collapse: separate;
+  border-spacing: 2px;
+  font-size: var(--font-size-sm);
+  font-variant-numeric: tabular-nums;
+}
+
+.heat caption {
+  caption-side: bottom;
+  padding-block-start: var(--space-2);
+  text-align: start;
+}
+
+.heat th {
+  padding: var(--space-1);
+  color: var(--color-text-muted);
+  font-weight: 500;
+}
+
+.heat td {
+  min-inline-size: 36px;
+  block-size: 28px;
+  border-radius: var(--radius-1);
+  background: var(--color-surface-2, transparent);
+  text-align: center;
+}
+
+.heat td[data-tone='high'] {
+  background: color-mix(in oklab, var(--color-accent) 55%, transparent);
+}
+
+.heat td[data-tone='up'] {
+  background: color-mix(in oklab, var(--color-accent) 28%, transparent);
+}
+
+.heat td[data-tone='even'] {
+  background: color-mix(in oklab, var(--color-text-muted) 14%, transparent);
+}
+
+.heat td[data-tone='down'] {
+  background: color-mix(in oklab, var(--color-danger) 22%, transparent);
+}
+
+.heat td[data-tone='low'] {
+  background: color-mix(in oklab, var(--color-danger) 45%, transparent);
+}
+
+.visuallyHidden {
+  position: absolute;
+  inline-size: 1px;
+  block-size: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+  white-space: nowrap;
+}
+
+.pills {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin: 0;
+  list-style: none;
+}

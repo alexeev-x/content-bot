@@ -1712,7 +1712,9 @@ export async function heroProfile(context: RubricContext): Promise<RubricSample>
     turn === undefined
       ? pick(ANKETAS, context.random)
       : (ANKETAS[shuffledOrder(Math.floor(turn / size), size)[turn % size] ?? 0] ?? pick(ANKETAS, context.random));
+  const heroId = (await context.sources.heroes()).find((hero) => hero.name === `npc_dota_hero_${anketa.hero}`)?.id;
   return {
+    facts: { bankLine: anketa.hero, ...(heroId === undefined ? {} : { heroIds: [heroId] }) },
     picture: { html: anketaPage(anketa), width: WIDTH, height: HEIGHT },
     heroScene: { renderUrl: `${RENDERS}/${anketa.hero}.png`, heroName: anketa.name },
     text: '❤️ — вправо · 💔 — влево',

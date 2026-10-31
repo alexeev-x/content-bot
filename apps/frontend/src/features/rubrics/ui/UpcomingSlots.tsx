@@ -47,7 +47,7 @@ const ICON = {
   muted: 'minus-circle'
 } as const;
 
-function SlotState({ state }: { state: RubricSlotDto['state'] }) {
+export function SlotState({ state }: { state: RubricSlotDto['state'] }) {
   const group = GROUP[state];
   return <StatusPill label={copy.slots.states[state]} group={group} icon={ICON[group]} />;
 }

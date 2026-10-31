@@ -1,5 +1,23 @@
-import { latestPatchPublishedAt } from '../modules/dota';
 import {
+  createD1LearningRepository,
+  createD1ScoreRepository,
+  createD1ThemesRepository,
+  type LearningRepository,
+  createD1WeekBlockRepository,
+  type ScoreRepository,
+  type ThemesRepository,
+  type WeekBlockRepository,
+  type WeekSlotsSource
+} from '../modules/rubric-analytics';
+import { createRubricAnalyticsSources, createWeekSlotsSource } from './rubric-analytics/sources';
+import { latestPatchPublishedAt, recentDotaItems } from '../modules/dota';
+import {
+  createD1BreakerRepository,
+  createD1BetRepository,
+  createD1LearnedSettings,
+  readHourSlots,
+  type BetRepository,
+  type BreakerRepository,
   createD1NoticeRepository,
   createD1SchedulerSettingsRepository,
   createD1SlotRepository,
@@ -50,6 +68,8 @@ import {
   type PublicationAnalyticsRepository,
   type PublicationTransport,
   createD1PublicationOutcomesRepository,
+  createTelegramPollStopper,
+  type PollStopper,
   type PublicationOutcomesRepository
 } from '../modules/publishing';
 import {
@@ -207,6 +227,25 @@ export interface Container {
   rubricSchedulerSettings: SchedulerSettingsRepository;
   rubricSlots: SlotRepository;
   rubricNotices: NoticeRepository;
+  rubricBreakers: BreakerRepository;
+  rubricBets: BetRepository;
+  /** The rubric analytics (migration 0121): scores, comment themes, the Monday block, and their sources. */
+  rubricScores: ScoreRepository;
+  rubricThemes: ThemesRepository;
+  rubricWeekBlocks: WeekBlockRepository;
+  rubricWeekSlots: WeekSlotsSource;
+  rubricAnalyticsSources: ReturnType<typeof createRubricAnalyticsSources>;
+  /** The learning (migration 0122): its state and log, and the rests and slot hours it may change. */
+  rubricLearning: LearningRepository;
+  rubricLearnedSettings: ReturnType<typeof createD1LearnedSettings>;
+  rubricHourSlots: () => Promise<Record<string, Partial<Record<'day' | 'evening', number>>>>;
+  /** Closes a channel poll the bot sent (the scheduler's 24 h and 7-day polls). */
+  pollStopper: PollStopper;
+  /** Stored Dota updates of one source since a time: the scheduler's patches and announcements. */
+  dotaItems: (
+    sourceKey: 'patch_notes' | 'steam_news',
+    since: number
+  ) => Promise<{ externalId: string; publishedAt: number }[]>;
   /** The Worker's settings the rubric scheduler reads: its mode, the rehearsal channel, its capabilities. */
   schedulerEnv: ContainerEnv;
   /** When the newest patch note was published: the rubrics' quiet week after a patch. */
@@ -347,6 +386,7 @@ export interface ContainerEnv {
   RUBRIC_REHEARSAL_DESTINATION_ID?: string;
   RUBRIC_REHEARSAL_CHAT_ID?: string;
   FORECAST_CAPABILITIES?: string;
+  BROWSER_DAILY_CAP_MS?: string;
   DB?: D1Database;
   AI_JOBS?: Queue<AiJob>;
   MEDIA_BUCKET?: R2Bucket;
@@ -595,6 +635,44 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
     },
     get schedulerEnv() {
       return env;
+    },
+    get pollStopper(): PollStopper {
+      const token = botToken();
+      if (token === '') throw new AppError('UNAVAILABLE', 'Telegram bot is not configured');
+      return createTelegramPollStopper(createTelegramApi(token));
+    },
+    get rubricBets() {
+      return createD1BetRepository(db());
+    },
+    get rubricScores() {
+      return createD1ScoreRepository(db(), overrides.clock ?? systemClock);
+    },
+    get rubricThemes() {
+      return createD1ThemesRepository(db());
+    },
+    get rubricWeekBlocks() {
+      return createD1WeekBlockRepository(db());
+    },
+    get rubricWeekSlots() {
+      return createWeekSlotsSource(db());
+    },
+    get rubricLearning() {
+      return createD1LearningRepository(db());
+    },
+    get rubricLearnedSettings() {
+      return createD1LearnedSettings(db());
+    },
+    get rubricHourSlots() {
+      return () => readHourSlots(db());
+    },
+    get rubricAnalyticsSources() {
+      return createRubricAnalyticsSources(db(), env?.ANALYTICS_TELEGRAM_CHANNEL);
+    },
+    get dotaItems() {
+      return (sourceKey: 'patch_notes' | 'steam_news', since: number) => recentDotaItems(db(), sourceKey, since);
+    },
+    get rubricBreakers() {
+      return createD1BreakerRepository(db());
     },
     get rubricNotices() {
       return createD1NoticeRepository(db());

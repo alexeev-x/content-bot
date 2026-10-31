@@ -63,6 +63,10 @@ export interface AudienceRepository {
     closesAt: number | null;
   }): Promise<void>;
   recordFinalPoll(input: { pollId: string; voters: number; optionsJson: string; now: number }): Promise<void>;
+  /** A registered poll's latest counts, or null when it is unknown or nothing came yet. */
+  pollState(
+    pollId: string
+  ): Promise<{ voters: number; options: { text: string; voters: number }[]; closed: boolean } | null>;
   threadComments(input: {
     channelChatId: number;
     channelMessageId: number;

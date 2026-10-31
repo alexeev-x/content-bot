@@ -6,6 +6,8 @@ export interface SchedulerEnv extends CapabilityEnv {
   RUBRIC_SCHEDULER?: string;
   RUBRIC_REHEARSAL_DESTINATION_ID?: string;
   RUBRIC_REHEARSAL_CHAT_ID?: string;
+  /** Browser Rendering minutes a day for the rubrics, in ms (stage P). */
+  BROWSER_DAILY_CAP_MS?: string;
 }
 
 // Where the rubric scheduler runs and how (MASTER-PLAN §2.2, area-backend-core §14): production posts to the channel

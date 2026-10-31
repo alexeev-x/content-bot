@@ -28,7 +28,11 @@ export const aiJobSchema = z.discriminatedUnion('kind', [
   /** Wakes the publication dispatcher right after a publication due now was created (review 24.10.2026). */
   z.object({ id: z.uuid(), kind: z.literal('dispatch_now') }),
   /** A step of the channel's audience upkeep (rubric scheduler stage 2): old comments out, the daily setup check. */
-  z.object({ id: z.uuid(), kind: z.literal('rubric_analytics'), step: z.enum(['purge', 'health']) }),
+  z.object({
+    id: z.uuid(),
+    kind: z.literal('rubric_analytics'),
+    step: z.enum(['purge', 'health', 'score', 'summary', 'week', 'learn'])
+  }),
   /** One rubric slot's build (rubric scheduler stage 4): stale when the slot moved on or its attempt changed. */
   z.object({
     id: z.uuid(),

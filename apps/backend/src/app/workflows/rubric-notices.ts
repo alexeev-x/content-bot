@@ -11,7 +11,10 @@ import { schedulerMode } from '../rubric-scheduler/runtime';
 const FAILURES_PER_DAY = 6;
 
 export async function notifySchedulerFailure(
-  container: Container,
+  container: Pick<
+    Container,
+    'clock' | 'rubricNotices' | 'schedulerEnv' | 'ownerMessenger' | 'ownerChatId' | 'systemState' | 'logger'
+  >,
   input: { key: string; text: string; kind?: 'failure' | 'health' | 'bank' }
 ): Promise<void> {
   const now = container.clock.now();

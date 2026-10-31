@@ -93,6 +93,14 @@ export function SchedulerPanel() {
             {copy.scheduler.next(RUBRIC_TITLES[data.next.rubricKey], mskWhen(data.next.at))}
           </p>
         )}
+        {data.browserBudget === undefined ? null : (
+          <p className={styles.meta}>
+            {copy.scheduler.browser(
+              Math.round(data.browserBudget.usedMs / 60_000),
+              Math.round(data.browserBudget.capMs / 60_000)
+            )}
+          </p>
+        )}
         {data.lastPlanAt === null ? null : (
           <p className={styles.meta}>{copy.scheduler.lastPlan(mskTime(data.lastPlanAt))}</p>
         )}

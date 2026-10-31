@@ -1,5 +1,5 @@
 import { Link, useRouterState, type LinkProps } from '@tanstack/react-router';
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { Button as AriaButton, Focusable } from 'react-aria-components';
 import { ru } from '../../shared/lib/ru';
 import { isInsideTelegram } from '../../shared/telegram/web-app';
@@ -82,7 +82,20 @@ function SidebarNav({ incidentsCount, collapsed }: { incidentsCount: number; col
   return (
     <nav aria-label={ru.nav.label} className={styles.nav}>
       {NAV_ITEMS.filter((item) => !item.pinned).map((item) => (
-        <NavLink key={item.to} item={item} incidentsCount={incidentsCount} iconOnly={collapsed} />
+        <Fragment key={item.to}>
+          <NavLink item={item} incidentsCount={incidentsCount} iconOnly={collapsed} />
+          {item.children !== undefined && !collapsed ? (
+            <ul className={styles.subnav} aria-label={item.label}>
+              {item.children.map((child) => (
+                <li key={child.to}>
+                  <Link to={child.to} className={styles.sublink}>
+                    {child.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : null}
+        </Fragment>
       ))}
       <div className={styles.pinned}>
         {NAV_ITEMS.filter((item) => item.pinned).map((item) => (

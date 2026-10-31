@@ -15,6 +15,7 @@ import { onLane } from './on-lane';
 import { suspect } from './suspect';
 import { tierList } from './tier-list';
 import { toxicBingo } from './toxic-bingo';
+import { greetingCard } from './greeting-card';
 import type { RubricContext, RubricSample } from './types';
 import { RUBRIC_KEYS, RUBRIC_TITLES, type RubricKey } from '@alexeev/contracts';
 
@@ -52,7 +53,8 @@ const BUILDERS: Record<RubricKey, (context: RubricContext) => Promise<RubricSamp
   toxic_bingo: toxicBingo,
   fake_item: fakeItem,
   shame_of_day: shameOfDay,
-  quote_of_day: quoteOfDay
+  quote_of_day: quoteOfDay,
+  greeting_card: greetingCard
 };
 
 export function buildRubricSample(key: RubricKey, context: RubricContext): Promise<RubricSample> {

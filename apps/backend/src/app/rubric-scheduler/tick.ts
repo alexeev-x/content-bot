@@ -1,3 +1,4 @@
+import { prepareAnswer } from '../workflows/rubric-first-guess';
 import { listRecentPublications } from '../../modules/publishing';
 import { deletePost } from '../../modules/lifecycle';
 import {
@@ -10,7 +11,8 @@ import {
   scheduleOf,
   type SlotRow
 } from '../../modules/rubric-scheduler';
-import { INNER_RULES_READY } from '../../modules/rubrics';
+import { INNER_RULES_READY, RUBRIC_META, type RubricKey, type RubricMeta } from '../../modules/rubrics';
+import { browserCapMs, browserUsedToday } from './browser-budget';
 import { addMskDays, fromMsk, mskParts, mskWeekday } from '../../shared/msk-time';
 import type { Container } from '../container';
 import { rubricDescriptors } from '../rubric-catalog';
@@ -19,6 +21,9 @@ import { projectSlot } from '../workflows/rubric-project';
 import { releaseSlot } from '../workflows/rubric-release';
 import { schedulerState } from './locks';
 import { schedulerCapabilities } from './runtime';
+import { notifySchedulerFailure } from '../workflows/rubric-notices';
+import { readEvents } from './event-sources';
+import { closePoll } from '../workflows/rubric-poll-close';
 
 // One scheduler tick (every Cron minute, after the publication work; area-backend-core §8): the locks first, then the
 // plan when it is due, then the due slots — at most two builds, two releases and four read-backs a tick, every move a
@@ -29,7 +34,8 @@ const DUE_PER_TICK = 8;
 const BUILDS_PER_TICK = 2;
 const RELEASES_PER_TICK = 2;
 const PROJECTIONS_PER_TICK = 4;
-const LOOKBACK_MS = 7 * 86_400_000;
+const DAY_MS = 86_400_000;
+const LOOKBACK_MS = 7 * DAY_MS;
 
 /** The first Monday after `day` (MSK): the horoscope's rhythm starts there when the switch goes on (§13). */
 function nextMonday(day: string): string {
@@ -85,6 +91,18 @@ export type SchedulerContainer = Pick<
   | 'publications'
   | 'postSource'
   | 'idempotency'
+  | 'rubricBreakers'
+  | 'rubricNotices'
+  | 'rubricBets'
+  | 'audience'
+  | 'pollStopper'
+  | 'dotaItems'
+  | 'gameFileBuilds'
+  | 'ownerMessenger'
+  | 'ownerChatId'
+  | 'systemState'
+  | 'rubricAnalyticsSources'
+  | 'rubricHourSlots'
 >;
 
 export async function runRubricSchedulerTick(
@@ -99,6 +117,8 @@ export async function runRubricSchedulerTick(
   // Switched off: the slots not yet released are cancelled once (their posts deleted); released ones finish.
   if (state.settings !== null && !state.settings.offCleanupDone && !state.settings.enabled) {
     for (const slot of await slots.live()) {
+      // Open polls still close on time.
+      if (slot.kind === 'poll_close') continue;
       if (slot.status !== 'planned' && slot.status !== 'building' && slot.status !== 'ready') continue;
       if (
         await slots.transition({
@@ -118,6 +138,10 @@ export async function runRubricSchedulerTick(
   if (state.locks.length > 0 || state.destination === null) return { ...counts, locked: 1 };
 
   const settings = container.rubricSchedulerSettings;
+  // Over the day's Browser Rendering cap no picture rubric is planned or built until the Moscow day turns (stage P).
+  const browserSpent = (await browserUsedToday(slots, now)) >= browserCapMs(container.schedulerEnv, state.mode);
+  const capabilities = schedulerCapabilities(container.schedulerEnv, state.mode);
+  if (browserSpent) capabilities.delete('browser');
   if (await settings.claimStep('plan', now, now + PLAN_EVERY_MS)) {
     try {
       const recent = await slots.between(now - LOOKBACK_MS, now + 3 * 86_400_000);
@@ -128,10 +152,15 @@ export async function runRubricSchedulerTick(
         {
           rubrics: rubricDescriptors(),
           ready: INNER_RULES_READY,
-          capabilities: schedulerCapabilities(container.schedulerEnv, state.mode),
+          blocked: new Set((await container.rubricBreakers.open('rubric', now)).map((breaker) => breaker.key)),
+          capabilities,
           channel: await channelPosts(container, ours, now),
           latestPatchAt: await container.latestPatchAt(),
-          horoscopeAnchorWeek: anchorWeek
+          horoscopeAnchorWeek: anchorWeek,
+          events: await readEvents(container, now),
+          // The learned hours (stage 8; none before migration 0122) and one trial hour in five pool slots.
+          hourSlots: await container.rubricHourSlots().catch(() => ({})),
+          explore: true
         }
       );
       counts.planned = planned.inserted;
@@ -141,6 +170,25 @@ export async function runRubricSchedulerTick(
       await settings.stepDone('plan', now, error instanceof Error ? error.name.slice(0, 80) : 'PLAN_FAILED');
       throw error;
     }
+  }
+
+  // Housekeeping: attempts kept 90 days and notices 14, once a day; the plan's health once an hour.
+  if (await settings.claimStep('purge', now, now + DAY_MS)) {
+    counts.purgedAttempts = await slots.purgeAttempts(now - 90 * DAY_MS, 200);
+    await container.rubricNotices.purge(mskParts(now - 14 * DAY_MS).day);
+    await settings.stepDone('purge', now, null);
+  }
+  if (await settings.claimStep('health', now, now + 60 * 60_000)) {
+    const plan = await settings.stepHealth('plan');
+    // The plan failing three times in a row, or not done for two hours, means no new slots: the owner hears of it.
+    const stale = plan.lastSuccessAt !== null && now - plan.lastSuccessAt > 2 * 60 * 60_000;
+    if (plan.failCount >= 3 || stale)
+      await notifySchedulerFailure(container, {
+        key: `health:plan:${plan.lastErrorCode ?? 'STALE'}`,
+        kind: 'health',
+        text: `План рубрик не обновляется${plan.lastErrorCode === null ? '' : ` (${plan.lastErrorCode})`}: новые слоты не появляются. Проверьте раздел «Рубрики».`
+      });
+    await settings.stepDone('health', now, null);
   }
 
   let builds = 0;
@@ -165,9 +213,27 @@ export async function runRubricSchedulerTick(
       }
       continue;
     }
+    // A poll's close (§11.2): stopPoll, the final counts kept; safe to repeat.
+    if (slot.kind === 'poll_close') {
+      if (projections >= PROJECTIONS_PER_TICK) continue;
+      projections += 1;
+      await closePoll(container, slot, now);
+      continue;
+    }
     switch (status) {
       case 'planned': {
         if (builds >= BUILDS_PER_TICK) break;
+        const candidate = RUBRIC_META[slot.candidates[slot.candIdx] as RubricKey] as RubricMeta | undefined;
+        if (browserSpent && candidate?.needs.includes('browser') === true) {
+          await slots.transition({
+            id: slot.id,
+            from: 'planned',
+            to: 'empty',
+            now,
+            set: { errorCode: 'BROWSER_BUDGET', errorStep: 'capability' }
+          });
+          break;
+        }
         const attempt = slot.attempt + 1;
         const moved = await slots.transition({
           id: slot.id,
@@ -200,7 +266,8 @@ export async function runRubricSchedulerTick(
       case 'ready': {
         if (releases >= RELEASES_PER_TICK) break;
         releases += 1;
-        const outcome = await releaseSlot(container, slot, state.destination.id);
+        const ready = await prepareAnswer(container, slot, state.destination.chatId);
+        const outcome = await releaseSlot(container, ready, state.destination.id);
         counts[`release_${outcome}`] = (counts[`release_${outcome}`] ?? 0) + 1;
         break;
       }
@@ -209,7 +276,7 @@ export async function runRubricSchedulerTick(
       case 'unknown': {
         if (projections >= PROJECTIONS_PER_TICK) break;
         projections += 1;
-        const moved = await projectSlot(container, slot);
+        const moved = await projectSlot(container, slot, state.destination.chatId);
         if (moved === null) {
           // Nothing new: look again later, on the state's own rhythm.
           const times = scheduleOf(status, { slotAt: slot.slotAt, buildAt: slot.buildAt }, now);

@@ -1,5 +1,9 @@
 import {
   destinationPageSchema,
+  rubricCommentsSchema,
+  rubricCompareSchema,
+  rubricLearningSchema,
+  rubricPostsSchema,
   rubricCalendarSchema,
   rubricForecastSchema,
   rubricItemSchema,
@@ -8,7 +12,8 @@ import {
   rubricSlotDetailSchema,
   type RubricKey,
   type UpdateRubricInput,
-  type UpdateRubricSchedulerInput
+  type UpdateRubricSchedulerInput,
+  type UpdateRubricLearningInput
 } from '@alexeev/contracts';
 import { apiRequest } from '../../../shared/api/http-client';
 
@@ -49,4 +54,28 @@ export function skipRubricSlot(id: string) {
 /** The channels the rubrics may go to; own fetcher so this feature never imports the destinations feature. */
 export function listRubricChannels(signal?: AbortSignal) {
   return apiRequest('/api/v1/destinations?enabled=true&limit=100', destinationPageSchema, { signal });
+}
+
+/** How each rubric lands against the channel's usual post over 7, 30 or 90 days (stage 7). */
+export function getRubricCompare(days: 7 | 30 | 90, signal?: AbortSignal) {
+  return apiRequest(`/api/v1/rubric-analytics/compare?days=${days}`, rubricCompareSchema, { signal });
+}
+
+/** One rubric's posts with their scores and slices. */
+export function getRubricPosts(rubric: RubricKey, days: '30' | '90' | 'all', signal?: AbortSignal) {
+  return apiRequest(`/api/v1/rubric-analytics/posts?rubric=${rubric}&days=${days}`, rubricPostsSchema, { signal });
+}
+
+/** What readers say under the rubric posts (AI themes, production only). */
+export function getRubricComments(days: 7 | 30, signal?: AbortSignal) {
+  return apiRequest(`/api/v1/rubric-analytics/comments?days=${days}`, rubricCommentsSchema, { signal });
+}
+
+/** The learning: mode, each rubric's rest with advice, the slot hours (stage 8). */
+export function getRubricLearning(signal?: AbortSignal) {
+  return apiRequest('/api/v1/rubric-analytics/learning', rubricLearningSchema, { signal });
+}
+
+export function updateRubricLearning(input: UpdateRubricLearningInput) {
+  return apiRequest('/api/v1/rubric-analytics/learning', rubricLearningSchema, { method: 'PUT', body: input });
 }

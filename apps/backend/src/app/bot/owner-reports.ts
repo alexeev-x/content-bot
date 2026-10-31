@@ -31,6 +31,8 @@ export interface OwnerReportDeps {
   cron: Pick<SystemStateStore, 'readCronRun'>;
   /** Whether the Cron dispatcher may claim jobs (the container's `publishing`). */
   publishing: { enabled: boolean; blockedBy?: 'bot_token_missing' };
+  /** The rubric scheduler's line; null where it only forecasts. A failure to read it leaves the line out. */
+  rubrics?: () => Promise<string | null>;
 }
 
 function capped(count: number, cap: number): string {
@@ -67,11 +69,17 @@ export function createOwnerReports(deps: OwnerReportDeps): OwnerReports {
           ? 'проблем нет'
           : `неизвестно ${capped(unknown.length, PROBLEM_CAP)}, не отправлено ${capped(failed.length, PROBLEM_CAP)}, открытых инцидентов ${capped(incidents, INCIDENT_CAP)}`;
 
+      const rubrics = deps.rubrics === undefined ? null : await deps.rubrics().catch(() => null);
       const target = unknown.length > 0 ? 'unknown' : failed.length > 0 ? 'failed' : null;
       return {
-        html: ['<b>Статус</b>', '', `Публикация: ${publishing}`, `Cron: ${cronLine}`, `Проблемы: ${problems}`].join(
-          '\n'
-        ),
+        html: [
+          '<b>Статус</b>',
+          '',
+          `Публикация: ${publishing}`,
+          `Cron: ${cronLine}`,
+          `Проблемы: ${problems}`,
+          ...(rubrics === null ? [] : [rubrics])
+        ].join('\n'),
         button:
           target === null
             ? { text: STUDIO_BUTTON_TEXT, url: `${appOrigin}/` }

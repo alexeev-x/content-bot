@@ -2,6 +2,10 @@ import type { RubricKey, UpdateRubricInput, UpdateRubricSchedulerInput } from '@
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
   getRubricCalendar,
+  getRubricComments,
+  getRubricCompare,
+  getRubricLearning,
+  getRubricPosts,
   getRubricForecast,
   getRubricList,
   getRubricSchedulerStatus,
@@ -9,7 +13,8 @@ import {
   listRubricChannels,
   skipRubricSlot,
   updateRubric,
-  updateRubricScheduler
+  updateRubricScheduler,
+  updateRubricLearning
 } from './rubrics-api';
 
 const rubricKeys = {
@@ -19,8 +24,56 @@ const rubricKeys = {
   calendar: (from: string, to: string) => [...rubricKeys.all, 'calendar', from, to] as const,
   list: () => [...rubricKeys.all, 'list'] as const,
   slot: (id: string) => [...rubricKeys.all, 'slot', id] as const,
-  channels: () => [...rubricKeys.all, 'channels'] as const
+  channels: () => [...rubricKeys.all, 'channels'] as const,
+  compare: (days: number) => [...rubricKeys.all, 'compare', days] as const,
+  posts: (rubric: string, days: string) => [...rubricKeys.all, 'posts', rubric, days] as const,
+  comments: (days: number) => [...rubricKeys.all, 'comments', days] as const,
+  learning: () => [...rubricKeys.all, 'learning'] as const
 };
+
+export function rubricLearningQueryOptions() {
+  return queryOptions({
+    queryKey: rubricKeys.learning(),
+    queryFn: ({ signal }) => getRubricLearning(signal),
+    staleTime: ANALYTICS_STALE_MS
+  });
+}
+
+/** The learning switch; the answer is the fresh learning state. */
+export function useUpdateRubricLearning() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: (applyEnabled: boolean) => updateRubricLearning({ applyEnabled }),
+    onSuccess: (data) => client.setQueryData(rubricKeys.learning(), data)
+  });
+}
+
+/** Scores change once an hour (the score step): a minute of staleness costs nothing. */
+const ANALYTICS_STALE_MS = 60_000;
+
+export function rubricCompareQueryOptions(days: 7 | 30 | 90) {
+  return queryOptions({
+    queryKey: rubricKeys.compare(days),
+    queryFn: ({ signal }) => getRubricCompare(days, signal),
+    staleTime: ANALYTICS_STALE_MS
+  });
+}
+
+export function rubricPostsQueryOptions(rubric: RubricKey, days: '30' | '90' | 'all') {
+  return queryOptions({
+    queryKey: rubricKeys.posts(rubric, days),
+    queryFn: ({ signal }) => getRubricPosts(rubric, days, signal),
+    staleTime: ANALYTICS_STALE_MS
+  });
+}
+
+export function rubricCommentsQueryOptions(days: 7 | 30) {
+  return queryOptions({
+    queryKey: rubricKeys.comments(days),
+    queryFn: ({ signal }) => getRubricComments(days, signal),
+    staleTime: ANALYTICS_STALE_MS
+  });
+}
 
 export function rubricStatusQueryOptions() {
   return queryOptions({

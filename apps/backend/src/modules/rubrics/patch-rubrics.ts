@@ -11,7 +11,9 @@ import {
   type RubricContext,
   type RubricSample,
   DONT_BOTHER_JOKES,
-  withJoke
+  withJoke,
+  chainOf,
+  recentFacts
 } from './types';
 
 // Rubrics over Valve's latest patch notes (Russian datafeed). A note «X увеличен с 60 до 65» is read as a buff or a
@@ -173,7 +175,16 @@ export async function patchBroken(context: RubricContext): Promise<RubricSample>
       lines.push(`${each.hero.localizedName} — ${change.what}: ${change.from} → ${change.to}`);
   });
   lines.push('Играете на ком-то из них? Кого порезали сильнее всех — пишите в комментарии.');
-  return { picture: { html, ...PICTURE_SIZE }, text: lines.join('\n'), poll: null };
+  return {
+    picture: { html, ...PICTURE_SIZE },
+    text: lines.join('\n'),
+    facts: {
+      heroIds: top.map((each) => each.hero.id),
+      chain: chainOf(patch.version),
+      look: painted ? 'painted' : 'cut'
+    },
+    poll: null
+  };
 }
 
 // «Кто теперь имба?» is 01's pair (buffs instead of nerfs) but must not look like it (owner, 26.10.2026: «дизайн все же
@@ -313,17 +324,23 @@ export async function whoIsImba(context: RubricContext): Promise<RubricSample> {
           `${each.hero.localizedName}: ${said(each.biggest, index)}${each.nerf === undefined ? '' : `; зато порезали: ${said(each.nerf, index)}`}`
         ]
   );
+  // The joke option repeats only after four later posts (RUBRICS_SCHEDULER.md, 02).
+  const imbaOptions = withJoke(
+    top.map((each) => each.hero.localizedName),
+    context.random,
+    undefined,
+    recentFacts(context, 4, (facts) => facts.jokeOption)
+  );
   return {
     picture: { html: imbaPicture(patch.version, top), ...PICTURE_SIZE },
     // A plain opening, no count of the rest (owner, 26.10.2026: «просто: после 7.41f этих героев больше всего усилили»).
     text: [`После патча ${patch.version} сильнее всех усилили этих героев:`, ...lines].join('\n'),
-    poll: poll(
-      `Кто имба после ${patch.version}?`,
-      withJoke(
-        top.map((each) => each.hero.localizedName),
-        context.random
-      )
-    )
+    facts: {
+      heroIds: top.map((each) => each.hero.id),
+      chain: chainOf(patch.version),
+      jokeOption: imbaOptions.at(-1) ?? ''
+    },
+    poll: poll(`Кто имба после ${patch.version}?`, imbaOptions)
   };
 }
 
@@ -507,14 +524,43 @@ ${list}</div>`,
  */
 export async function nerfOrBuff(context: RubricContext): Promise<RubricSample> {
   const patch = await latestPatch(context);
-  // One of the two looks at random, so the rubric does not grow stale (owner, 26.10.2026: «чтобы чередовалось»).
-  const look = pick([...NERF_LOOKS], context.random);
-  // Nerf, buff and one joke of the «не еби мозги» kind (owner, 26.10.2026); the picture sits in the poll, no post.
-  const options = withJoke(['Нерф', 'Баф'], context.random, DONT_BOTHER_JOKES);
-  const mixed = patch.scored.filter((each) => {
+  // The two looks alternate, never twice in a row (owner, 26.10.2026: «чтобы чередовалось»).
+  const lastLook = recentFacts(context, 1, (facts) => facts.look)[0];
+  const look = pick(
+    NERF_LOOKS.filter((each) => each !== lastLook),
+    context.random
+  );
+  // Nerf, buff and one joke of the «не еби мозги» kind (owner, 26.10.2026), not one of the last six posts'; the
+  // picture sits in the poll, no post.
+  const options = withJoke(
+    ['Нерф', 'Баф'],
+    context.random,
+    DONT_BOTHER_JOKES,
+    recentFacts(context, 6, (facts) => facts.jokeOption)
+  );
+  // Not a hero «Кого понерфили» or «Кто теперь имба?» already showed for this patch, when another fits.
+  const chain = chainOf(patch.version);
+  const shown = new Set(
+    (context.history?.others ?? [])
+      .filter((post) => post.facts.chain === chain && (post.rubric === 'patch_broken' || post.rubric === 'who_is_imba'))
+      .flatMap((post) => post.facts.heroIds ?? [])
+  );
+  const fresh = <T>(list: T[], heroOf: (each: T) => number) => {
+    const kept = list.filter((each) => !shown.has(heroOf(each)));
+    return kept.length > 0 ? kept : list;
+  };
+  const facts = (heroId: number, variant: 'mixed' | 'trap') => ({
+    heroIds: [heroId],
+    chain,
+    look,
+    variant,
+    jokeOption: options.at(-1) ?? ''
+  });
+  const mixedAll = patch.scored.filter((each) => {
     const own = patch.changes.filter((change) => change.heroId === each.hero.id);
     return own.length >= 2 && own.length <= 8 && own.some((one) => one.buff) && own.some((one) => !one.buff);
   });
+  const mixed = fresh(mixedAll, (each) => each.hero.id);
   if (mixed.length > 0) {
     const { hero } = pick(mixed, context.random);
     const own = patch.changes.filter((change) => change.heroId === hero.id);
@@ -534,12 +580,18 @@ export async function nerfOrBuff(context: RubricContext): Promise<RubricSample> 
       pictureInPoll: true,
       // Never sent (the poll is the whole post); kept for the logs and the local preview.
       text: `${hero.localizedName}, патч ${patch.version}: нерф или баф?`,
+      facts: facts(hero.id, 'mixed'),
       poll: poll(`${hero.localizedName} после ${patch.version}: нерф или баф?`, options)
     };
   }
-  const traps = patch.changes.filter(
-    (change) =>
-      change.abilityId !== null && LESS_IS_BETTER.test(change.stat) && firstNumber(change.to) < firstNumber(change.from)
+  const traps = fresh(
+    patch.changes.filter(
+      (change) =>
+        change.abilityId !== null &&
+        LESS_IS_BETTER.test(change.stat) &&
+        firstNumber(change.to) < firstNumber(change.from)
+    ),
+    (change) => change.heroId
   );
   if (traps.length === 0) throw noData('a change that is not obvious');
   const change = pick(traps, context.random);
@@ -562,6 +614,7 @@ export async function nerfOrBuff(context: RubricContext): Promise<RubricSample> 
     picture: html === null ? null : { html, ...PICTURE_SIZE },
     text: `${subject}: ${change.stat.toLowerCase()}: ${change.from} → ${change.to}\nЦифра стала меньше — значит, нерф?`,
     pictureInPoll: html !== null,
+    facts: facts(change.heroId, 'trap'),
     poll: quiz('Это нерф или баф?', options, 1, `${change.note} (патч ${patch.version})`)
   };
 }
@@ -616,10 +669,15 @@ export async function valveSeriously(context: RubricContext): Promise<RubricSamp
     const ability = details[index]?.abilities.find((one) => one.id === change.abilityId)?.key ?? null;
     return [{ hero, ability, stat: change.stat, from: change.from, to: change.to, diff: difference(change) }];
   });
+  // A set of answers not used in the last five posts.
+  const usedSets = new Set(recentFacts(context, 5, (facts) => facts.variant));
+  const freeSets = SERIOUSLY_SETS.map((_, index) => index).filter((index) => !usedSets.has(String(index)));
+  const setIndex = pick(freeSets.length > 0 ? freeSets : SERIOUSLY_SETS.map((_, index) => index), context.random);
   return {
     picture: changes.length === 0 ? null : { html: seriouslyPicture(changes), ...PICTURE_SIZE },
     text: [`Самые крошечные правки патча ${patch.version}:`, ...lines].join('\n'),
-    poll: poll('Valve, ты серьёзно?', [...pick(SERIOUSLY_SETS, context.random)])
+    facts: { chain: chainOf(patch.version), heroIds: changes.map((each) => each.hero.id), variant: String(setIndex) },
+    poll: poll('Valve, ты серьёзно?', [...(SERIOUSLY_SETS[setIndex] ?? SERIOUSLY_SETS[0] ?? [])])
   };
 }
 
@@ -649,13 +707,16 @@ export async function valveTime(context: RubricContext): Promise<RubricSample> {
     month: 'long',
     timeZone: 'Europe/Moscow'
   });
-  // The board (A) and the endless loading bar (C) take turns at random (owner, 27.10.2026).
-  const look = pick(VALVE_TIME_LOOKS, context.random);
+  // The board (A) and the endless loading bar (C) take turns, never twice in a row (owner, 27.10.2026).
+  const lastLook = recentFacts(context, 1, (facts) => facts.look)[0];
+  const looks = VALVE_TIME_LOOKS.filter((each) => each !== lastLook);
+  const look = pick(looks.length > 0 ? looks : VALVE_TIME_LOOKS, context.random);
   return {
     picture: { html: valveTimePicture(look, { days, version: latest.version, date }), ...PICTURE_SIZE },
     // The board carries the numbers; the caption is the joke alone (owner, 27.10.2026: the sample repeated the board).
     text: 'Патча всё нет.',
     reference: `${days} ${plural(days, 'день', 'дня', 'дней')} без патча; последний патч ${latest.version} вышел ${date}.`,
+    facts: { mark: Math.max(days, 1), look, chain: chainOf(latest.version) },
     poll: null
   };
 }

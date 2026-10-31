@@ -1,3 +1,4 @@
+import { mskDayStart } from '../../shared/msk-time';
 import { spokenHeroName } from './anketa';
 import { ITEM_SPOKEN_NAMES } from './item-spoken-names.generated';
 import { escapeHtml, heroImage, itemImage, PICTURE_SIZE } from './picture';
@@ -887,7 +888,8 @@ export async function shameOfDay(context: RubricContext): Promise<RubricSample> 
   const base = context.sources.heroMatches ?? null;
   const what = 'yesterday’s games in the stats base';
   if (base === null) throw noData(what);
-  const until = Math.floor(context.now / DAY_MS) * DAY_MS;
+  // Yesterday is the Moscow day before today's (RUBRICS_SCHEDULER.md, 29; it was the UTC day).
+  const until = mskDayStart(context.now);
   const since = until - DAY_MS;
   const [heroes, items] = await Promise.all([context.sources.heroes(), context.sources.items()]);
   const itemNames = await context.sources.itemNames?.();
@@ -910,6 +912,7 @@ export async function shameOfDay(context: RubricContext): Promise<RubricSample> 
     const spoken = spokenHeroName(hero.name.replace(/^npc_dota_hero_/, '')) ?? hero.localizedName;
     await context.sources.shameHeroes?.remember(found.game.heroId);
     return {
+      facts: { shameHero: found.game.heroId, heroIds: [found.game.heroId], variant: kind },
       picture: shamePicture({
         heroName: hero.name,
         game: found.game,

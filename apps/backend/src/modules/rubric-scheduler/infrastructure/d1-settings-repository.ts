@@ -197,6 +197,18 @@ export function createD1SchedulerSettingsRepository(db: D1Database): SchedulerSe
       await db.prepare("UPDATE rubric_step_marks SET next_due_at = 0 WHERE step = 'plan'").run();
     },
 
+    async stepHealth(step) {
+      const row = await db
+        .prepare('SELECT fail_count, last_error_code, last_success_at FROM rubric_step_marks WHERE step = ?1')
+        .bind(step)
+        .first<{ fail_count: number; last_error_code: string | null; last_success_at: number | null }>();
+      return {
+        failCount: row?.fail_count ?? 0,
+        lastErrorCode: row?.last_error_code ?? null,
+        lastSuccessAt: row?.last_success_at ?? null
+      };
+    },
+
     async lastPlanAt() {
       const row = await db
         .prepare("SELECT last_success_at FROM rubric_step_marks WHERE step = 'plan'")

@@ -86,7 +86,7 @@ describe('owner actions in «Рубрики»', () => {
   it("lists every rubric and takes the owner's rest", async () => {
     const owner = live();
     const list = rubricListSchema.parse(await (await owner.request('/api/v1/rubrics')).json());
-    expect(list.items).toHaveLength(30);
+    expect(list.items).toHaveLength(31);
     const quote = list.items.find((item) => item.key === 'quote_of_day');
     expect(quote?.state).toBe('active');
     const changed = await owner.request('/api/v1/rubrics/quote_of_day', {

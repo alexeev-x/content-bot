@@ -1,5 +1,14 @@
 import { abilityImage, escapeHtml, heroPortraitImage, PICTURE_SIZE, picturePage } from './picture';
-import { type AbilityDetail, type HeroInfo, noData, pick, type RubricContext, type RubricSample } from './types';
+import {
+  type AbilityDetail,
+  type HeroInfo,
+  noData,
+  pick,
+  recentFacts,
+  type RubricContext,
+  type RubricSample,
+  shuffled
+} from './types';
 
 // Rubrics over the game itself: a hero's abilities with
 // Russian names and values (Valve's datafeed). No pick or win rates here.
@@ -320,14 +329,30 @@ function boardHtml(lines: WhoseLine[], real: boolean, room: number, maxRow: numb
 
 export async function whoseAbility(context: RubricContext): Promise<RubricSample> {
   const heroes = await context.sources.heroes();
-  const hero = pick(heroes, context.random);
-  const detail = await context.sources.heroDetail(hero.id);
-  const level = pick([...LEVELS], context.random);
-  const candidates = detail.abilities.filter(
-    (each) => each.isUltimate === level.ultimate && each.cooldowns.some((value) => value > 0)
-  );
-  if (candidates.length === 0) throw noData(level.ultimate ? 'ultimate' : 'basic ability');
-  const ability = pick(candidates, context.random);
+  // The owner's rules (RUBRICS_SCHEDULER.md, 04): no hero of the last five riddles, no ability of the last twenty,
+  // the difficulty in turn, the look never twice in a row. The lab has no history: then everything is random.
+  const recentHeroes = new Set(recentFacts(context, 5, (facts) => facts.heroIds?.[0]));
+  const recentAbilities = new Set(recentFacts(context, 20, (facts) => facts.abilityId));
+  const lastLevel = recentFacts(context, 1, (facts) => facts.variant)[0];
+  const lastLook = recentFacts(context, 1, (facts) => facts.look)[0];
+  const levelIndex = LEVELS.findIndex((each) => each.key === lastLevel);
+  const level =
+    levelIndex < 0 ? pick([...LEVELS], context.random) : (LEVELS[(levelIndex + 1) % LEVELS.length] ?? LEVELS[0]);
+  const pool = heroes.filter((each) => !recentHeroes.has(each.id));
+  // A hero may lack an ability of the level (or have only recent ones): up to eight are tried.
+  let found: { hero: HeroInfo; ability: AbilityDetail } | null = null;
+  for (const hero of shuffled(pool.length > 0 ? pool : heroes, context.random).slice(0, 8)) {
+    const detail = await context.sources.heroDetail(hero.id);
+    const candidates = detail.abilities.filter(
+      (each) =>
+        each.isUltimate === level.ultimate && each.cooldowns.some((value) => value > 0) && !recentAbilities.has(each.id)
+    );
+    if (candidates.length === 0) continue;
+    found = { hero, ability: pick(candidates, context.random) };
+    break;
+  }
+  if (found === null) throw noData(level.ultimate ? 'ultimate' : 'basic ability');
+  const { hero, ability } = found;
   const lines: WhoseLine[] = [
     { name: 'Перезарядка', real: 'Перезарядка', values: ability.cooldowns.map(decimal), unit: 'с' }
   ];
@@ -342,7 +367,8 @@ export async function whoseAbility(context: RubricContext): Promise<RubricSample
       unit: ''
     });
   }
-  const look = pick([...WHOSE_LOOKS], context.random);
+  const looks = WHOSE_LOOKS.filter((each) => each !== lastLook);
+  const look = pick(looks.length > 0 ? looks : [...WHOSE_LOOKS], context.random);
   const riddle: WhoseRiddle = { kind: level.ultimate ? 'ульта' : 'способность', level, lines, hero, ability };
   const pair = WHOSE_PAIRS[look];
   const css = `${WHOSE_BASE}\n${pair.css}`;
@@ -357,11 +383,13 @@ export async function whoseAbility(context: RubricContext): Promise<RubricSample
     picture: { html: question, ...PICTURE_SIZE },
     text: pick(level.ultimate ? ASK_CAPTIONS : ASK_HARD_CAPTIONS, context.random),
     ownText: true,
+    facts: { heroIds: [hero.id], abilityId: ability.id, variant: level.key, look },
     poll: null,
     followUp: {
       afterMinutes: ANSWER_AFTER_MINUTES,
       picture: { html: answer, ...PICTURE_SIZE },
-      text: pick(ANSWER_CAPTIONS, context.random)
+      text: pick(ANSWER_CAPTIONS, context.random),
+      guessHero: { name: hero.localizedName, key: hero.name.replace(/^npc_dota_hero_/, '') }
     }
   };
 }

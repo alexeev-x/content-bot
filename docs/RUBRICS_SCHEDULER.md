@@ -1,9 +1,11 @@
 # Rubrics → scheduler: what is left to build
 
-**Status: partly built (31.10.2026).** The scheduler plans, builds, releases and reads back the bank rubrics whose inner
-rules are coded (13, 14, 15, 16, 18, 24, 25, 27, 28, 30; docs/backend/rubric-scheduler.md); «Рубрики» shows the switch,
-the slots, every rubric and the 35-day forecast. Event and chain rubrics, follow-ups, hero history and picture rubrics on
-production come with the later stages of docs/scheduler/MASTER-PLAN.md. The DEV sample in «Тестирование» → «Рубрики»
+**Status: built (31.10.2026), not in production yet.** The scheduler plans, builds, releases and reads back all 31
+rubrics (01–31) with their inner rules (docs/backend/rubric-scheduler.md); the events and chains (patch, «Валв-тайм»,
+announcements, finds, the bet, the cards) are planned from their triggers; each post is scored at 24 h, the Monday
+report gets a «Рубрики» block, and after four weeks of advice the rests and hours learn by themselves. Still owner-gated:
+semantic similarity (Workers AI trial), the AI turn writer for 13/14/20, removing the 0117 shim and dropping the manual
+rubric tables (both after the production release). The DEV sample in «Тестирование» → «Рубрики»
 is built by the same code (`app/rubric-build/`). This file
 lists what the work of wiring rubrics to the scheduler and to real autopublishing must cover; the product rules
 (pool, weekly budget, two-week rest, news first, picture rule) are in `docs/PLAN.md` §2 and are not repeated here.

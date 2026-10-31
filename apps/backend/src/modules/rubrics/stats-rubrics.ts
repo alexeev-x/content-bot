@@ -35,7 +35,8 @@ import {
   type RubricContext,
   type RubricSample,
   shuffled,
-  withJoke
+  withJoke,
+  recentFacts
 } from './types';
 
 // Rubrics over pick and win rates by rank (STRATZ, once its token is set). Without it each answers
@@ -177,10 +178,17 @@ export async function whoBeatsWhom(context: RubricContext): Promise<RubricSample
   const known = new Map(itemList.map((item) => [item.id, item]));
   const [a, b] = await versusSides(context, heroes, known);
   if (a.items.length < 6 || b.items.length < 6) throw noData('builds');
-  const look = pick(VERSUS_LOOKS, context.random);
+  // The look and the title rest a post, a hero three (RUBRICS_SCHEDULER.md, 10); the lab has no history.
+  const lastLook = recentFacts(context, 1, (facts) => facts.look)[0];
+  const looks = VERSUS_LOOKS.filter((each) => each !== lastLook);
+  const look = pick(looks.length > 0 ? looks : VERSUS_LOOKS, context.random);
+  const lastTitle = recentFacts(context, 1, (facts) => facts.topic)[0];
+  const titles = VERSUS_TITLES.filter((each) => `${each.lead} ${each.red}` !== lastTitle);
+  const title = pick(titles.length > 0 ? titles : VERSUS_TITLES, context.random);
   return {
+    facts: { heroIds: [a.hero.id, b.hero.id], look, topic: `${title.lead} ${title.red}` },
     picture: {
-      html: versusPicture(look, a, b, pick(VERSUS_TITLES, context.random)),
+      html: versusPicture(look, a, b, title),
       ...PICTURE_SIZE
     },
     text: '',
@@ -224,7 +232,11 @@ const codeOf = (error: unknown) =>
   error instanceof Error && 'code' in error ? String((error as { code: unknown }).code) : 'ошибка';
 
 export async function heroGuide(context: RubricContext): Promise<RubricSample> {
-  const popular = (await shares(context, 7)).sort((a, b) => b.pickRate - a.pickRate).slice(0, GUIDE_POPULAR);
+  // Among the heroes with no guide yet, a random one of the five most popular (owner, 31.10.2026: answer 6).
+  const guided = new Set((context.history?.own ?? []).flatMap((post) => post.facts.heroIds ?? []));
+  const ranked = (await shares(context, 7)).sort((a, b) => b.pickRate - a.pickRate);
+  const unguided = ranked.filter((each) => !guided.has(each.hero.id));
+  const popular = (unguided.length > 0 ? unguided : ranked).slice(0, GUIDE_POPULAR);
   const hero = pick(popular, context.random).hero;
   const stats = needStats(context);
   const positionRows = await stats.positions();
@@ -465,6 +477,7 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
     ...(slides.length === 0 ? {} : { slides }),
     notes,
     text: `Гайд на ${hero.localizedName}: что покупать, как качать и кого бояться — всё на картинке.`,
+    facts: { heroIds: [hero.id] },
     reference: [
       `${hero.localizedName}, роль: ${ROLE_NAMES[roleOf(position)]}.`,
       `Основа по порядку: ${core.map(itemName).join(', ')}.`,
@@ -524,6 +537,7 @@ const VALVE_DONT_CARE = [
 ] as const;
 
 export async function whoGetsNerfed(context: RubricContext): Promise<RubricSample> {
+  if (context.bet !== undefined) return betResult(context, context.bet);
   const stats = needStats(context);
   const [rows, heroes] = await Promise.all([
     // Every rank in one request: eight at once got STRATZ_BLOCKED (27.10.2026).
@@ -565,8 +579,10 @@ export async function whoGetsNerfed(context: RubricContext): Promise<RubricSampl
     top.map((each) => each.hero.id)
   );
   const verdicts = top.map((each) => ({ ...each, outcome: result.outcomes.get(each.hero.id) ?? 'untouched' }));
-  // The question and its result keep one look; A and B take turns at random (owner, 27.10.2026).
-  const look = pick(NERF_LOOKS, context.random);
+  // The question and its result keep one look; A and B take turns (owner, 27.10.2026): never twice in a row.
+  const lastLook = context.history?.own[0]?.facts.look;
+  const looks = NERF_LOOKS.filter((each) => each !== lastLook);
+  const look = pick(looks.length > 0 ? looks : NERF_LOOKS, context.random);
   return {
     picture: { html: nerfQuestionPicture(look, top), ...PICTURE_SIZE },
     text: ['Эти герои сейчас слишком сильные:', ...lines].join('\n'),
@@ -578,6 +594,12 @@ export async function whoGetsNerfed(context: RubricContext): Promise<RubricSampl
         verdicts.map((each) => ({ name: each.hero.localizedName, outcome: each.outcome })),
         context.random
       )
+    },
+    facts: {
+      heroIds: top.map((each) => each.hero.id),
+      look,
+      variant: 'bet',
+      chain: result.version.replace(/[a-z]$/, '')
     },
     poll: poll(
       'Кого понерфят в следующем патче?',
@@ -633,4 +655,54 @@ function nerfResultText(
     ...heroes.map((each) => `${each.name} — ${OUTCOME_WORDS[each.outcome]}`),
     verdict
   ].join('\n');
+}
+
+/**
+ * The bet's result once the next patch is out (MASTER-PLAN stage 5): the same heroes and look as the bet, what the
+ * patch did to each, and how the channel voted when the poll closed.
+ */
+async function betResult(context: RubricContext, bet: NonNullable<RubricContext['bet']>): Promise<RubricSample> {
+  const heroes = new Map((await context.sources.heroes()).map((hero) => [hero.id, hero]));
+  const picked = bet.heroIds.map((id) => heroes.get(id)).filter((hero): hero is HeroInfo => hero !== undefined);
+  if (picked.length === 0) throw noData('bet heroes');
+  const result = await patchOutcomes(
+    context,
+    picked.map((hero) => hero.id)
+  );
+  const look = (NERF_LOOKS as readonly string[]).includes(bet.look ?? '')
+    ? (bet.look as (typeof NERF_LOOKS)[number])
+    : NERF_LOOKS[0];
+  const verdicts = picked.map((hero) => ({
+    hero,
+    winRate: 0,
+    growth: 0,
+    outcome: result.outcomes.get(hero.id) ?? 'untouched'
+  }));
+  const total = (bet.votes ?? []).reduce((sum, option) => sum + option.voters, 0);
+  const shares =
+    total === 0
+      ? []
+      : [
+          '',
+          'Как голосовал канал:',
+          ...(bet.votes ?? []).map((option) => `${option.text}: ${Math.round((option.voters / total) * 100)}%`)
+        ];
+  return {
+    picture: { html: nerfResultPicture(look, verdicts, result.version), ...PICTURE_SIZE },
+    text: [
+      nerfResultText(
+        result.version,
+        verdicts.map((each) => ({ name: each.hero.localizedName, outcome: each.outcome })),
+        context.random
+      ),
+      ...shares
+    ].join('\n'),
+    facts: {
+      heroIds: picked.map((hero) => hero.id),
+      look,
+      variant: 'result',
+      chain: result.version.replace(/[a-z]$/, '')
+    },
+    poll: null
+  };
 }

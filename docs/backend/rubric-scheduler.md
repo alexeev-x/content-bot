@@ -67,3 +67,82 @@ One per reason and Moscow day (`rubric_notices`), at most six failures a day, th
 `rubric_scheduler_settings` (switch, channel, horoscope week, revision), `rubric_settings` (per rubric: on/off, rest
 and its source, last post real or seeded, skip, bank pause), `rubric_slots` (unique live `slot_at` and `dedupe_key`),
 `rubric_slot_attempts` (90 days), `rubric_step_marks`, `rubric_breakers`, `rubric_notices`.
+
+## Events, chains and follow-ups (stage 5, migration 0120)
+
+`domain/triggers.ts` turns the stored patches (`dota_update_items` patch_notes) and Steam announcements, the week's
+game-file finds, the open bet and the greeting-card calendar into event candidates, each with its Moscow day window
+and a dedupe key; the plan places them before the pool rubrics.
+
+| Rubric | When | Dedupe key |
+|---|---|---|
+| 01 / 02 / 03 / 07 | the patch's day / the evening after / day 3 / days 4–6 (a hotfix within 5 days joins its patch) | `chain:<base>:<rubric>` |
+| 06 bet / result | 21+ days after a patch, one open bet (`rubric_bets`) / two days after the next patch | `bet:<base>` / `bet-result:<base>` |
+| 08 | 30, 45, 60, 90, then every 30 days without a patch; at most two days earlier | `valve_time:<version>:<mark>` |
+| 09 | one to five days after a Steam announcement | `steam:<gid>` |
+| 05 | Friday evening when the game's files showed something new | `files:<friday>` |
+| 31 | a dated card on its day at 11:00 (four 14.02 cards by `year % 4`; the patch card for a major patch) | `card:<id>:<year>` |
+
+A slot's build gets the rubric's history (its own posts newest first, the other rubrics' of the last week, from
+`rubric_slots.facts_json`) and stores the new post's facts. The builders keep the owner's rules with it: joke options rest
+(02: 4 posts, 03: 6, 09: 4), looks never twice in a row (03, 04, 05, 06, 08), 03 avoids 01/02's heroes of the patch, 04
+rotates its difficulty and rests a hero 5 riddles and an ability 20, 05 never shows a find twice, 07's answer sets rest 5
+posts, 09 rates an announcement once, 11 never repeats a set. Every build is also refused (the next candidate tries) when
+its text is too close to one of the rubric's last 20 (word-trigram Jaccard ≥ 0.5, `modules/rubrics/similarity.ts`) or
+when its hero was in another rubric post within 72 hours (`heroGate: cross72h`).
+
+After a post went out: its poll is registered with the audience module and a `poll_close` slot closes it at 24 h (7 days
+for quizzes and bets) with `stopPoll`, the final counts kept; 04's answer, built with the riddle, becomes a `follow_up`
+slot 180 minutes after the riddle really went out; a bet opens with its poll and closes with its result, which quotes the
+channel's votes.
+
+«Открытка» (31) posts the owner's own picture for the card (R2 `static/greeting/<id>.png`) with the card's wish word for
+word; no picture uploaded, no post. The bank is copied from `.logs/handoff/rubrics/new/greeting_card/bank.json` into
+`modules/rubrics/greeting-cards.ts`; weekday and «any» cards fill free slots 30 days apart.
+
+## All rubrics and their own rules (stage 6)
+
+Every rubric runs (`INNER_RULES_READY` holds all of `RUBRIC_META`). A builder that finds nothing worth posting returns a
+content skip (`CONTENT_SKIP`): the slot's next candidate tries, else the slot ends `skipped`. «Факты Валв» (14) takes
+its numbers from Valve's live data at build time (`modules/rubrics/valve-values.ts`, the on-lane pattern); an entry
+without live numbers rests 7 days after a patch. The other history rules: 10 and 12 never take the same hero twice in a
+row (12 picks among the top 5 heroes with no guide yet), 17, 19–23, 26 and 29 rest their last lines and heroes by
+`recentFacts`; «Гороскоп» keeps its tellers and «Позор дня» its hero in the slot's facts, not in a counter.
+
+## Analytics (stage 7, migration 0121)
+
+`modules/rubric-analytics` scores each rubric post of the analytics channel (`ANALYTICS_TELEGRAM_CHANNEL`) once it is
+25.5 hours old, against the channel's usual post of the 28 days before it: views by the median, reactions, comments and
+votes by the median rate per view (+1 smoothing), each clamped to ×0.1–×10; the score is their weighted geometric mean
+(views 0.5, reactions 0.2, comments 0.2, votes 0.1, renormalised over what is known). A post the preview did not see
+from its first hours, a contaminated one or one of another channel (DEV's test channel) is never scored. Rows
+(`rubric_post_scores`) keep their raw numbers and the baseline used, so a formula change can re-score them.
+
+| Step (queue `rubric_analytics`) | When (Cron, claim `ra:*`) | What |
+|---|---|---|
+| `score` | every hour at :22 | new scores, then the 72 h numbers of older rows |
+| `summary` | 06:07 MSK | the comment themes: one AI call a day at most (`rubric_summary_runs`), production only, comments as JSON data, ids and counts checked by code (`domain/theme-validate.ts`) |
+| `week` | Monday from 06:47 MSK, hourly until built | the Monday report's «Рубрики» block (`rubric_week_blocks`) from the rows scored since the last block |
+
+The Monday report shows the block after «🎬 Форматы видео» (the old video-format line, renamed): best and worst
+rubric and post, a table against the usual post, failures of the week. «Рубрики» → «Аналитика» reads
+`/api/v1/rubric-analytics/{compare,posts,comments}`.
+
+«Первым угадал» (04): the riddle's answer stays a draft until its release; then the riddle's comments (kept 10 days)
+are matched by `modules/rubrics/first-guess.ts` (the lexicon's nicknames, the «Анкета» names, Valve's name; a word
+with a short ending, never a longer word; a comment naming three heroes is ignored) and the first guess goes above
+the answer. A failure to read the comments sends the plain answer.
+
+## Learning (stage 8, migration 0122)
+
+Each Moscow Monday after the report's block, the `learn` step (claim `ra:learn`, minute 52) turns the scores into
+advice: a pool rubric whose last scores (shrunk toward ×1 by three pseudo-posts) land above ×1.15 comes 10 % more often
+(1–5 days), below ×0.85 rarer; rests stay 7–60, a rubric changes at most every 14 days, at most three a week; the
+owner's own rest is never touched. Hours: each post against its own rubric's usual post, cells by weekday group (`wd`,
+`we`, a single weekday once it has 12 posts) and hour, shrunk toward their block of the day; a slot moves an hour
+toward a hour that lands 10 %+ better, never beyond ±3 hours of 12:30/19:00, inside 08:00–22:30, two hours from the
+other slot. One pool slot in five goes an hour off its time (a trial hour), so other hours get data.
+
+Four weeks from the first scored post the step only logs advice (`rubric_learning_log`); then it applies through
+conditional writes (`rubric_settings.rest_source = 'learned'`, `rubric_hour_slots`), unless the owner turned it off in
+«Рубрики» → «Аналитика» → «Обучение» (owner, 31.10.2026: answer 10). A replay of the step logs and applies nothing twice.

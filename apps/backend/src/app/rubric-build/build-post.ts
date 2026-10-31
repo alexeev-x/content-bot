@@ -42,10 +42,14 @@ export async function buildRubricPost(
         heroMatches: deps.heroMatches,
         tellers: deps.tellers,
         shameHeroes: deps.shameHeroes,
-        turns: deps.turns
+        turns: deps.turns,
+        ...(deps.greetingPicture === undefined ? {} : { greetingPicture: deps.greetingPicture })
       },
       random: deps.random,
-      now: deps.now
+      now: deps.now,
+      ...(deps.history === undefined ? {} : { history: deps.history }),
+      ...(deps.bet === undefined ? {} : { bet: deps.bet }),
+      ...(deps.cardId === undefined ? {} : { cardId: deps.cardId })
     });
   } catch (error) {
     const source = sourceError(error);
@@ -95,7 +99,7 @@ export async function postFromSample(
   // Every rubric gets a picture for now (owner, 25.10.2026: «пусть ИИ рисует для всех, а там уже отбросим»): one with
   // no layout of its own is the drawn scene with its title alone, and none at all when the scene is not drawn.
   // A rubric that decided against a picture (owner, 28.10.2026: text jokes and bare polls) gets no scene either.
-  const ownPhotos = sample.photo !== undefined || sample.album !== undefined;
+  const ownPhotos = sample.photo !== undefined || sample.album !== undefined || sample.pictureBytes !== undefined;
   const page =
     ownPhotos || sample.noPicture === true ? null : (sample.picture ?? (deps.ai === null ? null : titlePicture(title)));
   if (page !== null) {
@@ -113,6 +117,7 @@ export async function postFromSample(
         });
       }
   }
+  if (sample.pictureBytes !== undefined) picture = sample.pictureBytes;
   if (sample.photo !== undefined) {
     const file = await deps.improvePhoto({
       bytes: await fetchPhoto(sample.photo.url),
@@ -208,9 +213,14 @@ export async function postFromSample(
     followUp:
       followUp === undefined
         ? null
-        : { afterMinutes: followUp.afterMinutes, text: followUp.text, picture: followUpPicture },
+        : {
+            afterMinutes: followUp.afterMinutes,
+            text: followUp.text,
+            picture: followUpPicture,
+            ...(followUp.guessHero === undefined ? {} : { guessHero: followUp.guessHero })
+          },
     notes,
     degradations: [...new Set(degradations)],
-    facts: {}
+    facts: sample.facts ?? {}
   };
 }

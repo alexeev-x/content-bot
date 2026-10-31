@@ -1654,6 +1654,7 @@ export async function suspect(context: RubricContext): Promise<RubricSample> {
     ].join(''),
     boldLead: true,
     ownText: true,
+    facts: { heroIds: [hero.id], bankLine: chosen.hero },
     poll: poll('Приговор', shuffled(chosen.verdicts, context.random))
   };
 }

@@ -37,6 +37,8 @@ export const rubricSchedulerStatusSchema = z.object({
   liveSlots: z.number().int().nonnegative().default(0),
   next: z.object({ rubricKey: rubricKeySchema, at: z.iso.datetime() }).nullable().default(null),
   lastPlanAt: z.iso.datetime().nullable().default(null),
+  /** Browser Rendering used by today's builds against the daily cap (Moscow day). */
+  browserBudget: z.object({ usedMs: z.number().int().nonnegative(), capMs: z.number().int().positive() }).optional(),
   capabilities: z.object({ browser: z.boolean(), openai: z.boolean(), stratz: z.boolean(), statsDb: z.boolean() }),
   revision: revisionSchema.default(0),
   updatedAt: z.iso.datetime()
@@ -49,7 +51,7 @@ export const forecastSlotSchema = z.object({
   hasPicture: z.boolean(),
   hasPoll: z.boolean(),
   /** Why it goes then, in Russian: «Отдых 14 дн. прошёл», «Понедельник через неделю, 08:00». */
-  reason: z.object({ kind: z.enum(['rest', 'anchor']), text: z.string().max(200) })
+  reason: z.object({ kind: z.enum(['rest', 'anchor', 'event']), text: z.string().max(200) })
 });
 export type ForecastSlotDto = z.infer<typeof forecastSlotSchema>;
 

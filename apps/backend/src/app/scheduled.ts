@@ -1,3 +1,5 @@
+import type { WeekBlockRepository } from '../modules/rubric-analytics';
+import { readRubricWeekLines } from './rubric-analytics/week-lines';
 import { schedulerMode } from './rubric-scheduler/runtime';
 import { runRubricSchedulerTick } from './rubric-scheduler/tick';
 import { AppError } from '../shared/app-error';
@@ -54,6 +56,13 @@ const AUDIENCE_PURGE_MINUTE = 37;
 const AUDIENCE_HEALTH_MINUTE = 12;
 const AUDIENCE_HEALTH_HOUR_UTC = 9;
 const AUDIENCE_WINDOW_MS = 50 * 60_000;
+/** Rubric analytics (stage 7): scores hourly, comment themes at 06:07 MSK, the Monday block from 06:47 MSK. */
+const ANALYTICS_SCORE_MINUTE = 22;
+const ANALYTICS_SUMMARY_MINUTE = 7;
+const ANALYTICS_SUMMARY_HOUR_UTC = 3;
+const ANALYTICS_WEEK_MINUTE = 47;
+const ANALYTICS_LEARN_MINUTE = 52;
+const ANALYTICS_DAY_WINDOW_MS = 20 * 3_600_000;
 /** The heartbeat's minutes: those ending in 2 or 7. */
 const HEARTBEAT_EVERY_MINUTES = 5;
 const HEARTBEAT_MINUTE = 2;
@@ -98,6 +107,8 @@ const SESSION_GRACE_MS = 24 * 60 * 60 * 1000;
 type TickContainer = Pick<
   Container,
   | 'clock'
+  | 'rubricAnalyticsSources'
+  | 'rubricHourSlots'
   | 'logger'
   | 'publishing'
   | 'settings'
@@ -153,13 +164,23 @@ type TickContainer = Pick<
   | 'aiProvider'
   | 'rubricSlots'
   | 'rubricSchedulerSettings'
+  | 'rubricBreakers'
+  | 'rubricBets'
+  | 'audience'
+  | 'pollStopper'
+  | 'dotaItems'
+  | 'gameFileBuilds'
+  | 'rubricNotices'
+  | 'ownerMessenger'
+  | 'ownerChatId'
+  | 'systemState'
   | 'schedulerEnv'
   | 'latestPatchAt'
   | 'publicationOutcomes'
   | 'lifecycle'
 > &
   // The game-files watch is off without its token, so a tick may run without it.
-  Partial<Pick<Container, 'gameFilesRepo' | 'steamApps'>>;
+  Partial<Pick<Container, 'gameFilesRepo' | 'steamApps' | 'rubricWeekBlocks'>>;
 
 // Cron entry point, once a minute (docs/BACKEND_ARCHITECTURE.md §5). Ticks may overlap or repeat:
 // every write below is a conditional claim or a guarded batch, so a second tick changes nothing
@@ -673,7 +694,12 @@ export async function handleScheduled(
             goals: container.contentGoals,
             reports: container.contentDailyReports,
             clock,
-            timezone
+            timezone,
+            ...(container.rubricWeekBlocks === undefined
+              ? {}
+              : {
+                  rubricWeek: () => readRubricWeekLines(container.rubricWeekBlocks as WeekBlockRepository, clock.now())
+                })
           });
       // A weekly attempt (even one that lost its claim to an overlapping run) takes this tick's statements.
       const daily =
@@ -852,17 +878,27 @@ export async function handleScheduled(
 
   // 7z. the channel's audience upkeep (rubric scheduler stage 2): at two fixed minutes one window claim and one queue
   // message; never part of the publication work and never feeding `failures` here (the queue step reports its own).
-  const audienceStep: 'purge' | 'health' | null =
+  const utcHour = new Date(controller.scheduledTime).getUTCHours();
+  // Moscow Monday from 06:00 (03:00 UTC Monday) until the day ends: the week block is retried every hour it fails.
+  const mskMonday = new Date(controller.scheduledTime + 3 * 3_600_000).getUTCDay() === 1 && utcHour >= 3;
+  const audienceStep: 'purge' | 'health' | 'score' | 'summary' | 'week' | 'learn' | null =
     minute === AUDIENCE_PURGE_MINUTE
       ? 'purge'
-      : minute === AUDIENCE_HEALTH_MINUTE &&
-          new Date(controller.scheduledTime).getUTCHours() === AUDIENCE_HEALTH_HOUR_UTC
+      : minute === AUDIENCE_HEALTH_MINUTE && utcHour === AUDIENCE_HEALTH_HOUR_UTC
         ? 'health'
-        : null;
+        : minute === ANALYTICS_SCORE_MINUTE
+          ? 'score'
+          : minute === ANALYTICS_SUMMARY_MINUTE && utcHour === ANALYTICS_SUMMARY_HOUR_UTC
+            ? 'summary'
+            : minute === ANALYTICS_WEEK_MINUTE && mskMonday
+              ? 'week'
+              : minute === ANALYTICS_LEARN_MINUTE && mskMonday
+                ? 'learn'
+                : null;
+  const stepWindow = audienceStep === 'summary' ? ANALYTICS_DAY_WINDOW_MS : AUDIENCE_WINDOW_MS;
   if (audienceStep !== null && container.queryBudget.remaining() >= 2 + HEARTBEAT_RESERVE) {
     await step(`audience-${audienceStep}`, async (): Promise<Record<string, number>> => {
-      if (!(await container.systemState.claimStepWindow(`ra:${audienceStep}`, clock.now(), AUDIENCE_WINDOW_MS)))
-        return {};
+      if (!(await container.systemState.claimStepWindow(`ra:${audienceStep}`, clock.now(), stepWindow))) return {};
       await container.aiJobs.send({ id: container.newId(), kind: 'rubric_analytics', step: audienceStep });
       return { audienceQueued: 1 };
     });

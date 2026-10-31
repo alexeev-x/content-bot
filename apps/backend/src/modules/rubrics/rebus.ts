@@ -1275,6 +1275,7 @@ export async function rebus(context: RubricContext): Promise<RubricSample> {
     text: '',
     pictureInPoll: true,
     ownText: true,
+    facts: { bankLine: chosen.phrase.slice(0, 200) },
     poll: quiz('Ребус. Что тут написано?', options, options.indexOf(chosen.phrase), chosen.explanation)
   };
 }

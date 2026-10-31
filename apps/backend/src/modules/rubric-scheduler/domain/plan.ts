@@ -1,5 +1,6 @@
 import { addMskDays, fromMsk, minuteOf, mskParts, mskWeekday } from '../../../shared/msk-time';
 import { type ConstraintContext, fitsSlot, violations } from './constraints';
+import type { EventCandidate } from './triggers';
 import type { ChannelPost, ForecastSlot, Need, RubricDescriptor, Weight } from './types';
 
 // The scheduler's plan of pool rubrics and weekly anchors over Moscow days (docs/scheduler/area-backend-core.md §5):
@@ -38,7 +39,22 @@ export interface PlanInput {
   lastHeroPatchAt: number | null;
   /** The Monday (MSK `YYYY-MM-DD`) the horoscope's every-other-week rhythm counts from. */
   horoscopeAnchorWeek: string | null;
+  /** Event and chain rubrics due now (triggers.ts), placed before the pool; already planned keys are left out. */
+  events?: EventCandidate[];
+  /**
+   * Learned slot starts (stage 8) by day group: a weekday (`mon`…`sun`) wins over `wd` (Monday–Friday) / `we`;
+   * absent: 12:30 and 19:00.
+   */
+  hourSlots?: Readonly<Record<string, Partial<Record<'day' | 'evening', number>>>>;
+  /** Trial hours on (the hour learning runs): one pool slot in five goes an hour off its time. */
+  explore?: boolean;
 }
+
+export const HOUR_GROUPS = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+/** Slot starts stay inside 08:00–22:30 Moscow. */
+export const SLOT_EARLIEST = 8 * 60;
+export const SLOT_LATEST = 22 * 60 + 30;
+export const DEFAULT_SLOT_MINUTES = { day: 12 * 60 + 30, evening: 19 * 60 } as const;
 
 export interface Ineligible {
   rubric: string;
@@ -106,9 +122,11 @@ export function plan(input: PlanInput): { slots: ForecastSlot[]; ineligible: Ine
   const place = (
     rubric: RubricDescriptor,
     at: number,
-    kind: 'rest' | 'anchor',
+    kind: 'rest' | 'anchor' | 'event',
     text: string,
-    alternates: string[] = []
+    alternates: string[] = [],
+    dedupeKey?: string,
+    explore = false
   ) => {
     occupants.push({
       at,
@@ -123,8 +141,10 @@ export function plan(input: PlanInput): { slots: ForecastSlot[]; ineligible: Ine
       at,
       reason: { kind, text },
       alternates,
+      ...(dedupeKey === undefined ? {} : { dedupeKey }),
       hasPicture: rubric.hasPicture,
-      hasPoll: rubric.hasPoll
+      hasPoll: rubric.hasPoll,
+      ...(explore ? { explore } : {})
     });
   };
 
@@ -143,9 +163,45 @@ export function plan(input: PlanInput): { slots: ForecastSlot[]; ineligible: Ine
       { ...context, anchor }
     ).length === 0;
 
+  /** The slot's start on this day: learned for its weekday or day group, else the default. */
+  const base = (day: string, part: 'day' | 'evening'): number => {
+    const weekday = mskWeekday(fromMsk(day, 12 * 60));
+    const learned =
+      input.hourSlots?.[HOUR_GROUPS[weekday] ?? '']?.[part] ??
+      input.hourSlots?.[weekday === 0 || weekday === 6 ? 'we' : 'wd']?.[part];
+    return learned ?? (part === 'day' ? DAY_SLOT : EVENING_SLOT);
+  };
+  /** A trial hour: one slot in five an hour earlier or later, inside 08:00–22:30. */
+  const trial = (day: string, part: 'day' | 'evening', minute: number): number | null => {
+    if (input.explore !== true) return null;
+    const hash = stableHash(`explore:${day}:${part}`);
+    if (hash % 5 !== 0) return null;
+    const moved = minute + ((hash >> 3) % 2 === 0 ? -60 : 60);
+    return moved >= SLOT_EARLIEST && moved <= SLOT_LATEST ? moved : null;
+  };
+  const placedEvents = new Set<string>();
   for (let offset = 0; offset < input.days; offset += 1) {
     const day = addMskDays(today, offset);
     const weekday = mskWeekday(fromMsk(day, 12 * 60));
+
+    // Events first, each inside its own day window: a patch, a mark, an announcement does not wait for the pool.
+    for (const event of input.events ?? []) {
+      if (placedEvents.has(event.dedupeKey) || day < event.fromDay || day > event.toDay) continue;
+      const rubric = runnable.find((each) => each.key === event.rubric);
+      if (rubric === undefined) continue;
+      const minutes =
+        event.minute !== undefined
+          ? [event.minute]
+          : event.part === 'day'
+            ? [jittered(day, base(day, 'day'), 1)]
+            : event.part === 'evening'
+              ? [jittered(day, base(day, 'evening'), 2)]
+              : [jittered(day, base(day, 'evening'), 2), jittered(day, base(day, 'day'), 1)];
+      const at = minutes.map((minute) => fromMsk(day, minuteFor(rubric, minute))).find((each) => fits(rubric, each));
+      if (at === undefined) continue;
+      placedEvents.add(event.dedupeKey);
+      place(rubric, at, 'event', event.reason, [], event.dedupeKey);
+    }
 
     // Anchors first: the horoscope on Monday 08:00 every other week (owner, 29.10.2026).
     const horoscope = runnable.find((rubric) => rubric.trigger === 'anchor');
@@ -154,9 +210,15 @@ export function plan(input: PlanInput): { slots: ForecastSlot[]; ineligible: Ine
       if (fits(horoscope, at, true)) place(horoscope, at, 'anchor', 'Понедельник через неделю, 08:00');
     }
 
-    const parts: { part: 'morning' | 'day' | 'evening'; minute: number }[] = [
-      { part: 'evening', minute: jittered(day, EVENING_SLOT, 2) },
-      { part: 'day', minute: jittered(day, DAY_SLOT, 1) },
+    const usual = { evening: jittered(day, base(day, 'evening'), 2), day: jittered(day, base(day, 'day'), 1) };
+    const trials = { evening: trial(day, 'evening', usual.evening), day: trial(day, 'day', usual.day) };
+    const parts: { part: 'morning' | 'day' | 'evening'; minute: number; explore?: boolean }[] = [
+      {
+        part: 'evening',
+        minute: trials.evening ?? usual.evening,
+        ...(trials.evening === null ? {} : { explore: true })
+      },
+      { part: 'day', minute: trials.day ?? usual.day, ...(trials.day === null ? {} : { explore: true }) },
       { part: 'morning', minute: MORNING_SLOT }
     ];
     // The day's slots are filled most overdue first, whichever slot that rubric fits: a rubric that only takes the day
@@ -189,7 +251,16 @@ export function plan(input: PlanInput): { slots: ForecastSlot[]; ineligible: Ine
         .filter((each) => each.part === chosen.part && each.rubric.key !== chosen.rubric.key)
         .slice(0, 2)
         .map((each) => each.rubric.key);
-      place(chosen.rubric, chosen.at, 'rest', `Отдых ${chosen.rubric.restDays ?? 0} дн. прошёл`, alternates);
+      const trialHour = parts.find((each) => each.part === chosen.part)?.explore === true;
+      place(
+        chosen.rubric,
+        chosen.at,
+        'rest',
+        `Отдых ${chosen.rubric.restDays ?? 0} дн. прошёл${trialHour ? ' · пробный час' : ''}`,
+        alternates,
+        undefined,
+        trialHour
+      );
       open.splice(
         open.findIndex((each) => each.part === chosen.part),
         1

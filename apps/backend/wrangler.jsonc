@@ -103,6 +103,7 @@
         // The rubric scheduler rehearses into the test channel without AI (owner, 30.10.2026). The test channel's
         // destination id and chat id: until both are set the rehearsal stays locked (REHEARSAL_DESTINATION).
         "RUBRIC_SCHEDULER": "rehearsal",
+        "BROWSER_DAILY_CAP_MS": "240000",
         "RUBRIC_REHEARSAL_DESTINATION_ID": "",
         "RUBRIC_REHEARSAL_CHAT_ID": "",
         // DEV forecasts what production would plan.
@@ -135,6 +136,8 @@
         { "name": "content-stats-snapshot-prod", "binding": "STATS_SNAPSHOT", "class_name": "StatsSnapshotWorkflow" }
       ],
       "r2_buckets": [{ "binding": "MEDIA_BUCKET", "bucket_name": "content-r2-prod" }],
+      // The picture rubrics (scheduler stage P): screenshots of their HTML layouts; capped by BROWSER_DAILY_CAP_MS.
+      "browser": { "binding": "BROWSER" },
       "queues": {
         "producers": [{ "binding": "AI_JOBS", "queue": "content-ai-prod" }],
         // One job at a time, no automatic retry: a model call is paid and its failure is shown in the chat.
@@ -149,7 +152,9 @@
         // on the stats rubrics and the «Гайд на героя» match base.
         "STATS_BRIDGE_URL": "https://alexeev-stats.onrender.com,https://content-bot-stats-bridge.vercel.app",
         // The rubric scheduler runs; it stays off until the owner switches it on in «Рубрики» and picks the channel.
-        "RUBRIC_SCHEDULER": "on"
+        "RUBRIC_SCHEDULER": "on",
+        // Browser Rendering for the picture rubrics: 12 min a day stays inside Workers Paid's 10 included hours a month.
+        "BROWSER_DAILY_CAP_MS": "720000"
       }
     }
   }

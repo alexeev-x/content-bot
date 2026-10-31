@@ -63,9 +63,13 @@ export type Violation =
 export interface ForecastSlot {
   rubric: string;
   at: number;
-  reason: { kind: 'rest' | 'anchor'; text: string };
+  reason: { kind: 'rest' | 'anchor' | 'event'; text: string };
+  /** An event's own key (one post per patch, mark, announcement); pool and anchor slots get theirs from the day. */
+  dedupeKey?: string;
   /** Fallback rubrics for the same slot, best first (at most two). */
   alternates: string[];
   hasPicture: boolean;
   hasPoll: boolean;
+  /** A trial hour: one pool slot in five goes an hour off its usual time, so the hour learning sees other hours. */
+  explore?: boolean;
 }

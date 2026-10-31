@@ -18,6 +18,7 @@ import { AppError } from '../../shared/app-error';
 import type { Container } from '../container';
 import { buildRubricPost } from '../rubric-build/build-post';
 import { labRubricPorts } from '../rubric-build/ports';
+import { greetingPictureOf } from '../workflows/rubric-build';
 import { fillBareFinds, heroMatchSource, trackerFinds } from '../rubric-build/sources';
 import type { BuildDeps } from '../rubric-build/types';
 import { pictureImproverFor } from '../workflows/picture-quality';
@@ -223,6 +224,7 @@ export async function runRubricSampleJob(
         mirror: access.mirror ?? null,
         heroMatches: heroMatchSource(container),
         ...labRubricPorts(container),
+        greetingPicture: greetingPictureOf(container),
         renderer: access.renderer,
         ai: {
           caption: (input) => writeRubricCaptionTyped(aiDeps, input),

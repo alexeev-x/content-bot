@@ -1,6 +1,16 @@
 import { escapeHtml, PICTURE_SIZE, picturePage } from './picture';
 import { LEAK_EGGS } from './leak-eggs';
-import { noData, pick, plural, poll, type RubricContext, type RubricSample, shuffled, withJoke } from './types';
+import {
+  noData,
+  pick,
+  plural,
+  poll,
+  type RubricContext,
+  type RubricSample,
+  shuffled,
+  withJoke,
+  recentFacts
+} from './types';
 
 // Rubrics over what Valve and the community put out (game files, announcements, the Workshop) and the fun ones whose
 // material will come from banks the owner approves; the samples carry a few examples of such a bank.
@@ -290,10 +300,15 @@ function leakPicture(look: LeakLook, cases: LeakCase[], since: number, now: numb
 // one detail worth telling (modules/rubrics/briefs.ts). No finds, no rubric.
 export async function filesDontLie(context: RubricContext): Promise<RubricSample> {
   // Two eggs in two of the look's three places, picked at random (owner, 26.10.2026: «в каждом две… в разных местах»).
-  const [one, two] = shuffled([...LEAK_EGGS], context.random);
+  // An egg of the last four posts rests (RUBRICS_SCHEDULER.md, 05); the lab has no history.
+  const restingEggs = new Set(recentFacts(context, 4, (facts) => facts.topic).flatMap((topic) => topic.split('|')));
+  const freshEggs = LEAK_EGGS.filter((egg) => !restingEggs.has(String(egg)));
+  const [one, two] = shuffled(freshEggs.length >= 2 ? freshEggs : [...LEAK_EGGS], context.random);
   const eggs: Slots = shuffled([one, two, undefined], context.random);
   const since = context.now - WEEK_MS;
-  const found = await context.sources.gameFinds(since);
+  // A find once shown never comes back (owner: «уже показанное не повторять»).
+  const shown = new Set((context.history?.own ?? []).flatMap((post) => post.facts.finds ?? []));
+  const found = (await context.sources.gameFinds(since)).filter((find) => !shown.has(find.build));
   if (found.length === 0) throw noData('game files finds');
   const blocks = found.map((find) => {
     const date = new Date(find.committedAt).toISOString().slice(0, 10).split('-').reverse().join('.');
@@ -315,10 +330,15 @@ export async function filesDontLie(context: RubricContext): Promise<RubricSample
     }));
   // The file explorer looks empty with one or two documents (owner, 26.10.2026: «скудно»): the case folder or the code
   // window take those weeks.
-  const look = pick<LeakLook>(cases.length <= 2 ? ['A', 'C'] : [...LEAK_LOOKS], context.random);
+  const lastLook = recentFacts(context, 1, (facts) => facts.look)[0];
+  const allowed = (cases.length <= 2 ? (['A', 'C'] as LeakLook[]) : [...LEAK_LOOKS]).filter(
+    (each) => each !== lastLook
+  );
+  const look = pick<LeakLook>(allowed.length > 0 ? allowed : [...LEAK_LOOKS], context.random);
   return {
     picture: { html: leakPicture(look, cases, since, context.now, eggs), ...PICTURE_SIZE },
     text: `Находки в файлах игры за неделю:\n\n${blocks.join('\n\n')}`,
+    facts: { finds: found.map((find) => find.build).slice(0, 40), look, topic: [one, two].map(String).join('|') },
     poll: null
   };
 }
@@ -348,14 +368,23 @@ const RATE_JOKES = [
 ] as const;
 
 export async function rateIt(context: RubricContext): Promise<RubricSample> {
+  // Once per announcement: one already rated is never rated again.
+  const rated = new Set((context.history?.own ?? []).map((post) => post.facts.topic));
   const latest = (await context.sources.steamNews()).find(
     (item) =>
+      !rated.has(item.title.slice(0, 80)) &&
       item.imageUrl !== null &&
       context.now - item.publishedAt <= NOVELTY_FRESH_MS &&
       NOVELTY.test(item.title) &&
       !NOT_NOVELTY.test(item.title)
   );
   if (latest === undefined || latest.imageUrl === null) throw noData('fresh novelty announcement');
+  const rateOptions = withJoke(
+    ['10/10, беру', 'Норм, но денег не дам', 'Говно'],
+    context.random,
+    RATE_JOKES,
+    recentFacts(context, 4, (facts) => facts.jokeOption)
+  );
   return {
     // The set's own picture and nothing else (owner, 27.10.2026: «просто картинку на сам сет и всё»), sent as Valve's
     // file: drawn into our 1536 px page it was stretched and soft; a narrow one is made sharper by the picture law.
@@ -366,15 +395,18 @@ export async function rateIt(context: RubricContext): Promise<RubricSample> {
     text: `Новинка от Valve: «${latest.title}».`,
     // The announcement is background, not a draft: its prices and dates need not all reach the post.
     reference: latest.text,
-    poll: poll('Оцениваем', withJoke(['10/10, беру', 'Норм, но денег не дам', 'Говно'], context.random, RATE_JOKES))
+    facts: { topic: latest.title.slice(0, 80), jokeOption: rateOptions.at(-1) ?? '' },
+    poll: poll('Оцениваем', rateOptions)
   };
 }
 
 export async function workshopSet(context: RubricContext): Promise<RubricSample> {
   // A set never repeats in the channel (owner, 27.10.2026: «чтобы сет не повторялся»): the scheduler will skip the ids
   // already posted (docs/RUBRICS_SCHEDULER.md); the DEV sample takes one of the week's top ten at random.
-  const ids = await context.sources.workshopTrendingIds();
-  const id = pick(ids, context.random);
+  const posted = new Set((context.history?.own ?? []).map((post) => post.facts.workshopId));
+  const all = await context.sources.workshopTrendingIds();
+  const ids = all.filter((each) => !posted.has(each));
+  const id = pick(ids.length > 0 ? ids : all, context.random);
   const set = id === undefined ? null : await context.sources.workshopItem(id);
   // The hero comes from the Workshop's own tags (owner, 27.10.2026: «героя точно надо писать, мастерская это отдаёт»).
   const heroes = set === null ? [] : await context.sources.heroes();
@@ -400,6 +432,7 @@ export async function workshopSet(context: RubricContext): Promise<RubricSample>
         : `Сет из мастерской Steam на ${hero.localizedName}, который набирает популярность: «${set.title}».`,
     links: [{ text: 'Посмотреть в мастерской', url: set.url }],
     footer: workshopVerdict(set.title, context.random),
+    facts: { ...(id === undefined ? {} : { workshopId: id }), ...(hero === undefined ? {} : { heroIds: [hero.id] }) },
     poll: null
   };
 }

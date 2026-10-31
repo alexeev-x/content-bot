@@ -20,6 +20,7 @@ import { mediaRoutes } from './media-routes';
 import { postsRoutes } from './posts-routes';
 import { sourcesRoutes } from './sources-routes';
 import { publicationsRoutes } from './publications-routes';
+import { rubricAnalyticsRoutes } from './rubric-analytics-routes';
 import { rubricRoutes } from './rubric-routes';
 import { requireOwner } from './require-owner';
 import { settingsRoutes } from './settings-routes';
@@ -125,6 +126,7 @@ export function createApp(
   app.route('/api/v1/sources', sourcesRoutes);
   app.route('/api/v1/publications', publicationsRoutes);
   app.route('/api/v1/rubrics', rubricRoutes);
+  app.route('/api/v1/rubric-analytics', rubricAnalyticsRoutes);
   options.mountLab?.(app);
   app.route('/api/v1/dashboard', dashboardRoutes);
   app.route('/api/v1/activity', activityRoutes);

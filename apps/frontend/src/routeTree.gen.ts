@@ -20,6 +20,11 @@ import { Route as PublicationsRouteImport } from './routes/publications';
 import { Route as RubricsRouteImport } from './routes/rubrics';
 import { Route as SettingsRouteImport } from './routes/settings';
 import { Route as SourcesRouteImport } from './routes/sources';
+import { Route as LabIndexRouteImport } from './routes/lab.index';
+import { Route as LabAutopublishRouteImport } from './routes/lab.autopublish';
+import { Route as LabBackgroundRouteImport } from './routes/lab.background';
+import { Route as LabRubricsRouteImport } from './routes/lab.rubrics';
+import { Route as LabStatesRouteImport } from './routes/lab.states';
 import { Route as PostsIndexRouteImport } from './routes/posts/index';
 import { Route as PostsIdRouteImport } from './routes/posts/$id';
 import { Route as PostsNewRouteImport } from './routes/posts/new';
@@ -88,6 +93,31 @@ const SourcesRoute = SourcesRouteImport.update({
   path: '/sources',
   getParentRoute: () => rootRouteImport,
 } as any);
+const LabIndexRoute = LabIndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => LabRoute,
+} as any);
+const LabAutopublishRoute = LabAutopublishRouteImport.update({
+  id: '/autopublish',
+  path: '/autopublish',
+  getParentRoute: () => LabRoute,
+} as any);
+const LabBackgroundRoute = LabBackgroundRouteImport.update({
+  id: '/background',
+  path: '/background',
+  getParentRoute: () => LabRoute,
+} as any);
+const LabRubricsRoute = LabRubricsRouteImport.update({
+  id: '/rubrics',
+  path: '/rubrics',
+  getParentRoute: () => LabRoute,
+} as any);
+const LabStatesRoute = LabStatesRouteImport.update({
+  id: '/states',
+  path: '/states',
+  getParentRoute: () => LabRoute,
+} as any);
 const PostsIndexRoute = PostsIndexRouteImport.update({
   id: '/posts/',
   path: '/posts/',
@@ -154,13 +184,17 @@ export interface FileRoutesByFullPath {
   '/ai': typeof AiRoute;
   '/analytics': typeof AnalyticsRoute;
   '/incidents': typeof IncidentsRoute;
-  '/lab': typeof LabRoute;
+  '/lab': typeof LabRouteWithChildren;
   '/login': typeof LoginRoute;
   '/media': typeof MediaRoute;
   '/publications': typeof PublicationsRoute;
   '/rubrics': typeof RubricsRoute;
   '/settings': typeof SettingsRouteWithChildren;
   '/sources': typeof SourcesRoute;
+  '/lab/autopublish': typeof LabAutopublishRoute;
+  '/lab/background': typeof LabBackgroundRoute;
+  '/lab/rubrics': typeof LabRubricsRoute;
+  '/lab/states': typeof LabStatesRoute;
   '/posts/$id': typeof PostsIdRouteWithChildren;
   '/posts/new': typeof PostsNewRoute;
   '/settings/ai': typeof SettingsAiRoute;
@@ -170,6 +204,7 @@ export interface FileRoutesByFullPath {
   '/settings/general': typeof SettingsGeneralRoute;
   '/settings/notifications': typeof SettingsNotificationsRoute;
   '/settings/operations': typeof SettingsOperationsRoute;
+  '/lab/': typeof LabIndexRoute;
   '/posts/': typeof PostsIndexRoute;
   '/settings/': typeof SettingsIndexRoute;
   '/posts/$id/publish': typeof PostsIdPublishRoute;
@@ -179,12 +214,15 @@ export interface FileRoutesByTo {
   '/ai': typeof AiRoute;
   '/analytics': typeof AnalyticsRoute;
   '/incidents': typeof IncidentsRoute;
-  '/lab': typeof LabRoute;
   '/login': typeof LoginRoute;
   '/media': typeof MediaRoute;
   '/publications': typeof PublicationsRoute;
   '/rubrics': typeof RubricsRoute;
   '/sources': typeof SourcesRoute;
+  '/lab/autopublish': typeof LabAutopublishRoute;
+  '/lab/background': typeof LabBackgroundRoute;
+  '/lab/rubrics': typeof LabRubricsRoute;
+  '/lab/states': typeof LabStatesRoute;
   '/posts/$id': typeof PostsIdRouteWithChildren;
   '/posts/new': typeof PostsNewRoute;
   '/settings/ai': typeof SettingsAiRoute;
@@ -194,6 +232,7 @@ export interface FileRoutesByTo {
   '/settings/general': typeof SettingsGeneralRoute;
   '/settings/notifications': typeof SettingsNotificationsRoute;
   '/settings/operations': typeof SettingsOperationsRoute;
+  '/lab': typeof LabIndexRoute;
   '/posts': typeof PostsIndexRoute;
   '/settings': typeof SettingsIndexRoute;
   '/posts/$id/publish': typeof PostsIdPublishRoute;
@@ -204,13 +243,17 @@ export interface FileRoutesById {
   '/ai': typeof AiRoute;
   '/analytics': typeof AnalyticsRoute;
   '/incidents': typeof IncidentsRoute;
-  '/lab': typeof LabRoute;
+  '/lab': typeof LabRouteWithChildren;
   '/login': typeof LoginRoute;
   '/media': typeof MediaRoute;
   '/publications': typeof PublicationsRoute;
   '/rubrics': typeof RubricsRoute;
   '/settings': typeof SettingsRouteWithChildren;
   '/sources': typeof SourcesRoute;
+  '/lab/autopublish': typeof LabAutopublishRoute;
+  '/lab/background': typeof LabBackgroundRoute;
+  '/lab/rubrics': typeof LabRubricsRoute;
+  '/lab/states': typeof LabStatesRoute;
   '/posts/$id': typeof PostsIdRouteWithChildren;
   '/posts/new': typeof PostsNewRoute;
   '/settings/ai': typeof SettingsAiRoute;
@@ -220,6 +263,7 @@ export interface FileRoutesById {
   '/settings/general': typeof SettingsGeneralRoute;
   '/settings/notifications': typeof SettingsNotificationsRoute;
   '/settings/operations': typeof SettingsOperationsRoute;
+  '/lab/': typeof LabIndexRoute;
   '/posts/': typeof PostsIndexRoute;
   '/settings/': typeof SettingsIndexRoute;
   '/posts/$id/publish': typeof PostsIdPublishRoute;
@@ -238,6 +282,10 @@ export interface FileRouteTypes {
     | '/rubrics'
     | '/settings'
     | '/sources'
+    | '/lab/autopublish'
+    | '/lab/background'
+    | '/lab/rubrics'
+    | '/lab/states'
     | '/posts/$id'
     | '/posts/new'
     | '/settings/ai'
@@ -247,6 +295,7 @@ export interface FileRouteTypes {
     | '/settings/general'
     | '/settings/notifications'
     | '/settings/operations'
+    | '/lab/'
     | '/posts/'
     | '/settings/'
     | '/posts/$id/publish';
@@ -256,12 +305,15 @@ export interface FileRouteTypes {
     | '/ai'
     | '/analytics'
     | '/incidents'
-    | '/lab'
     | '/login'
     | '/media'
     | '/publications'
     | '/rubrics'
     | '/sources'
+    | '/lab/autopublish'
+    | '/lab/background'
+    | '/lab/rubrics'
+    | '/lab/states'
     | '/posts/$id'
     | '/posts/new'
     | '/settings/ai'
@@ -271,6 +323,7 @@ export interface FileRouteTypes {
     | '/settings/general'
     | '/settings/notifications'
     | '/settings/operations'
+    | '/lab'
     | '/posts'
     | '/settings'
     | '/posts/$id/publish';
@@ -287,6 +340,10 @@ export interface FileRouteTypes {
     | '/rubrics'
     | '/settings'
     | '/sources'
+    | '/lab/autopublish'
+    | '/lab/background'
+    | '/lab/rubrics'
+    | '/lab/states'
     | '/posts/$id'
     | '/posts/new'
     | '/settings/ai'
@@ -296,6 +353,7 @@ export interface FileRouteTypes {
     | '/settings/general'
     | '/settings/notifications'
     | '/settings/operations'
+    | '/lab/'
     | '/posts/'
     | '/settings/'
     | '/posts/$id/publish';
@@ -306,7 +364,7 @@ export interface RootRouteChildren {
   AiRoute: typeof AiRoute;
   AnalyticsRoute: typeof AnalyticsRoute;
   IncidentsRoute: typeof IncidentsRoute;
-  LabRoute: typeof LabRoute;
+  LabRoute: typeof LabRouteWithChildren;
   LoginRoute: typeof LoginRoute;
   MediaRoute: typeof MediaRoute;
   PublicationsRoute: typeof PublicationsRoute;
@@ -397,6 +455,41 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SourcesRouteImport;
       parentRoute: typeof rootRouteImport;
     };
+    '/lab/': {
+      id: '/lab/';
+      path: '/';
+      fullPath: '/lab/';
+      preLoaderRoute: typeof LabIndexRouteImport;
+      parentRoute: typeof LabRoute;
+    };
+    '/lab/autopublish': {
+      id: '/lab/autopublish';
+      path: '/autopublish';
+      fullPath: '/lab/autopublish';
+      preLoaderRoute: typeof LabAutopublishRouteImport;
+      parentRoute: typeof LabRoute;
+    };
+    '/lab/background': {
+      id: '/lab/background';
+      path: '/background';
+      fullPath: '/lab/background';
+      preLoaderRoute: typeof LabBackgroundRouteImport;
+      parentRoute: typeof LabRoute;
+    };
+    '/lab/rubrics': {
+      id: '/lab/rubrics';
+      path: '/rubrics';
+      fullPath: '/lab/rubrics';
+      preLoaderRoute: typeof LabRubricsRouteImport;
+      parentRoute: typeof LabRoute;
+    };
+    '/lab/states': {
+      id: '/lab/states';
+      path: '/states';
+      fullPath: '/lab/states';
+      preLoaderRoute: typeof LabStatesRouteImport;
+      parentRoute: typeof LabRoute;
+    };
     '/posts/': {
       id: '/posts/';
       path: '/posts';
@@ -484,6 +577,24 @@ declare module '@tanstack/react-router' {
   }
 }
 
+interface LabRouteChildren {
+  LabAutopublishRoute: typeof LabAutopublishRoute;
+  LabBackgroundRoute: typeof LabBackgroundRoute;
+  LabRubricsRoute: typeof LabRubricsRoute;
+  LabStatesRoute: typeof LabStatesRoute;
+  LabIndexRoute: typeof LabIndexRoute;
+}
+
+const LabRouteChildren: LabRouteChildren = {
+  LabAutopublishRoute: LabAutopublishRoute,
+  LabBackgroundRoute: LabBackgroundRoute,
+  LabRubricsRoute: LabRubricsRoute,
+  LabStatesRoute: LabStatesRoute,
+  LabIndexRoute: LabIndexRoute,
+};
+
+const LabRouteWithChildren = LabRoute._addFileChildren(LabRouteChildren);
+
 interface SettingsRouteChildren {
   SettingsAiRoute: typeof SettingsAiRoute;
   SettingsAnalyticsRoute: typeof SettingsAnalyticsRoute;
@@ -526,7 +637,7 @@ const rootRouteChildren: RootRouteChildren = {
   AiRoute: AiRoute,
   AnalyticsRoute: AnalyticsRoute,
   IncidentsRoute: IncidentsRoute,
-  LabRoute: LabRoute,
+  LabRoute: LabRouteWithChildren,
   LoginRoute: LoginRoute,
   MediaRoute: MediaRoute,
   PublicationsRoute: PublicationsRoute,

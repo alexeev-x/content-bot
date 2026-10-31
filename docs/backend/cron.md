@@ -52,7 +52,7 @@ Hero statistics (OpenDota, migration 0031) were removed 14.10.2026; their tables
 
 ## Audience upkeep (as built, migration 0118)
 
-At minute 37 of every hour (purge) and at 12:12 MSK (health) the tick claims a window in `system_state` (`ra:purge`, `ra:health`, 50 minutes) and sends one `rubric_analytics` message to `AI_JOBS`: one statement and one queue send, only when the tick's budget keeps two statements and the heartbeat reserve. The consumer (`app/workflows/rubric-analytics.ts`) freezes comment counts and deletes old comments (≤ 5 × 200 rows), or re-checks the setup and sends the «silent» notice. Neither step touches publishing or feeds the tick's failures.
+At minute 37 of every hour (purge) and at 12:12 MSK (health) the tick claims a window in `system_state` (`ra:purge`, `ra:health`, 50 minutes) and sends one `rubric_analytics` message to `AI_JOBS`: one statement and one queue send, only when the tick's budget keeps two statements and the heartbeat reserve. The consumer (`app/workflows/rubric-analytics.ts`) freezes comment counts and deletes old comments (≤ 5 × 200 rows), or re-checks the setup and sends the «silent» notice. Neither step touches publishing or feeds the tick's failures. The same way, the rubric analytics (stage 7): `ra:score` at minute 22 of every hour, `ra:summary` at 06:07 MSK (window 20 h), `ra:week` at minute 47 of each Moscow Monday hour from 06:00 (the step stops at once when the Monday's block exists), `ra:learn` at minute 52 of the same hours (after the block).
 
 ## Rubric scheduler (as built, migration 0119)
 

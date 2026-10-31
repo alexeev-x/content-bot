@@ -75,6 +75,7 @@ export interface SchedulerSettingsRepository {
   /** Makes the plan step due at once (a change the plan must see). */
   planDirty(): Promise<void>;
   lastPlanAt(): Promise<number | null>;
+  stepHealth(step: 'plan' | 'health' | 'purge'): Promise<StepHealth>;
 }
 
 export interface SlotRow {
@@ -98,6 +99,8 @@ export interface SlotRow {
   dedupeKey: string;
   reason: { kind: string; text: string };
   build: SlotBuild | null;
+  /** What the post is about (the rubrics' facts): later posts' inner rules read it. */
+  facts: Record<string, unknown> | null;
   postId: string | null;
   publicationId: string | null;
   messageIds: string[];
@@ -119,11 +122,23 @@ export interface SlotBuild {
   hasPoll: boolean;
   /** The bank turn this post took (`bankTurn % bankSize` is the line). */
   bankTurn: number | null;
+  /** Browser Rendering time the build used: the daily cap counts it (stage P). */
+  browserMs?: number;
+  /** A second post built with the first (04's answer): released `afterMinutes` after the first went out. */
+  followUp?: {
+    afterMinutes: number;
+    posts: { postId: string; revision: number; kind: 'text' | 'poll' }[];
+    /** 04: the riddle's hero, matched against the riddle's comments when the answer is released. */
+    guessHero?: { name: string; key: string };
+  };
+  /** A follow-up's riddle hero (copied from its parent's build): «Первым угадал» is added at release. */
+  guessHero?: { name: string; key: string };
 }
 
 export type NewSlot = Omit<
   SlotRow,
   | 'build'
+  | 'facts'
   | 'postId'
   | 'publicationId'
   | 'messageIds'
@@ -134,7 +149,10 @@ export type NewSlot = Omit<
   | 'leaseUntil'
   | 'manual'
   | 'updatedAt'
->;
+> & {
+  /** A trial hour (one pool slot in five an hour off its usual time): the hour learning needs these. */
+  explore?: boolean;
+};
 
 export interface SlotAttemptRow {
   slotId: string;
@@ -172,6 +190,8 @@ export interface SlotRepository {
   /** Live slots whose next action is due, oldest first. */
   due(now: number, limit: number): Promise<SlotRow[]>;
   live(): Promise<SlotRow[]>;
+  /** The dedupe keys among these that a live, sent or skipped slot already holds. */
+  taken(keys: readonly string[]): Promise<Set<string>>;
   /** Inserts what is not there yet (a taken time or dedupe key is skipped); returns how many went in. */
   insert(slots: NewSlot[], now: number): Promise<number>;
   /**
@@ -192,6 +212,7 @@ export interface SlotRepository {
       candIdx: number;
       rubricKey: string;
       build: SlotBuild | null;
+      facts: Record<string, unknown> | null;
       postId: string | null;
       publicationId: string | null;
       messageIds: string[];
@@ -218,4 +239,43 @@ export interface NoticeRepository {
     cap: number;
   }): Promise<boolean>;
   purge(before: string): Promise<void>;
+}
+
+export interface BreakerRepository {
+  /** Records a failure; opens the breaker for `openMs` once `threshold` failures fall inside `windowMs`. */
+  recordFailure(input: {
+    scope: 'provider' | 'rubric';
+    key: string;
+    now: number;
+    code: string;
+    windowMs: number;
+    threshold: number;
+    openMs: number;
+  }): Promise<{ opened: boolean; openedUntil: number | null }>;
+  /** The breakers open at `now`. */
+  open(scope: 'provider' | 'rubric', now: number): Promise<{ key: string; until: number; code: string | null }[]>;
+}
+
+export interface StepHealth {
+  failCount: number;
+  lastErrorCode: string | null;
+  lastSuccessAt: number | null;
+}
+
+export interface OpenBet {
+  id: string;
+  chain: string;
+  heroIds: number[];
+  postSlotId: string;
+  pollId: string | null;
+  form: 'picture' | 'text';
+  openedAt: number;
+}
+
+export interface BetRepository {
+  open(): Promise<OpenBet | null>;
+  /** Opens a bet; false when another is open (one at a time, by a unique index). */
+  place(input: Omit<OpenBet, 'id' | 'openedAt'> & { id: string; now: number }): Promise<boolean>;
+  /** Closes the open bet once its result went out; false when it was closed meanwhile. */
+  resolve(input: { id: string; resultSlotId: string; votes: unknown; now: number }): Promise<boolean>;
 }

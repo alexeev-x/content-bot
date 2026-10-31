@@ -1,5 +1,6 @@
 import { AppError } from '../../shared/app-error';
 import type { RubricNote } from './degradations';
+import type { RubricFacts } from './facts';
 
 // What a rubric sample reads and what it becomes. `app/` wires the sources: dotaconstants on GitHub (every hero and
 // item), Valve's Russian datafeed (abilities, patch notes), Steam, the game-files tracker and, once its token is set,
@@ -216,6 +217,8 @@ export interface RubricSources {
    * turn indexes, so the scheduler can tell when a round is used up.
    */
   turns?: { next(name: string, bankSize: number): Promise<number> } | null;
+  /** «Открытка»: the owner's picture of a card (R2 `static/greeting/<id>.png`), null until it is uploaded. */
+  greetingPicture?(cardId: string): Promise<Uint8Array | null>;
 }
 
 /** The bot's own high-rank matches, one row per player, the last 14 days (migration 0116). */
@@ -268,6 +271,8 @@ export interface RubricSample {
   text: string;
   /** The rubric is one poll message with the picture inside it: no text post, no AI caption. */
   pictureInPoll?: boolean;
+  /** A ready picture sent as it is (the owner's card), not drawn into a page (`picture` is then null). */
+  pictureBytes?: Uint8Array;
   /** A source's own picture sent as its file, not drawn into a page (`picture` is then null). */
   photo?: { url: string };
   /** A source's own photos and video clips sent as one album, the caption on the first (`picture` is then null). */
@@ -312,7 +317,11 @@ export interface RubricSample {
     afterMinutes: number | null;
     picture: { html: string; width: number; height: number } | null;
     text: string;
+    /** 04: the riddle's hero; the first comment naming it goes above the answer («Первым угадал»). */
+    guessHero?: { name: string; key: string };
   };
+  /** What the post is about (heroes, the joke option, the look): kept with the slot for the next posts' rules. */
+  facts?: RubricFacts;
   poll: {
     question: string;
     options: string[];
@@ -322,14 +331,43 @@ export interface RubricSample {
   } | null;
 }
 
+/** A rubric post that went out or is on its way, with what it was about. */
+export interface HistoryPost {
+  rubric: string;
+  at: number;
+  facts: RubricFacts;
+}
+
+/**
+ * The channel's rubric posts the scheduler knows (rubric_slots): this rubric's newest first, and the other rubrics' of
+ * the last days. The lab passes none: builders then fall back to their random picks.
+ */
+export interface RubricHistory {
+  own: HistoryPost[];
+  others: HistoryPost[];
+}
+
 export interface RubricContext {
   sources: RubricSources;
   random: () => number;
   now: number;
+  history?: RubricHistory;
+  /** «Кого понерфят?»: the open bet whose result is due (the next patch is out); absent: the bet itself. */
+  bet?: { heroIds: number[]; look: string | null; votes: { text: string; voters: number }[] | null };
+  /** «Открытка»: the dated card the scheduler planned; absent: a filler card of the day. */
+  cardId?: string;
 }
 
 export function noData(what: string): AppError {
   return new AppError('UNAVAILABLE', `No data for the rubric: ${what}`, { reason: 'NO_DATA' });
+}
+
+/**
+ * Nothing fitting to say now (a rule rests the entry, no announcement to rate): not a failure. The scheduler gives the
+ * slot to its next candidate without counting it against the rubric.
+ */
+export function contentSkip(what: string): AppError {
+  return new AppError('UNAVAILABLE', `Nothing to post: ${what}`, { reason: 'CONTENT_SKIP' });
 }
 
 export function pick<T>(list: readonly T[], random: () => number): T {
@@ -396,12 +434,36 @@ export const DONT_BOTHER_JOKES = [
   'Хуй знает, я сейчас сру'
 ] as const;
 
-/** The options with one random joke option added at the end (the poll is shuffled for each voter). */
+/**
+ * The options with one random joke option added at the end (the poll is shuffled for each voter). `avoid`: the jokes of
+ * the rubric's last posts, newest first; when they cover the whole pool the least recently used comes back.
+ */
 export const withJoke = (
   options: string[],
   random: () => number,
-  jokes: readonly string[] = JOKE_OPTIONS
-): string[] => [...options, jokes[Math.floor(random() * jokes.length)] ?? JOKE_OPTIONS[0]];
+  jokes: readonly string[] = JOKE_OPTIONS,
+  avoid: readonly string[] = []
+): string[] => {
+  const fresh = jokes.filter((joke) => !avoid.includes(joke));
+  const oldest = [...jokes].sort((a, b) => avoid.indexOf(b) - avoid.indexOf(a))[0];
+  const joke = fresh.length > 0 ? fresh[Math.floor(random() * fresh.length)] : oldest;
+  return [...options, joke ?? JOKE_OPTIONS[0]];
+};
+
+/** One fact of the rubric's last `count` posts, newest first (the scheduler's history; empty in the lab). */
+export function recentFacts<T>(
+  context: RubricContext,
+  count: number,
+  read: (facts: RubricFacts) => T | undefined
+): T[] {
+  return (context.history?.own ?? [])
+    .slice(0, count)
+    .map((post) => read(post.facts))
+    .filter((value): value is T => value !== undefined);
+}
+
+/** `7.41a` → `7.41`: the patch chain a version belongs to. */
+export const chainOf = (version: string) => /^(\d+\.\d+)[a-z]?$/.exec(version)?.[1] ?? version;
 
 export const poll = (question: string, options: string[]): RubricSample['poll'] => ({
   question: question.slice(0, 300),

@@ -34,6 +34,7 @@ export const rubricsCopy = {
     effective: { running: 'Работает', switched_off: 'Выключена', locked: 'Остановлена', unavailable: 'Только прогноз' },
     next: (title: string, when: string) => `Следующая: «${title}», ${when} МСК`,
     lastPlan: (when: string) => `План пересчитан в ${when} МСК`,
+    browser: (used: number, cap: number) => `Картинки сегодня: ${used} из ${cap} мин браузера`,
     saveError: 'Не удалось изменить. Обновите страницу и повторите.',
     locks: {
       NOT_HERE: 'На этом сервере планировщик не работает: только прогноз.',

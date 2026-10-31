@@ -63,7 +63,7 @@ const STATS: RubricKey[] = [
   'forgotten_hero',
   'shame_of_day'
 ];
-const SCENES: RubricKey[] = ['hero_profile', 'forgotten_hero', 'horoscope', 'hero_trial'];
+const SCENES: RubricKey[] = ['hero_profile', 'forgotten_hero', 'horoscope', 'hero_trial', 'greeting_card'];
 const others = (list: RubricKey[], self: RubricKey) => list.filter((key) => key !== self);
 
 export const RUBRIC_META: Record<RubricKey, RubricMeta> = {
@@ -556,22 +556,29 @@ export const RUBRIC_META: Record<RubricKey, RubricMeta> = {
     sameDay: ['confess', 'explain_dumb'],
     browserCalls: 0,
     aiCalls: { text: 0, image: 0 }
+  },
+  greeting_card: {
+    // Its dated cards are events on their own day; as a pool rubric it fills a free slot with a weekday or «any»
+    // card, 30 days apart. The owner's own picture (R2): no browser, no AI.
+    number: 31,
+    family: 'ai_scene',
+    weight: 'V',
+    interactive: false,
+    trigger: 'pool',
+    needs: [],
+    allowDegrade: [],
+    restDays: 30,
+    slot: 'any',
+    bank: { name: 'greeting_card', exhaust: 'new_round' },
+    heroGate: 'cross72h',
+    sameDay: others(SCENES, 'greeting_card'),
+    browserCalls: 0,
+    aiCalls: { text: 0, image: 0 }
   }
 };
 
 /**
- * Rubrics whose inner rules the scheduler keeps by now (MASTER-PLAN stage 4): banks that go round without repeats,
- * no facts to remember. Only these may go out; the rest wait for their stage (follow-ups, hero history, events).
+ * Rubrics whose inner rules the scheduler keeps (MASTER-PLAN stages 4–6): only these may go out. Since stage 6
+ * (31.10.2026) that is every rubric; a rubric added later stays out of it until its rules are coded.
  */
-export const INNER_RULES_READY: ReadonlySet<RubricKey> = new Set<RubricKey>([
-  'confess',
-  'explain_dumb',
-  'toxic_translator',
-  'ability_in_life',
-  'item_leaflet',
-  'would_you_rather',
-  'on_lane',
-  'toxic_bingo',
-  'fake_item',
-  'quote_of_day'
-]);
+export const INNER_RULES_READY: ReadonlySet<RubricKey> = new Set<RubricKey>(Object.keys(RUBRIC_META) as RubricKey[]);

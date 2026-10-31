@@ -112,5 +112,7 @@ export const RUBRIC_BRIEFS: Record<RubricKey, string> = {
   fake_item: STANDARD,
   // Final as written (ownText).
   shame_of_day: STANDARD,
-  quote_of_day: STANDARD
+  quote_of_day: STANDARD,
+  // A card's wish goes out word for word: the writer never sees it.
+  greeting_card: STANDARD
 };

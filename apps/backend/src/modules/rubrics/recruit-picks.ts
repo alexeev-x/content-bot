@@ -1,5 +1,5 @@
 import { escapeHtml, heroImage, PICTURE_SIZE, picturePage, rankMedalImage } from './picture';
-import { needStats, noData, pick, type RubricContext, type RubricSample } from './types';
+import { needStats, noData, pick, type RubricContext, type RubricSample, recentFacts } from './types';
 
 // «Что брать рекруту» (owner, 28.10.2026: «я сам рекрут», «бери и побеждай»): one hero that wins a lot on Рекрут, from
 // the newbie author's side — why he carries, how to play him, where you'll lose — final as written from the owner's bank.
@@ -548,7 +548,10 @@ export async function recruitPicks(context: RubricContext): Promise<RubricSample
     return found === undefined ? [] : [{ post, winRate: found.winRate, first: found === top[0] }];
   });
   if (candidates.length === 0) throw noData('bank heroes among the Рекрут leaders');
-  const { post, winRate, first } = pick(candidates, context.random);
+  // A hero of the rubric's last five posts rests when another fits.
+  const rested = new Set(recentFacts(context, 5, (facts) => facts.bankLine));
+  const fresh = candidates.filter((each) => !rested.has(each.post.hero));
+  const { post, winRate, first } = pick(fresh.length > 0 ? fresh : candidates, context.random);
   const games = Math.round(winRate * 100);
   const lines = post.lines.map((line) => {
     const counted = line.replace(/≈\d+ игр\S* из 100/u, `${games} ${gamesWord(games)} из 100`);
@@ -566,6 +569,10 @@ export async function recruitPicks(context: RubricContext): Promise<RubricSample
     footer: RECRUIT_FOOTER,
     boldLead: true,
     ownText: true,
+    facts: {
+      bankLine: post.hero,
+      ...(idByName.get(post.hero) === undefined ? {} : { heroIds: [idByName.get(post.hero) ?? 0] })
+    },
     poll: null
   };
 }

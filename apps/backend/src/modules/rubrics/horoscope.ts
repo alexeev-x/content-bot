@@ -1550,12 +1550,15 @@ export async function horoscope(context: RubricContext): Promise<RubricSample> {
   const fresh = heroes.filter((hero) => !used.has(hero.id));
   const round = fresh.length === 0 ? heroes : fresh;
   const teller = pick(round, context.random);
-  await context.sources.tellers?.remember(fresh.length === 0 ? [teller.id] : [...used, teller.id]);
+  const round_ = fresh.length === 0 ? [teller.id] : [...used, teller.id];
+  await context.sources.tellers?.remember(round_);
   const { hero: ball, why } = await ballHero(context, heroes, teller);
   const short = (name: string) => name.replace(/^npc_dota_hero_/, '');
   return {
     picture: { html: PAGE, width: 1536, height: 768 },
     notes: [infoNote(`Гадалка: ${teller.localizedName} · в шаре: ${ball.localizedName} (${why})`)],
+    // The round so far: the scheduler reads it back as the tellers already used (it writes nothing while building).
+    facts: { tellers: round_.slice(-200), heroIds: [teller.id, ball.id] },
     fortuneScene: {
       teller: { renderUrl: `${RENDERS}/${short(teller.name)}.png`, heroName: teller.localizedName },
       ball: { renderUrl: `${RENDERS}/${short(ball.name)}.png`, heroName: ball.localizedName }

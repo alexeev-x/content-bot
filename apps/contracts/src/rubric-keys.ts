@@ -33,7 +33,8 @@ export const RUBRIC_KEYS = [
   'toxic_bingo',
   'fake_item',
   'shame_of_day',
-  'quote_of_day'
+  'quote_of_day',
+  'greeting_card'
 ] as const;
 export type RubricKey = (typeof RUBRIC_KEYS)[number];
 export const rubricKeySchema = z.enum(RUBRIC_KEYS);
@@ -69,5 +70,6 @@ export const RUBRIC_TITLES: Record<RubricKey, string> = {
   toxic_bingo: 'Токсик-бинго',
   fake_item: 'Предмет, которого нет',
   shame_of_day: 'Пидорок дня',
-  quote_of_day: 'Цитата дня'
+  quote_of_day: 'Цитата дня',
+  greeting_card: 'Открытка'
 };

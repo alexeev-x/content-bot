@@ -21,7 +21,20 @@ export const rubricFactsSchema = z.strictObject({
   topic: z.string().max(80).optional(),
   bankLine: z.string().max(200).optional(),
   tellers: z.array(z.number().int().positive()).max(LIST_MAX).optional(),
-  shameHero: z.number().int().positive().optional()
+  shameHero: z.number().int().positive().optional(),
+  /** The joke option of a poll: the next posts avoid it for a while. */
+  jokeOption: z.string().max(120).optional(),
+  /** A builder's variant (03 mixed/trap, 06 bet/result, 10 real/joke). */
+  variant: z.string().max(40).optional(),
+  /** The patch chain (base version, `7.41`) a chain rubric was built for. */
+  chain: z.string().max(20).optional(),
+  /** 08: the day mark (30, 45, 60, 90, 120…). */
+  mark: z.number().int().positive().optional(),
+  /** 31: the card and its year. */
+  card: z.string().max(60).optional(),
+  year: z.number().int().optional(),
+  /** The post's text, normalised: later posts are compared with it (similarity.ts). */
+  sig: z.string().max(400).optional()
 });
 export type RubricFacts = z.infer<typeof rubricFactsSchema>;
 

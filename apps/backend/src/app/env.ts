@@ -31,6 +31,8 @@ export type AppEnv = Env & {
   /** DEV rehearsal: the test channel's destination id and its chat id (the only chat the rehearsal may post to). */
   RUBRIC_REHEARSAL_DESTINATION_ID?: string;
   RUBRIC_REHEARSAL_CHAT_ID?: string;
+  /** Browser Rendering time a day for the rubrics, in ms (default 12 min on production, 4 on DEV). */
+  BROWSER_DAILY_CAP_MS?: string;
 };
 
 export type AppBindings = {

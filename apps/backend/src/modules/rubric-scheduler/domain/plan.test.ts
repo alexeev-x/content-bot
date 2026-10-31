@@ -111,6 +111,31 @@ describe('plan', () => {
       horoscopeAnchorWeek: '2026-11-09'
     });
 
+  it('moves the slots to the learned hours and tries one hour off in about one slot in five', () => {
+    const base = {
+      now: NOW,
+      days: 60,
+      rubrics: POOL,
+      lastSent: {},
+      channel: [],
+      capabilities: ALL,
+      lastHeroPatchAt: null,
+      horoscopeAnchorWeek: null
+    };
+    const minutes = (slots: { at: number; explore?: boolean }[]) =>
+      slots.filter((slot) => slot.explore !== true).map((slot) => mskMinuteOfDay(slot.at));
+    const learned = plan({ ...base, hourSlots: { wd: { evening: 20 * 60 }, we: { evening: 20 * 60 } } }).slots;
+    const usual = plan(base).slots;
+    // The evening slot (19:00 ± 20) moved an hour later: no slot keeps 18:40–19:20.
+    expect(minutes(usual).some((minute) => minute >= 1120 && minute <= 1160)).toBe(true);
+    expect(minutes(learned).some((minute) => minute >= 1120 && minute <= 1160)).toBe(false);
+    const trials = plan({ ...base, explore: true }).slots.filter((slot) => slot.explore === true);
+    expect(trials.length).toBeGreaterThan(0);
+    expect(trials.every((slot) => mskMinuteOfDay(slot.at) >= 8 * 60 && mskMinuteOfDay(slot.at) <= 22 * 60 + 30)).toBe(
+      true
+    );
+  });
+
   it('leaves out a rubric this Worker cannot run, and says what it lacks', () => {
     const { slots, ineligible } = run([], new Set<Need>(['browser']));
     expect(slots.some((slot) => slot.rubric === 'tier' || slot.rubric === 'shame')).toBe(false);

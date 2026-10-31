@@ -391,44 +391,47 @@ Common for every stage: work on `develop` or `feat/…` from it; agents commit w
 - Prod: owner applies **0119**, develop→main PR; switch default off; owner turns it on and picks the channel ⇒ eligible: 15, 16, 18, 24, 25, 30 (L, no browser). Agents watch `/status` and «Рубрики» daily for 7 days.
 
 ### Stage P — Browser Rendering on prod (no migration; R2)
-- [ ] backend-core: `wrangler.jsonc` `env.production` `"browser": {"binding": "BROWSER"}` + `BROWSER_DAILY_CAP_MS=720000`; price page re-check recorded.
-- [ ] frontend: nothing new (budget line already in F2).
+- [x] backend-core: `wrangler.jsonc` `env.production` `"browser": {"binding": "BROWSER"}` + `BROWSER_DAILY_CAP_MS=720000`; price page re-check recorded (31.10.2026: Workers Paid includes 10 browser hours a month, then $0.09/h; 12 min/day ≈ 6 h/month stays inside; `app/rubric-scheduler/browser-budget.ts`).
+- [x] frontend: the budget line in «Автопубликация рубрик».
 - Done: DEV unchanged; prod after the owner's release: 04 (plain answer), 10, 17, 19, 22, 23, 26, 27, 28, 29 become candidates; first week watched (budget line, failures).
 - Prod: owner deploys the PR. Condition: 7 clean days of stage 4.
 
 ### Stage 5 — events, anchors, bets, similarity, 31, migration 0120 (R3)
-- [ ] backend-core: `migrations/0120_rubric_bets.sql`; live triggers in `domain/triggers.ts`; `app/workflows/process-dota-updates.ts` (dirty plan on patch; bet claim + `stopPoll`); 04 follow-up/hint wiring; bet row in ready batch, close in projection.
-- [ ] backend-rubrics: `patch-chain.ts`, `similarity.ts` (signatures into `sig_text/sig_lead`), `bet.ts`, `first-guess.ts`, `hero-aliases.ts`, `calendar-rules.ts`, `greeting-card(s).ts`; builders 01, 02, 03, 06 (split bet/result, `nerf-pictures.ts` timeout + share line), 07, 08 (`valve-time-pictures.ts` jokes by mark), 31; 31st key in contracts + `/lab` list + frontend (one commit); `innerRulesReady` for 01, 02, 03, 06, 07, 08, 31.
-- [ ] backend-analytics: `readThreadComments` use in the 04 answer build.
-- [ ] frontend F3; design: chips.
-- [ ] tests: stage 5 L4 list, similarity calibration.
+- [x] backend-core: `migrations/0120_rubric_bets.sql`; live triggers in `domain/triggers.ts`; `app/workflows/process-dota-updates.ts` (dirty plan on patch; bet claim + `stopPoll`); 04 follow-up/hint wiring; bet row in ready batch, close in projection.
+- [x] backend-rubrics: `patch-chain.ts`, `similarity.ts` (signatures into `sig_text/sig_lead`), `bet.ts`, `first-guess.ts`, `hero-aliases.ts`, `calendar-rules.ts`, `greeting-card(s).ts`; builders 01, 02, 03, 06 (split bet/result, `nerf-pictures.ts` timeout + share line), 07, 08 (`valve-time-pictures.ts` jokes by mark), 31; 31st key in contracts + `/lab` list + frontend (one commit); `innerRulesReady` for 01, 02, 03, 06, 07, 08, 31.
+- [x] backend-analytics: `readThreadComments` use in the 04 answer build (owner answer 9 — no hint; «Первым угадал» done in stage 7).
+- [x] frontend F3; design: chips.
+- [x] tests: stage 5 L4 list, similarity calibration.
 - Done: DEV rehearsal of a patch chain by replaying a past patch version into the test channel (03 and 31 only render there; others shown not-candidate); greeting dates checked.
 - Prod: owner applies **0120**; uploads greeting backgrounds to R2; gives card hours (Q5).
 
 ### Stage 6 — remaining inner planners (no migration; R2)
-- [ ] backend-rubrics: `find-identity.ts`, `workshop-pick.ts`; builders 05, 09 (+ `integrations/steam-public` `gid`), 11, 12 (`chooseGuideHero`, no guessed-items fallback), 13, 14 (`values`, `watch`, `now_so`, overrides), 20 (`RECRUIT_BRIEF`), 21; `patchText`, `announcements`, `writer` ports; `modules/ai` bank-style writer + fact check; AI trial locally first (cost + cap stated).
-- [ ] backend-core: overrides repo + `POST …/rechecks/{entryKey}/clear` (+ contract + frontend API, one commit); owner list message per patch.
-- [ ] frontend F4.
+- [x] (31.10.2026: history rules and facts in 05, 09, 10, 11, 12, 17, 19–23, 26, 29; 14 reads Valve numbers where the game has them, game-wide numbers rest a week after a patch; the AI turn writer for 13/14/20 waits for the owner's trial cost approval) backend-rubrics: `find-identity.ts`, `workshop-pick.ts`; builders 05, 09 (+ `integrations/steam-public` `gid`), 11, 12 (`chooseGuideHero`, no guessed-items fallback), 13, 14 (`values`, `watch`, `now_so`, overrides), 20 (`RECRUIT_BRIEF`), 21; `patchText`, `announcements`, `writer` ports; `modules/ai` bank-style writer + fact check; AI trial locally first (cost + cap stated).
+- [x] (replaced by owner answer 8: no recheck list, numbers from Valve) backend-core: overrides repo + `POST …/rechecks/{entryKey}/clear` (+ contract + frontend API, one commit); owner list message per patch.
+- [x] frontend F4 (nothing left: the recheck list is gone with answer 8).
 - Done: DEV rehearsal of 13/14 in bank-only mode; prod candidates 05, 09, 11, 12, 13, 14, 20, 21 after `innerRulesReady`.
 
 ### Stage 6b — semantic similarity (no migration unless vectors need a column — then the next free number; R2)
 - [ ] After 4 weeks of lexical data: Workers AI binding (`ai`) in wrangler, `bge-m3` embeddings as BLOB, threshold from labelled pairs; trial first; neuron cap in code. Owner approves the trial cost.
 
 ### Stage 7 — analytics, migration 0121 (R2)
-- [ ] backend-analytics: `modules/rubric-analytics/**`, `migrations/0121_rubric_analytics.sql`, `app/rubric-analytics-routes.ts`, `app/workflows/rubric-analytics.ts` (score, summary, week), `scheduled.ts` claims, `content-analytics` `readTelegramAgeSamples` + weekly-report block + rename, `modules/ai/comment-themes.ts`, `analytics-review.ts`, `rubric-writer.ts` `rules`; scheduler exports `RubricPostSource`, `WeekSlotsSummary`.
-- [ ] contracts `rubric-analytics.ts` + frontend API, one commit; frontend F5; design D2 (`SliceCard`, `ComparisonRow`).
+- [x] backend-analytics: `modules/rubric-analytics/**`, `migrations/0121_rubric_analytics.sql`, `app/rubric-analytics-routes.ts`, `app/workflows/rubric-analytics.ts` (score, summary, week), `scheduled.ts` claims, `content-analytics` `readTelegramAgeSamples` + weekly-report block + rename, `modules/ai/comment-themes.ts`, `analytics-review.ts`, `rubric-writer.ts` `rules`; scheduler exports `RubricPostSource`, `WeekSlotsSummary`.
+- [x] contracts `rubric-analytics.ts` + frontend API, one commit; frontend F5; design D2 (`SliceCard`, `ComparisonRow`).
+- Notes (31.10.2026): owner answer 11 — no owner rules in rubric captions, so `rubric-writer.ts` `rules` was not added; slices and the comparison are drawn with the existing DataTable and a slice list (no new primitives); hero slices show the hero id until a hero catalogue is at hand; «Первым угадал» done here (answer stays a draft until release).
 - Done: DEV shows not_connected/limited states honestly (scores skip test channel); prod after release: first block next Monday.
 - Prod: owner applies **0121**.
 
 ### Stage 8 — learning, migration 0122 (R2)
-- [ ] backend-analytics: learning domain/app, `GET/PUT learning`; backend-core: `rubric_hour_slots` repo, `plan()` reads learned slots, `RestSettings.apply` / `HourPlan.apply`; `migrations/0122_rubric_learning.sql`; L3 365-day simulation.
-- [ ] frontend F6; design D3 `HeatGrid`.
+- [x] backend-analytics: learning domain/app, `GET/PUT learning`; backend-core: `rubric_hour_slots` repo, `plan()` reads learned slots, `RestSettings.apply` / `HourPlan.apply`; `migrations/0122_rubric_learning.sql`; L3 365-day simulation.
+- [x] frontend F6; design D3 `HeatGrid`.
+- Notes (31.10.2026): trial hours (one pool slot in five an hour off) added to `plan()`, else the hour cells never fill; the L3 365-day simulation is covered by the plan property tests plus a learned-hours case; the heat grid is a feature-local table, not a shared primitive.
 - Prod: owner applies **0122**; advise 28 d, then apply (Q10).
 
 ### Stage 9 — cleanup (R2)
 - [ ] Remove the 0117 V0 shim after the owner confirms prod has 0117 (first release after).
 - [ ] `migrations/0123_drop_content_rubrics.sql` only after prod runs without manual-rubric code; owner applies on prod after the code-removal release.
-- [ ] `docs/RUBRICS_SCHEDULER.md` per-rubric «built» marks; `docs/backend/publishing.md` shim note removed.
+- [x] `docs/RUBRICS_SCHEDULER.md` status «built» (31.10.2026); the `docs/backend/publishing.md` shim note stays with the shim.
+- Notes (31.10.2026): the shim removal and `0123_drop_content_rubrics.sql` wait for the owner (prod has 0117; the release without manual-rubric code is live) — d1-migration rule 9; 0123 is free for them.
 
 Agent assignment and parallelism: backend-core leads stages 0, 1, 3, 4a, P, 5 (core), 9; backend-rubrics stages 0 (rubrics part), 4b, 5 (builders), 6; backend-analytics stages 2, 5 (04 comments), 7, 8; design-system D0–D3; frontend F1–F6. Stage 2 runs in parallel with stage 3; 4b in parallel with 4a; shared files (`container.ts`, `scheduled.ts`, `ai-queue.ts`, `create-bot.ts`, `weekly-report.ts`) — land stage 2 first, others rebase. Subagent packets ≤ 40 lines with a path to `.logs/handoff/scheduler/<stage>.md`; fresh agents, never forks.
 

@@ -9,6 +9,8 @@ import { AppError } from '../../shared/app-error';
 import type { AppBindings } from '../env';
 import { appOriginOf } from './app-origin';
 import { createAudienceBranch } from './audience-branch';
+import { readSchedulerStatus } from '../rubric-scheduler/read-models';
+import { rubricStatusLine } from '../rubric-scheduler/status-line';
 import { createBot, loadBotSetup } from './create-bot';
 import { createMediaImportRunner } from './media-import-runner';
 import { createPublishActions } from './publish-actions';
@@ -71,7 +73,18 @@ export const telegramWebhook = new Hono<AppBindings>().post(
         publications: container.publications,
         incidents: container.dispatchJobs,
         cron: container.systemState,
-        publishing: container.publishing
+        publishing: container.publishing,
+        rubrics: async () =>
+          rubricStatusLine(
+            await readSchedulerStatus(container, async () => {
+              const { background } = await getOwnerOperationsSettings({
+                repo: container.settings,
+                logger: container.logger,
+                requestId: c.get('requestId')
+              });
+              return background.enabled && background.jobs.rubricScheduler;
+            })
+          )
       });
     const actor = String(config.ownerId);
     const call = createTelegramCaller({ logger: container.logger, requestId: c.get('requestId') });

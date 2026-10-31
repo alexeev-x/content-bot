@@ -1840,3 +1840,19 @@ export async function latestPatchPublishedAt(db: D1Database): Promise<number | n
     .first<{ at: number | null }>();
   return row?.at ?? null;
 }
+
+/** Stored updates of one source since a time, newest first (≤ 50): the rubric scheduler's patches and announcements. */
+export async function recentDotaItems(
+  db: D1Database,
+  sourceKey: DotaSourceKey,
+  since: number
+): Promise<{ externalId: string; publishedAt: number }[]> {
+  const { results } = await db
+    .prepare(
+      `SELECT external_id, published_at FROM dota_update_items
+       WHERE source_key = ?1 AND published_at >= ?2 ORDER BY published_at DESC LIMIT 50`
+    )
+    .bind(sourceKey, since)
+    .all<{ external_id: string; published_at: number }>();
+  return results.map((row) => ({ externalId: row.external_id, publishedAt: row.published_at }));
+}

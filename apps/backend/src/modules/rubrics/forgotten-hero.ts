@@ -1,7 +1,7 @@
 import { spokenHeroName } from './anketa';
 import { FORGOTTEN_PLAQUE } from './forgotten-plaque.generated';
 import { escapeHtml } from './picture';
-import { type HeroInfo, needStats, noData, pick, type RubricContext, type RubricSample } from './types';
+import { type HeroInfo, needStats, noData, pick, type RubricContext, type RubricSample, recentFacts } from './types';
 
 // «Забытый герой» (owner, 28.10.2026: «все варианты понравились»): a hero almost nobody picks on Божества who still
 // wins, checked on Рекрут — «бери» when he wins there too, an honest «это не тебе» when he doesn't; now and then the
@@ -76,6 +76,9 @@ const spokenName = (hero: HeroInfo) => spokenHeroName(heroKey(hero)) ?? hero.loc
 
 export async function forgottenHero(context: RubricContext): Promise<RubricSample> {
   const [divine, heroes] = await Promise.all([rates(context, DIVINE), context.sources.heroes()]);
+  // A hero of the rubric's last five posts rests (the scheduler's history; the lab has none).
+  const rested = new Set(recentFacts(context, 5, (facts) => facts.heroIds?.[0]));
+  for (const heroId of rested) divine.delete(heroId);
   const recruit = await rates(context, RECRUIT);
   const byId = new Map(heroes.map((hero) => [hero.id, hero]));
   const name = (heroId: number) => {
@@ -136,6 +139,7 @@ function draft(hero: HeroInfo | undefined, text: string): RubricSample {
     picture: { html: scenePage(name), width: WIDTH, height: HEIGHT },
     heroScene: { renderUrl: `${RENDERS}/${heroKey(hero)}.png`, heroName: name, scene: 'forgotten' },
     text,
+    facts: { heroIds: [hero.id] },
     boldLead: true,
     poll: null
   };

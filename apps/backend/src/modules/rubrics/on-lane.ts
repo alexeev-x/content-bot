@@ -1,20 +1,13 @@
 import { shuffledOrder } from './bank-order';
 import { infoNote, type RubricNote } from './degradations';
 import { type RubricContext, type RubricSample, noData, quiz, shuffled } from './types';
+import { fill, gear, number, readValues, spell, type ValueRef, type Values } from './valve-values';
 
 // «Ты на линии» (owner, 30.10.2026): a Telegram quiz — a lane or skirmish moment, one mechanic with one right answer,
 // three sensible options and a crude one, and why after the answer. Every number the text names comes from Valve's
 // data at posting time (owner: «чтобы он автоматом подстроился»), and a «Ваншот или нет?» answer is worked out from
 // those numbers, so a patch never leaves an old answer behind; a question whose value Valve no longer has is set aside
 // and named in the owner's notes.
-
-/** A Valve number: an ability's value by name (`lion_finger_of_death` → `damage`) or an item's (`blink`). */
-type ValueRef = ({ hero: string; ability: string } | { item: string }) & {
-  value: string;
-  /** 0 = level 1. */ level?: number;
-};
-
-type Values = Record<string, number>;
 
 interface LaneQuiz {
   id: string;
@@ -37,14 +30,6 @@ const LANE = 'Ты на линии.';
 const ONE_SHOT = 'Ваншот или нет?';
 /** Every hero's base magic resistance. */
 const BASE_MAGIC_RESIST = 0.25;
-
-const spell = (hero: string, ability: string, value: string, level?: number): ValueRef => ({
-  hero,
-  ability,
-  value,
-  ...(level === undefined ? {} : { level })
-});
-const gear = (item: string, value: string): ValueRef => ({ item, value });
 
 const QUIZZES: readonly LaneQuiz[] = [
   {
@@ -896,34 +881,6 @@ const QUIZZES: readonly LaneQuiz[] = [
       'Глиммер жмётся во время канала и ничего не сбивает: невидимость и щит на {barrier} магии. Я терпел до конца, боялся сбить ульту, и прилетел к керри трупом.'
   }
 ];
-
-/** «2,5», «3», «0,25»: Russian decimals without trailing zeros. */
-const number = (value: number) => String(Math.round(value * 100) / 100).replace('.', ',');
-
-const fill = (text: string, values: Values) =>
-  text.replace(/\{(\w+)\}/g, (whole, name: string) => (values[name] === undefined ? whole : number(values[name])));
-
-async function readValues(context: RubricContext, refs: Record<string, ValueRef>): Promise<Values | string> {
-  const heroes = await context.sources.heroes();
-  const values: Values = {};
-  for (const [name, ref] of Object.entries(refs)) {
-    const level = ref.level ?? 0;
-    let found: number[] | undefined;
-    if ('item' in ref) {
-      found = (await context.sources.itemValues(`item_${ref.item}`))?.find((each) => each.name === ref.value)?.values;
-    } else {
-      const hero = heroes.find((each) => each.name === `npc_dota_hero_${ref.hero}`);
-      if (hero === undefined) return `нет героя ${ref.hero}`;
-      const ability = (await context.sources.heroDetail(hero.id)).abilities.find((each) => each.key === ref.ability);
-      found = ability?.values.find((each) => each.name === ref.value)?.values;
-    }
-    // A one-value list holds for every level.
-    const value = found?.[Math.min(level, found.length - 1)];
-    if (value === undefined) return `у Valve нет ${'item' in ref ? ref.item : ref.ability}.${ref.value}`;
-    values[name] = value;
-  }
-  return values;
-}
 
 /** The quizzes a post may try, at most this many before it gives up. */
 const ATTEMPTS = 3;

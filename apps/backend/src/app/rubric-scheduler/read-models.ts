@@ -12,6 +12,7 @@ import { fromMsk } from '../../shared/msk-time';
 import type { Container } from '../container';
 import { rubricCapabilities } from '../rubric-catalog';
 import { rubricDescriptors } from '../rubric-catalog';
+import { browserCapMs, browserUsedToday } from './browser-budget';
 import { schedulerState } from './locks';
 import { schedulerCapabilities, schedulerMode } from './runtime';
 
@@ -87,6 +88,10 @@ export async function readSchedulerStatus(
     liveSlots: live.length,
     next: next === undefined ? null : { rubricKey: next.rubricKey as RubricKey, at: iso(next.slotAt) },
     lastPlanAt: lastPlanAt === null ? null : iso(lastPlanAt),
+    browserBudget: {
+      usedMs: await browserUsedToday(container.rubricSlots, now),
+      capMs: browserCapMs(env, state.mode)
+    },
     revision: state.settings.revision
   };
 }

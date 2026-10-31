@@ -5,7 +5,7 @@ import { COUNTING_STATUSES, LIVE_STATUSES, type SlotStatus } from '../domain/slo
 // so two ticks planning at once never make two posts); every status change is conditional on the status it leaves.
 
 const COLUMNS = `id, msk_day, slot_at, kind, rubric_key, candidates_json, cand_idx, attempt, status, build_at,
-  next_action_at, deadline_at, lease_until, weight, interactive, family, manual, dedupe_key, reason_json, build_json,
+  next_action_at, deadline_at, lease_until, weight, interactive, family, manual, dedupe_key, reason_json, build_json, facts_json,
   post_id, publication_id, message_ids_json, poll_id, sent_at, error_code, error_step, created_at, updated_at`;
 
 interface Row {
@@ -29,6 +29,7 @@ interface Row {
   dedupe_key: string;
   reason_json: string;
   build_json: string | null;
+  facts_json: string | null;
   post_id: string | null;
   publication_id: string | null;
   message_ids_json: string | null;
@@ -61,6 +62,7 @@ const toSlot = (row: Row): SlotRow => ({
   dedupeKey: row.dedupe_key,
   reason: JSON.parse(row.reason_json) as SlotRow['reason'],
   build: row.build_json === null ? null : (JSON.parse(row.build_json) as SlotBuild),
+  facts: row.facts_json === null ? null : (JSON.parse(row.facts_json) as Record<string, unknown>),
   postId: row.post_id,
   publicationId: row.publication_id,
   messageIds: row.message_ids_json === null ? [] : (JSON.parse(row.message_ids_json) as string[]),
@@ -84,6 +86,7 @@ const SETTERS: Record<string, { column: string; value: (value: unknown) => strin
   candIdx: { column: 'cand_idx', value: (value) => value as number },
   rubricKey: { column: 'rubric_key', value: (value) => value as string },
   build: { column: 'build_json', value: (value) => (value === null ? null : JSON.stringify(value)) },
+  facts: { column: 'facts_json', value: (value) => (value === null ? null : JSON.stringify(value)) },
   postId: { column: 'post_id', value: (value) => value as string | null },
   publicationId: { column: 'publication_id', value: (value) => value as string | null },
   messageIds: { column: 'message_ids_json', value: (value) => JSON.stringify(value) },
@@ -139,6 +142,18 @@ export function createD1SlotRepository(db: D1Database): SlotRepository {
         limit
       ),
 
+    async taken(keys) {
+      if (keys.length === 0) return new Set();
+      const { results } = await db
+        .prepare(
+          `SELECT dedupe_key FROM rubric_slots WHERE dedupe_key IN (SELECT value FROM json_each(?1))
+           AND status IN (${LIVE}, 'sent', 'partial', 'unresolved', 'skipped')`
+        )
+        .bind(JSON.stringify(keys.slice(0, 100)))
+        .all<{ dedupe_key: string }>();
+      return new Set(results.map((row) => row.dedupe_key));
+    },
+
     live: () =>
       many(`SELECT ${COLUMNS} FROM rubric_slots WHERE status IN (${LIVE}) ORDER BY next_action_at, id LIMIT 200`),
 
@@ -151,8 +166,8 @@ export function createD1SlotRepository(db: D1Database): SlotRepository {
             .prepare(
               `INSERT INTO rubric_slots (id, msk_day, slot_at, kind, rubric_key, candidates_json, cand_idx, attempt,
                  status, build_at, next_action_at, deadline_at, weight, interactive, family, dedupe_key, reason_json,
-                 created_at, updated_at)
-               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?18)
+                 created_at, updated_at, explore)
+               VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7, ?8, ?9, ?10, ?11, ?12, ?13, ?14, ?15, ?16, ?17, ?18, ?18, ?19)
                ON CONFLICT DO NOTHING`
             )
             .bind(
@@ -173,7 +188,8 @@ export function createD1SlotRepository(db: D1Database): SlotRepository {
               slot.family,
               slot.dedupeKey,
               JSON.stringify(slot.reason),
-              now
+              now,
+              slot.explore === true ? 1 : 0
             )
         )
       );

@@ -4,6 +4,8 @@ import type {
   DegradationCode,
   HeroMatchSource,
   RubricFacts,
+  RubricHistory,
+  RubricContext,
   RubricKey,
   RubricNote,
   RubricSample,
@@ -62,6 +64,13 @@ export type BuildDeps = {
   log: (status: string, errorCode?: string) => void;
   random: () => number;
   now: number;
+  /** The scheduler's record of earlier posts; the lab passes none. */
+  history?: RubricHistory;
+  /** «Кого понерфят?»: the open bet whose result this build is (the scheduler's `bet-result:` slots). */
+  bet?: RubricContext['bet'];
+  /** «Открытка»: the dated card to build, and where its pictures are (R2). */
+  cardId?: string;
+  greetingPicture?: (cardId: string) => Promise<Uint8Array | null>;
 };
 
 export type BuiltMedia = { kind: 'photo' | 'video' | 'animation'; bytes: Uint8Array };
@@ -90,7 +99,12 @@ export type BuiltRubricPost = {
   poll: RubricSample['poll'];
   /** The poll is the post: the picture goes inside it, no text post. */
   pollOnly: boolean;
-  followUp: { afterMinutes: number | null; text: string; picture: Uint8Array | null } | null;
+  followUp: {
+    afterMinutes: number | null;
+    text: string;
+    picture: Uint8Array | null;
+    guessHero?: { name: string; key: string };
+  } | null;
   /** Lines for the owner, in the order they happened. */
   notes: RubricNote[];
   /** Every degradation, the silent ones (a dropped album photo) included. */
