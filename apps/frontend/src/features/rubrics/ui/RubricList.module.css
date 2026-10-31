@@ -1,0 +1,44 @@
+.page {
+  display: grid;
+  gap: var(--space-4);
+  min-width: 0;
+}
+.toolbar {
+  display: grid;
+  gap: var(--space-3);
+  min-width: 0;
+  padding: var(--space-3);
+  border-bottom: 1px solid var(--color-border-subtle);
+}
+/* Four counted chips do not fit 375 px: they scroll inside their own strip, never the page. */
+.chips {
+  min-width: 0;
+  overflow-x: auto;
+  scrollbar-width: thin;
+}
+.chips > * {
+  min-width: max-content;
+}
+.block {
+  display: grid;
+  gap: var(--space-2);
+  min-width: 0;
+}
+.blockLabel {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-semibold);
+}
+.hint {
+  margin: 0;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-sm);
+}
+@media (min-width: 860px) {
+  .toolbar {
+    grid-template-columns: minmax(12rem, 20rem) minmax(0, 1fr);
+    align-items: center;
+    padding: var(--space-3) var(--space-4);
+  }
+}

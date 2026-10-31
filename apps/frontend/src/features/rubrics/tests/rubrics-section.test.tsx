@@ -87,16 +87,20 @@ describe('«Рубрики»', () => {
     let sent: unknown = null;
     server.use(
       http.get('*/api/v1/rubrics', () => HttpResponse.json({ items: [item()] })),
+      http.get('*/api/v1/rubrics/quote_of_day/slots', () => HttpResponse.json({ slots: [] })),
       http.patch('*/api/v1/rubrics/quote_of_day', async ({ request }) => {
         sent = await request.json();
         return HttpResponse.json(item({ rest: { baseDays: 7, days: 12, source: 'manual' }, revision: 3 }));
       })
     );
     show(<RubricList />);
-    const field = await screen.findByRole('textbox', { name: 'Отдых, дней' });
-    await userEvent.clear(field);
-    await userEvent.type(field, '12');
-    await userEvent.click(screen.getByRole('button', { name: 'Сохранить' }));
+    await userEvent.click(await screen.findByRole('button', { name: /Цитата дня/ }));
+    const dialog = await screen.findByRole('dialog');
+    const save = within(dialog).getByRole('button', { name: 'Сохранить' });
+    expect(save.hasAttribute('disabled')).toBe(true);
+    const more = within(dialog).getByRole('button', { name: 'Больше на день' });
+    for (let step = 0; step < 5; step += 1) await userEvent.click(more);
+    await userEvent.click(save);
     expect(await screen.findByText('Сохранено')).toBeTruthy();
     expect(sent).toEqual({ restDays: 12, revision: 2 });
   });
