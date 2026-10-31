@@ -46,3 +46,29 @@ export function relativeDay(iso: string, today: string): string {
   if (offset === 1) return 'завтра';
   return offset < 0 ? `${-offset} дн. назад` : `через ${offset} дн.`;
 }
+
+/**
+ * «Открытка» is the owner's unapproved draft and stays out of planning (owner decision, 31.10.2026), so the list,
+ * the learning and the analytics never show it. Real slots of it, if any, still show in the calendar as they are.
+ */
+export const isListedRubric = (key: string): boolean => key !== 'greeting_card';
+
+export type RubricSort = 'next' | 'title' | 'stale';
+
+/** A copy of `items` ordered for the list; rubrics without a next slot go last, never-posted ones come first in `stale`. */
+export function sortRubrics(
+  items: readonly RubricItemDto[],
+  sort: RubricSort,
+  titleOf: (item: RubricItemDto) => string
+): RubricItemDto[] {
+  const lastAt = (item: RubricItemDto) =>
+    item.lastPostAt === null || item.lastPostSeeded ? 0 : Date.parse(item.lastPostAt);
+  const byTitle = (a: RubricItemDto, b: RubricItemDto) => titleOf(a).localeCompare(titleOf(b), 'ru');
+  return [...items].sort((a, b) => {
+    if (sort === 'title') return byTitle(a, b);
+    if (sort === 'stale') return lastAt(a) - lastAt(b) || byTitle(a, b);
+    const an = a.next === null ? Infinity : Date.parse(a.next.at);
+    const bn = b.next === null ? Infinity : Date.parse(b.next.at);
+    return (an === bn ? 0 : an < bn ? -1 : 1) || byTitle(a, b);
+  });
+}

@@ -7,15 +7,14 @@ import {
   EmptyState,
   ErrorState,
   GroupedList,
-  Icon,
+  Select,
   ListRow,
   ListRowSkeleton,
   Panel,
   PanelList,
   SearchField,
   SegmentedControl,
-  Switch,
-  VisuallyHidden
+  useMediaQuery
 } from '../../../shared/ui';
 import { rubricListQueryOptions } from '../api/rubrics-queries';
 import { mskDay } from '../model/msk';
@@ -24,67 +23,34 @@ import {
   countByFilter,
   groupOf,
   matchesFilter,
-  relativeDay,
+  isListedRubric,
+  sortRubrics,
   type RubricFilter,
-  type RubricGroupId
+  type RubricGroupId,
+  type RubricSort
 } from '../model/rubric-filter';
-import { useRubricSave } from '../model/use-rubric-save';
 import { rubricsCopy as copy } from './copy';
 import { listCopy } from './list-copy';
 import styles from './RubricList.module.css';
 import { RubricDetail } from './RubricDetail';
 import { RubricState } from './RubricState';
+import { FormatIcons, RubricSwitch, RubricTable, isException, nextText, restUntilText } from './RubricTable';
 
 const GROUP_ORDER: readonly RubricGroupId[] = ['active', 'attention', 'waiting', 'off'];
 const FILTERS: readonly RubricFilter[] = ['all', 'active', 'off', 'attention'];
+const SORTS: readonly RubricSort[] = ['next', 'title', 'stale'];
 
-function metaOf(item: RubricItemDto, today: string): string {
-  const last =
-    item.lastPostAt === null || item.lastPostSeeded
-      ? listCopy.never
-      : listCopy.last(relativeDay(item.lastPostAt, today));
-  return item.next === null ? last : `${last} · ${listCopy.next(relativeDay(item.next.at, today))}`;
-}
-
-/** One row: the switch is its own control, the rest of the row opens the drawer. */
+/** Phone row (52 px): name and format icons, one muted line, the switch at the end. */
 function RubricRow({ item, today, onOpen }: { item: RubricItemDto; today: string; onOpen: () => void }) {
-  const { save, isPending } = useRubricSave(item);
-  const title = RUBRIC_TITLES[item.key];
-  const markers =
-    item.hasPicture || item.hasPoll ? (
-      <>
-        {item.hasPicture ? (
-          <span>
-            <Icon name="image" size={16} />
-            <VisuallyHidden>{listCopy.withPicture}</VisuallyHidden>
-          </span>
-        ) : null}
-        {item.hasPoll ? (
-          <span>
-            <Icon name="chart" size={16} />
-            <VisuallyHidden>{listCopy.withPoll}</VisuallyHidden>
-          </span>
-        ) : null}
-      </>
-    ) : undefined;
   return (
     <ListRow
-      title={title}
-      meta={metaOf(item, today)}
-      markers={markers}
-      status={<RubricState state={item.state} />}
+      title={RUBRIC_TITLES[item.key]}
+      meta={item.next === null ? (restUntilText(item, today) ?? listCopy.dash) : nextText(item, today)}
+      markers={item.hasPicture || item.hasPoll ? <FormatIcons item={item} /> : undefined}
+      status={isException(item) ? <RubricState state={item.state} /> : undefined}
       isDimmed={!item.enabled}
       onPress={onOpen}
-      trailing={
-        <Switch
-          aria-label={listCopy.switchLabel(title)}
-          isSelected={item.enabled}
-          isDisabled={isPending}
-          onChange={(enabled) => save({ enabled })}
-        >
-          <VisuallyHidden>{listCopy.switchLabel(title)}</VisuallyHidden>
-        </Switch>
-      }
+      trailing={<RubricSwitch item={item} />}
     />
   );
 }
@@ -94,14 +60,18 @@ type Props = {
   /** The rubric whose drawer is open: owned by the section so the calendar can open one (optional). */
   openKey?: RubricItemDto['key'] | null;
   onOpenKeyChange?: (key: RubricItemDto['key'] | null) => void;
+  /** Switches the page to the analytics tab (the rubric drawer's link). */
+  onOpenAnalytics?: () => void;
 };
 
-export function RubricList({ openKey: controlledKey, onOpenKeyChange }: Props = {}) {
+export function RubricList({ openKey: controlledKey, onOpenKeyChange, onOpenAnalytics }: Props = {}) {
   const list = useQuery(rubricListQueryOptions());
   // Taken once per mount, like the calendar: «today» as it was when the page opened.
   const [today] = useState(() => mskDay(new Date().toISOString()));
   const [query, setQuery] = useState('');
   const [filter, setFilter] = useState<RubricFilter>('all');
+  const [sort, setSort] = useState<RubricSort>('next');
+  const wide = useMediaQuery('(min-width: 860px)');
   const [ownKey, setOwnKey] = useState<RubricItemDto['key'] | null>(null);
   const openKey = controlledKey === undefined ? ownKey : controlledKey;
   const setOpenKey = (key: RubricItemDto['key'] | null) => (onOpenKeyChange ?? setOwnKey)(key);
@@ -123,11 +93,13 @@ export function RubricList({ openKey: controlledKey, onOpenKeyChange }: Props = 
         onRetry={() => void list.refetch()}
       />
     );
-  const items = list.data.items;
+  const items = list.data.items.filter((item) => isListedRubric(item.key));
   const counts = countByFilter(items);
   const needle = query.trim().toLowerCase();
-  const shown = items.filter(
-    (item) => matchesFilter(item, filter) && RUBRIC_TITLES[item.key].toLowerCase().includes(needle)
+  const shown = sortRubrics(
+    items.filter((item) => matchesFilter(item, filter) && RUBRIC_TITLES[item.key].toLowerCase().includes(needle)),
+    sort,
+    (item) => RUBRIC_TITLES[item.key]
   );
   const groups = GROUP_ORDER.map((id) => ({
     id,
@@ -154,6 +126,13 @@ export function RubricList({ openKey: controlledKey, onOpenKeyChange }: Props = 
               options={FILTERS.map((id) => ({ id, label: `${listCopy.filters[id]} ${counts[id]}` }))}
             />
           </div>
+          <Select
+            label={listCopy.sortLabel}
+            inlineLabel
+            value={sort}
+            onChange={(id) => setSort(id as RubricSort)}
+            options={SORTS.map((id) => ({ id, label: listCopy.sorts[id] }))}
+          />
         </div>
         {groups.length === 0 ? (
           <EmptyState size="compact" icon="search" title={listCopy.noResults} hint={listCopy.noResultsHint} />
@@ -168,15 +147,24 @@ export function RubricList({ openKey: controlledKey, onOpenKeyChange }: Props = 
               defaultOpen: group.id === 'active' || group.id === 'attention' || needle !== ''
             }))}
           >
-            {(id) => (
-              <PanelList aria-label={listCopy.groups[id as RubricGroupId]}>
-                {groups
-                  .find((group) => group.id === id)
-                  ?.rows.map((item) => (
-                    <RubricRow key={item.key} item={item} today={today} onOpen={() => setOpenKey(item.key)} />
-                  ))}
-              </PanelList>
-            )}
+            {(id) =>
+              wide ? (
+                <RubricTable
+                  label={listCopy.groups[id as RubricGroupId]}
+                  rows={groups.find((group) => group.id === id)?.rows ?? []}
+                  today={today}
+                  onOpen={setOpenKey}
+                />
+              ) : (
+                <PanelList aria-label={listCopy.groups[id as RubricGroupId]}>
+                  {groups
+                    .find((group) => group.id === id)
+                    ?.rows.map((item) => (
+                      <RubricRow key={item.key} item={item} today={today} onOpen={() => setOpenKey(item.key)} />
+                    ))}
+                </PanelList>
+              )
+            }
           </GroupedList>
         )}
       </Panel>
@@ -201,7 +189,21 @@ export function RubricList({ openKey: controlledKey, onOpenKeyChange }: Props = 
           </Disclosure>
         </Panel>
       )}
-      {opened === undefined ? null : <RubricDetail key={opened.key} item={opened} onClose={() => setOpenKey(null)} />}
+      {opened === undefined ? null : (
+        <RubricDetail
+          key={opened.key}
+          item={opened}
+          onClose={() => setOpenKey(null)}
+          onOpenAnalytics={
+            onOpenAnalytics === undefined
+              ? undefined
+              : () => {
+                  setOpenKey(null);
+                  onOpenAnalytics();
+                }
+          }
+        />
+      )}
     </div>
   );
 }

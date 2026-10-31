@@ -1,4 +1,3 @@
-import { rubricSlotReason } from '@alexeev/contracts';
 // «Рубрики» copy, kept beside the feature like the bot's.
 export const rubricsCopy = {
   title: 'Рубрики',
@@ -113,8 +112,15 @@ export const rubricsCopy = {
     fallbacks: 'Запасные рубрики',
     attempts: 'Шаги',
     noAttempts: 'Шагов ещё не было.',
-    problem: (code: string, step: string | null) =>
-      `${rubricSlotReason(code) ?? code}${step === null ? ` (код ${code})` : ` (шаг ${step}, код ${code})`}`,
+    technical: 'Подробности для разбора',
+    stepNames: {
+      data: 'Данные',
+      text: 'Текст',
+      picture: 'Картинка',
+      store: 'Сохранение',
+      release: 'Публикация',
+      poll: 'Опрос'
+    } as Record<string, string | undefined>,
     skip: 'Пропустить слот',
     skipTitle: (title: string, when: string) => `Пропустить «${title}» ${when}?`,
     skipBody: 'Пост не выйдет, рубрика сохранит очередь и выйдет в другой день. Если пост уже собран, он удалится.',

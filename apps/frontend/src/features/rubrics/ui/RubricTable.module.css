@@ -1,0 +1,96 @@
+/* Fixed columns, so every group's table lines up with the others. */
+.table {
+  width: 100%;
+  table-layout: fixed;
+  border-collapse: collapse;
+  font-size: var(--font-size-sm);
+}
+
+.table th,
+.table td {
+  height: 44px;
+  padding: 0 var(--space-3);
+  border-bottom: 1px solid var(--color-border-subtle);
+  text-align: start;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.table thead th {
+  height: 36px;
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+}
+
+.table tbody th {
+  width: 36%;
+  font-weight: var(--font-weight-medium);
+}
+
+.table tr[data-dimmed] {
+  color: var(--color-text-muted);
+}
+
+.name {
+  max-width: 100%;
+  padding: var(--space-1) 0;
+  overflow: hidden;
+  border: 0;
+  background: none;
+  color: inherit;
+  font: inherit;
+  text-align: start;
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+
+.name:hover {
+  text-decoration: underline;
+}
+
+.name:focus-visible {
+  outline: 2px solid var(--color-focus-ring);
+  outline-offset: 2px;
+}
+
+.formats {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  color: var(--color-text-muted);
+}
+
+.muted {
+  color: var(--color-text-muted);
+}
+
+.switch {
+  width: 1%;
+  text-align: end;
+}
+
+.hidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  overflow: hidden;
+  clip-path: inset(50%);
+}
+
+.table th:nth-child(1) {
+  width: 36%;
+}
+.table th:nth-child(2) {
+  width: 10%;
+}
+.table th:nth-child(3),
+.table th:nth-child(4) {
+  width: 15%;
+}
+.table th:nth-child(5) {
+  width: 16%;
+}
+.table th:nth-child(6) {
+  width: 8%;
+}

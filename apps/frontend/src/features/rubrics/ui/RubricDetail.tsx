@@ -13,7 +13,9 @@ const REST_MIN = 7;
 const REST_MAX = 60;
 
 /** The rubric's drawer: rest days (saved only when changed), why it cannot go out, and its history. */
-export function RubricDetail({ item, onClose }: { item: RubricItemDto; onClose: () => void }) {
+type Props = { item: RubricItemDto; onClose: () => void; onOpenAnalytics?: (() => void) | undefined };
+
+export function RubricDetail({ item, onClose, onOpenAnalytics }: Props) {
   const { save, isPending } = useRubricSave(item);
   const title = RUBRIC_TITLES[item.key];
   const saved = item.rest?.days ?? null;
@@ -70,6 +72,11 @@ export function RubricDetail({ item, onClose }: { item: RubricItemDto; onClose: 
           />
           <p className={styles.hint}>{listCopy.detail.restHint(item.rest.baseDays)}</p>
         </section>
+      )}
+      {onOpenAnalytics === undefined ? null : (
+        <Button variant="secondary" onPress={onOpenAnalytics}>
+          {listCopy.detail.analytics}
+        </Button>
       )}
       <section className={styles.block}>
         <h3 className={styles.blockLabel}>{listCopy.detail.history}</h3>

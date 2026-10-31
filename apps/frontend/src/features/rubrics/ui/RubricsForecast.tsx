@@ -4,11 +4,11 @@ import { useMemo, useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import { groupByDay } from '../../../shared/lib/group-by-day';
 import {
-  Banner,
   Disclosure,
   EmptyState,
   ErrorState,
   GroupedList,
+  Icon,
   Panel,
   PanelList,
   SegmentedControl,
@@ -16,8 +16,8 @@ import {
   useMediaQuery
 } from '../../../shared/ui';
 import { rubricCalendarQueryOptions, rubricForecastQueryOptions } from '../api/rubrics-queries';
-import { itemsByDay, mergeCalendar, monthBounds, monthOf, type CalendarItem } from '../model/calendar-items';
-import { addDays, mskTime } from '../model/msk';
+import { itemsByDay, mergeCalendar, type CalendarItem } from '../model/calendar-items';
+import { addDays, mondayIndex, mskTime } from '../model/msk';
 import { CalendarDrawer, type CalendarTarget } from './CalendarDrawer';
 import { CalendarEntryRow } from './CalendarEntryRow';
 import { CalendarMonth } from './CalendarMonth';
@@ -45,7 +45,7 @@ export function RubricsForecast({ today, onOpenRubric }: Props) {
   const slots = useQuery(rubricCalendarQueryOptions(today, calendarEnd));
   const phone = useMediaQuery('(max-width: 859px)');
   const [view, setView] = useState<View>('month');
-  const [month, setMonth] = useState(() => monthOf(today));
+  const [start, setStart] = useState(() => addDays(today, -mondayIndex(today)));
   const [selectedDay, setSelectedDay] = useState(today);
   const [target, setTarget] = useState<CalendarTarget | null>(null);
 
@@ -80,11 +80,11 @@ export function RubricsForecast({ today, onOpenRubric }: Props) {
   }
 
   const windowEnd = forecast.data.until > calendarEnd ? forecast.data.until : calendarEnd;
-  const changeMonth = (next: string) => {
-    setMonth(next);
-    const { first, last } = monthBounds(next);
-    // The phone feed must always show a day of the month on screen.
-    if (selectedDay < first || selectedDay > last) setSelectedDay(first < today ? today : first);
+  const changeStart = (next: string) => {
+    setStart(next);
+    const last = addDays(next, 34);
+    // The phone feed must always show a day of the range on screen.
+    if (selectedDay < next || selectedDay > last) setSelectedDay(today >= next && today <= last ? today : next);
   };
   const openItem = (item: CalendarItem) => setTarget({ kind: 'item', item });
   const dayItems = (day: string): readonly CalendarItem[] => byDay.get(day) ?? [];
@@ -96,14 +96,14 @@ export function RubricsForecast({ today, onOpenRubric }: Props) {
     ) : view === 'list' ? null : (
       <>
         <CalendarMonth
-          month={month}
+          start={start}
           today={today}
           windowStart={today}
           windowEnd={windowEnd}
           byDay={byDay}
           compact={phone}
           selectedDay={selectedDay}
-          onMonthChange={changeMonth}
+          onStartChange={changeStart}
           onSelectDay={setSelectedDay}
           onOpenDay={(day) => setTarget({ kind: 'day', day })}
           onOpenItem={openItem}
@@ -124,9 +124,17 @@ export function RubricsForecast({ today, onOpenRubric }: Props) {
 
   return (
     <div className={styles.stack}>
-      <Banner tone="info" title={copy.forecastTitle}>
-        {copy.forecastBody}
-      </Banner>
+      <Disclosure
+        id="rubrics-forecast-note"
+        title={
+          <span className={styles.note}>
+            <Icon name="help" size={16} />
+            {copy.forecastTitle}
+          </span>
+        }
+      >
+        <p className={styles.noteBody}>{copy.forecastBody}</p>
+      </Disclosure>
       <Panel>
         <div className={styles.panel}>
           <div className={styles.toolbar}>

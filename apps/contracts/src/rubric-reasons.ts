@@ -31,6 +31,7 @@ const REASONS: Record<string, string> = {
   RATE_LIMITED: 'Telegram просил подождать',
   POLL_NOT_FOUND: 'опрос не найден в Telegram',
   NO_POLL_MESSAGE: 'нет сообщения с опросом',
+  GREETING_PICTURE_MISSING: 'для этой открытки нет картинки',
   send_failed: 'Telegram отказал в отправке',
   missed: 'не вышел вовремя',
   cancelled: 'отменён'

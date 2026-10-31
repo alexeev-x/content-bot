@@ -5,7 +5,7 @@ export const calendarCopy = {
   empty: 'Слотов нет',
   emptyHint: 'Запустите рубрики или включите нужные.',
   emptyDay: 'В этот день рубрик нет',
-  month: { prev: 'Предыдущий месяц', next: 'Следующий месяц', today: 'Сегодня', grid: 'Календарь месяца' },
+  month: { prev: 'Предыдущие 4 недели', next: 'Следующие 4 недели', today: 'Сегодня', grid: 'Календарь на 5 недель' },
   more: (count: number) => `+${count}`,
   moreLabel: (count: number, day: string) => `Ещё ${count}: открыть ${day}`,
   dayButton: (day: string, count: number) => (count === 0 ? day : `${day}: записей ${count}`),

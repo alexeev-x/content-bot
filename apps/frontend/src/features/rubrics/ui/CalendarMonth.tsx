@@ -1,15 +1,16 @@
 import { RUBRIC_TITLES } from '@alexeev/contracts';
 import { useRef, useState, type KeyboardEvent } from 'react';
 import { Button, Icon, IconButton, VisuallyHidden } from '../../../shared/ui';
-import { monthBounds, monthLabel, monthOf, shiftMonth, type CalendarItem } from '../model/calendar-items';
-import { addDays, dayLabel, mskTime, shortDayLabel, weeksOf } from '../model/msk';
+import type { CalendarItem } from '../model/calendar-items';
+import { addDays, dayLabel, mondayIndex, mskTime, shortDayLabel, weeksOf } from '../model/msk';
 import { calendarCopy as text } from './calendar-copy';
 import { rubricsCopy as copy } from './copy';
 import { slotStateIcon } from './SlotState';
 import styles from './CalendarMonth.module.css';
 
 type Props = {
-  month: string;
+  /** The Monday the five-week grid starts on. */
+  start: string;
   today: string;
   /** The days that have data: from today to the end of the forecast. */
   windowStart: string;
@@ -18,13 +19,15 @@ type Props = {
   /** Phone: day buttons with dots only; the caller shows the selected day's feed below. */
   compact: boolean;
   selectedDay: string;
-  onMonthChange: (month: string) => void;
+  onStartChange: (start: string) => void;
   onSelectDay: (day: string) => void;
   onOpenDay: (day: string) => void;
   onOpenItem: (item: CalendarItem) => void;
 };
 
-const MAX_CHIPS = 3;
+const WEEKS = 5;
+const STEP_DAYS = 28;
+const MAX_CHIPS = 2;
 const MAX_DOTS = 3;
 
 function Chip({ item, onOpen }: { item: CalendarItem; onOpen: (item: CalendarItem) => void }) {
@@ -49,30 +52,33 @@ function Chip({ item, onOpen }: { item: CalendarItem; onOpen: (item: CalendarIte
 
 /** Month header and grid. Monday first, seven equal columns; the day button is the cell's keyboard stop. */
 export function CalendarMonth({
-  month,
+  start,
   today,
   windowStart,
   windowEnd,
   byDay,
   compact,
   selectedDay,
-  onMonthChange,
+  onStartChange,
   onSelectDay,
   onOpenDay,
   onOpenItem
 }: Props) {
-  const { first, last } = monthBounds(month);
+  const last = addDays(start, WEEKS * 7 - 1);
+  const currentStart = addDays(today, -mondayIndex(today));
   const buttons = useRef(new Map<string, HTMLButtonElement>());
   const [focused, setFocused] = useState<string | null>(null);
-  const live = (day: string) => day >= windowStart && day <= windowEnd && monthOf(day) === month;
-  const stop = focused !== null && live(focused) ? focused : live(selectedDay) ? selectedDay : null;
+  // Days before today (or past the forecast) have nothing to show: they stay muted and compact.
+  const live = (day: string) => day >= windowStart && day <= windowEnd;
+  const inGrid = (day: string) => live(day) && day >= start && day <= last;
+  const stop = focused !== null && inGrid(focused) ? focused : inGrid(selectedDay) ? selectedDay : null;
 
   const move = (event: KeyboardEvent, day: string) => {
     const step = { ArrowLeft: -1, ArrowRight: 1, ArrowUp: -7, ArrowDown: 7 }[event.key];
     if (step === undefined) return;
     event.preventDefault();
     const next = addDays(day, step);
-    if (!live(next)) return;
+    if (!live(next) || next < start || next > last) return;
     setFocused(next);
     buttons.current.get(next)?.focus();
   };
@@ -81,24 +87,24 @@ export function CalendarMonth({
     <div className={styles.month}>
       <div className={styles.header}>
         <h3 className={styles.title} aria-live="polite">
-          {monthLabel(month)}
+          {`${shortDayLabel(start)} — ${shortDayLabel(last)}`}
         </h3>
         <div className={styles.nav}>
           <IconButton
             label={text.month.prev}
             icon="chevron-left"
             size="target"
-            isDisabled={shiftMonth(month, -1) < monthOf(windowStart)}
-            onPress={() => onMonthChange(shiftMonth(month, -1))}
+            isDisabled={addDays(start, -STEP_DAYS) < currentStart}
+            onPress={() => onStartChange(addDays(start, -STEP_DAYS))}
           />
           <IconButton
             label={text.month.next}
             icon="chevron-right"
             size="target"
-            isDisabled={shiftMonth(month, 1) > monthOf(windowEnd)}
-            onPress={() => onMonthChange(shiftMonth(month, 1))}
+            isDisabled={addDays(start, STEP_DAYS) > windowEnd}
+            onPress={() => onStartChange(addDays(start, STEP_DAYS))}
           />
-          <Button variant="secondary" size="field" onPress={() => onMonthChange(monthOf(today))}>
+          <Button variant="secondary" size="field" onPress={() => onStartChange(currentStart)}>
             {text.month.today}
           </Button>
         </div>
@@ -114,10 +120,9 @@ export function CalendarMonth({
           </tr>
         </thead>
         <tbody>
-          {weeksOf(first, last).map((week) => (
+          {weeksOf(start, last).map((week) => (
             <tr key={week[0]}>
               {week.map((day) => {
-                if (monthOf(day) !== month) return <td key={day} className={styles.outside} aria-hidden="true" />;
                 const items = byDay.get(day) ?? [];
                 const isToday = day === today;
                 const dayNumber = Number(day.slice(8));

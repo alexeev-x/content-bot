@@ -1,4 +1,4 @@
-import { RUBRIC_TITLES, type RubricCompare, type RubricLearning } from '@alexeev/contracts';
+import { RUBRIC_TITLES, type RubricCompare } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
@@ -14,6 +14,7 @@ import {
 } from '../../../shared/ui';
 import { rubricCompareQueryOptions, rubricLearningQueryOptions, useUpdateRubricLearning } from '../api/rubrics-queries';
 import { mskWhen } from '../model/msk';
+import { isListedRubric } from '../model/rubric-filter';
 import { analyticsCopy as copy, times } from './analytics-copy';
 import styles from './RubricsAnalytics.module.css';
 
@@ -150,14 +151,6 @@ export function RubricsHours() {
   );
 }
 
-type RestRow = RubricLearning['rest'][number];
-
-function restLine(row: RestRow): string {
-  if (row.few) return copy.learning.few;
-  if (row.advice === null) return copy.learning.keep;
-  return copy.learning.advice(row.advice.toDays, row.advice.reason);
-}
-
 /** The learning: four weeks of advice, then the rests and hours change themselves (owner's switch). */
 export function RubricsLearning() {
   const query = useQuery(rubricLearningQueryOptions());
@@ -174,8 +167,21 @@ export function RubricsLearning() {
         />
       </Panel>
     );
-  // Nothing to advise on yet (no scored posts): the panel would be a switch and a note, so it stays out of the way.
-  if (data !== undefined && data.rest.length === 0 && data.hours.length === 0) return null;
+  // Only what has advice is listed, one row each; with none, a single line says how far the learning is.
+  const restAdvice = (data?.rest ?? []).filter((row) => row.advice !== null && isListedRubric(row.rubric));
+  const hourAdvice = (data?.hours ?? []).flatMap((group) =>
+    group.slots.flatMap((slot) =>
+      slot.advice === null ? [] : [{ group: group.group, slot, toMinute: slot.advice.toMinute }]
+    )
+  );
+  // Weekday and weekend groups split the posts between them; any other grouping falls back to its largest group.
+  const split = (data?.hours ?? []).filter((group) => group.group === 'wd' || group.group === 'we');
+  const scored =
+    data === undefined
+      ? 0
+      : split.length > 0
+        ? split.reduce((sum, group) => sum + group.n, 0)
+        : Math.max(0, ...data.hours.map((group) => group.n));
   return (
     <Panel title={copy.learning.title} note={copy.learning.note}>
       <div className={styles.body}>
@@ -198,35 +204,30 @@ export function RubricsLearning() {
             >
               {copy.learning.switch}
             </Switch>
-            <ul className={styles.sliceRows} aria-label={copy.learning.restTitle}>
-              {data.rest.map((row) => (
-                <li key={row.rubric} className={styles.sliceRow}>
-                  <span>
-                    {RUBRIC_TITLES[row.rubric]} · {copy.learning.restDays(row.restDays)}
-                    {row.source === 'default' ? '' : ` (${copy.learning.source[row.source]})`}
-                  </span>
-                  <span className={styles.muted}>{restLine(row)}</span>
-                </li>
-              ))}
-            </ul>
-            <ul className={styles.sliceRows} aria-label={copy.learning.hoursTitle}>
-              {data.hours.map((group) => (
-                <li key={group.group} className={styles.sliceRow}>
-                  <span>
-                    {copy.learning.groups[group.group]} ·{' '}
-                    {group.slots.map((slot) => `${copy.learning.parts[slot.part]} ${clock(slot.minute)}`).join(', ')}
-                  </span>
-                  <span className={styles.muted}>
-                    {group.slots
-                      .filter((slot) => slot.advice !== null)
-                      .map((slot) =>
-                        copy.learning.hourAdvice(copy.learning.parts[slot.part], clock(slot.advice?.toMinute ?? 0))
-                      )
-                      .join(', ') || copy.learning.hoursFew(group.n)}
-                  </span>
-                </li>
-              ))}
-            </ul>
+            {restAdvice.length === 0 && hourAdvice.length === 0 ? (
+              <p className={styles.muted}>{copy.learning.nothingYet(scored)}</p>
+            ) : (
+              <ul className={styles.sliceRows} aria-label={copy.learning.title}>
+                {restAdvice.map((row) => (
+                  <li key={row.rubric} className={styles.sliceRow}>
+                    <span>
+                      {RUBRIC_TITLES[row.rubric]}:{' '}
+                      {copy.learning.restChange(row.restDays, row.advice?.toDays ?? row.restDays)}
+                    </span>
+                    <span className={styles.muted}>{copy.learning.advises}</span>
+                  </li>
+                ))}
+                {hourAdvice.map(({ group, slot, toMinute }) => (
+                  <li key={`${group}:${slot.part}`} className={styles.sliceRow}>
+                    <span>
+                      {copy.learning.groups[group]}, {copy.learning.parts[slot.part]}:{' '}
+                      {copy.learning.hourChange(clock(slot.minute), clock(toMinute))}
+                    </span>
+                    <span className={styles.muted}>{copy.learning.advises}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
           </>
         )}
       </div>
