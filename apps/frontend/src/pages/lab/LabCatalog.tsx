@@ -30,7 +30,7 @@ const MENU = [
 
 const DAY = 86_400_000;
 
-/** Phase 0 primitives in every state, on invented data. Shown at the end of «Редкие состояния». */
+/** Phase 0 primitives in every state, on invented data. Shown on «Тестирование» → «Компоненты». */
 export function LabCatalog() {
   const [sheet, setSheet] = useState(false);
   const [on, setOn] = useState(true);

@@ -4,5 +4,5 @@ export const LAB_SECTIONS = [
   { to: '/lab/autopublish', label: 'Автопубликация' },
   { to: '/lab/background', label: 'Фоновые задачи' },
   { to: '/lab/rehearsal', label: 'Репетиция' },
-  { to: '/lab/states', label: 'Редкие состояния' }
+  { to: '/lab/components', label: 'Компоненты' }
 ] as const;

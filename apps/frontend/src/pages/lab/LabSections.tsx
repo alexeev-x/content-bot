@@ -22,6 +22,12 @@ export function LabRubrics() {
         через 1–3 минуты, в канал ничего не уходит.
       </p>
       <RubricSamplesList />
+      <h2 className={styles.heading}>Редкие состояния рубрик</h2>
+      <p className={styles.intro}>
+        Состояния «Рубрик», которые на живых данных бывают редко: каждое нарисовано настоящими компонентами на
+        выдуманных данных.
+      </p>
+      <RubricsRareStates />
     </div>
   );
 }
@@ -63,14 +69,10 @@ export function LabRehearsal() {
   );
 }
 
-export function LabStates() {
+export function LabComponents() {
   return (
     <div className={styles.panel}>
-      <p className={styles.intro}>
-        Состояния «Рубрик», которые на живых данных бывают редко: каждое нарисовано настоящими компонентами на
-        выдуманных данных.
-      </p>
-      <RubricsRareStates />
+      <p className={styles.intro}>Общие компоненты интерфейса во всех состояниях, на выдуманных данных.</p>
       <LabCatalog />
     </div>
   );
