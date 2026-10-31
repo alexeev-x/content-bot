@@ -1,11 +1,8 @@
-import { createFileRoute } from '@tanstack/react-router';
-import { LabStates } from '../pages/lab/LabSections';
+import { createFileRoute, redirect } from '@tanstack/react-router';
 
-// See routes/lab.tsx: the constant folds, so a production build keeps nothing of this page.
-declare const __LAB__: boolean | undefined;
-
-function Page() {
-  return typeof __LAB__ === 'boolean' && __LAB__ ? <LabStates /> : null;
-}
-
-export const Route = createFileRoute('/lab/states')({ component: Page });
+// The old «Редкие состояния» page: its content moved into «Рубрики».
+export const Route = createFileRoute('/lab/states')({
+  beforeLoad: () => {
+    throw redirect({ to: '/lab/rubrics', replace: true });
+  }
+});

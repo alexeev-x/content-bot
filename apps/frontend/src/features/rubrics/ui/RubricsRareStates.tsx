@@ -6,7 +6,7 @@ import { HeatGrid } from './RubricsLearning';
 import { SlotState } from './UpcomingSlots';
 import styles from './RubricsAnalytics.module.css';
 
-// «Тестирование» → «Редкие состояния» (owner, 31.10.2026: answer 15): every state «Рубрики» can show, drawn by the
+// «Тестирование» → «Рубрики» (owner, 31.10.2026: answer 15): every state «Рубрики» can show, drawn by the
 // real components with made-up data, so a state that happens once a month is seen before it happens. DEV only.
 
 const SLOT_STATES = Object.keys(copy.slots.states) as RubricSlotDto['state'][];

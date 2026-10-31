@@ -75,11 +75,11 @@ export function RubricsRehearsal() {
         ) : (
           <div className={styles.panelBody}>
             <p className={styles.meta}>
-              Тест идёт с {mskWhen(data.startedAt)} МСК. Как задумано: {data.counts.ok} · не так: {data.counts.bad} · не
-              в счёт: {data.counts.void} · ждут итога: {data.counts.pending}
+              Тест идёт с {mskWhen(data.startedAt)} МСК. Как задумано: {data.counts.ok} · Ошибки: {data.counts.bad} · Не
+              проверяются: {data.counts.void} · Ждут итога: {data.counts.pending}
             </p>
             <Switch isSelected={onlyBad} onChange={setOnlyBad}>
-              Только «Не так»
+              Показать только ошибки
             </Switch>
           </div>
         )}
