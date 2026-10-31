@@ -125,6 +125,8 @@ function ownerOnly(ownerId: number) {
 export interface BotRuntime {
   /** The channel's reactions, poll votes and comments (rubric scheduler stage 2); absent: those updates are dropped. */
   audience?: { wants(update: unknown): boolean; handle(update: unknown): Promise<void> };
+  /** Where posts sent straight to the channel are kept (migration 0125); absent: they are dropped. */
+  channelPosts?: { record(chatId: string, messageId: number, at: number): Promise<void> };
   /** This Worker's public origin: where the studio button points. */
   appOrigin: string;
   clock: Clock;
@@ -250,6 +252,13 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
     } catch (error) {
       runtime.onError(error);
     }
+  });
+  // A post the owner sent straight to the channel (the bot is its admin): only its time is kept, for the scheduler's gap.
+  // Before the owner check, since a channel post has no sender; never answered, and a replay is a no-op.
+  bot.use(async (ctx, next) => {
+    const post = ctx.update.channel_post;
+    if (post === undefined) return next();
+    await runtime.channelPosts?.record(String(post.chat.id), post.message_id, post.date * 1000);
   });
   // Before the owner check: these updates are the audience's, never the owner's, and never get an answer. The branch
   // swallows its own failures, so the owner's flow is the same whether it works or not.

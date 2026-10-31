@@ -65,17 +65,32 @@ export function createD1PublicationOutcomesRepository(db: D1Database): Publicati
     async recent(since) {
       const { results } = await db
         .prepare(
-          `SELECT ${OUTCOME_COLUMNS}, r.kind AS post_kind, json_array_length(r.media_json) AS media_count
+          `SELECT ${OUTCOME_COLUMNS}, r.kind AS post_kind, json_array_length(r.media_json) AS media_count,
+             p.destination_id, p.series_position,
+             (SELECT a.actor_telegram_id FROM audit_log a
+               WHERE a.entity_id = p.id AND a.entity_type = 'publication' AND a.action = 'publication.create'
+               ORDER BY a.id LIMIT 1) AS actor
            ${FROM_PUBLICATIONS}
            JOIN post_revisions r ON r.post_id = p.post_id AND r.revision = p.post_revision
            WHERE p.scheduled_at >= ?1 ORDER BY p.scheduled_at DESC, p.id DESC LIMIT ?2`
         )
         .bind(since, RECENT_MAX)
-        .all<OutcomeRow & { post_kind: 'text' | 'poll'; media_count: number | null }>();
+        .all<
+          OutcomeRow & {
+            post_kind: 'text' | 'poll';
+            media_count: number | null;
+            destination_id: string;
+            series_position: number | null;
+            actor: string | null;
+          }
+        >();
       return results.map((row) => ({
         ...toOutcome(row),
         postKind: row.post_kind,
-        hasMedia: (row.media_count ?? 0) > 0
+        hasMedia: (row.media_count ?? 0) > 0,
+        destinationId: row.destination_id,
+        actor: row.actor,
+        seriesPosition: row.series_position
       }));
     }
   };

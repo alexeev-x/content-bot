@@ -205,6 +205,7 @@ export interface SlotRepository {
     to: SlotStatus;
     now: number;
     set?: Partial<{
+      slotAt: number;
       nextActionAt: number;
       deadlineAt: number;
       leaseUntil: number | null;
@@ -229,6 +230,16 @@ export interface SlotRepository {
   purgeAttempts(before: number, limit: number): Promise<number>;
   /** Empties `build` and `facts` of ended slots that were due before `before` (90 days); the row stays as history. */
   purgeBuilds(before: number, limit: number): Promise<number>;
+}
+
+/** The owner's posts sent straight to the channel (migration 0125): only their time matters to the scheduler. */
+export interface ChannelPostRepository {
+  /** Stores one; a repeated update changes nothing. */
+  record(chatId: string, messageId: number, at: number): Promise<void>;
+  /** Post times (UTC ms) of a channel from `since` on, oldest first, at most 200. */
+  since(chatId: string, since: number): Promise<number[]>;
+  /** Removes up to `limit` rows older than `before`; returns how many. */
+  purge(before: number, limit: number): Promise<number>;
 }
 
 export interface NoticeRepository {

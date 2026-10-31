@@ -120,6 +120,8 @@ export const telegramWebhook = new Hono<AppBindings>().post(
     });
     const bot = createBot(config, {
       audience: createAudienceBranch(container, { ownerId: config.ownerId, hashKey: c.env.AUDIENCE_HASH_KEY }),
+      // Built on first use: a webhook with no channel post never reaches for the store.
+      channelPosts: { record: (chatId, messageId, at) => container.rubricChannelPosts.record(chatId, messageId, at) },
       appOrigin,
       publish,
       contamination: (itemId, reason) =>

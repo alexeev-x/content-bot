@@ -111,6 +111,7 @@ type TickContainer = Pick<
   | 'rubricAnalyticsSources'
   | 'rubricHourSlots'
   | 'rubricRehearsal'
+  | 'rubricChannelPosts'
   | 'logger'
   | 'publishing'
   | 'settings'

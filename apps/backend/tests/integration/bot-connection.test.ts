@@ -253,7 +253,7 @@ describe('POST /api/v1/bot/connect', () => {
     expect(telegram.sent[1]).toEqual({
       url: EXPECTED_URL,
       secretToken: WEBHOOK_SECRET,
-      allowedUpdates: ['message', 'callback_query', 'poll', 'message_reaction_count']
+      allowedUpdates: ['message', 'callback_query', 'poll', 'message_reaction_count', 'channel_post']
     });
     expect(telegram.sent[7]).toEqual(OWNER_COMMANDS);
     expect(telegram.calls.length).toBeLessThanOrEqual(10);

@@ -44,7 +44,13 @@ const webhookInfoSchema = z.object({
 });
 
 /** The update kinds the bot asks for: the owner's messages and buttons, the channel's polls and reactions. */
-const ALLOWED_UPDATES: TelegramUpdateKind[] = ['message', 'callback_query', 'poll', 'message_reaction_count'];
+const ALLOWED_UPDATES: TelegramUpdateKind[] = [
+  'message',
+  'callback_query',
+  'poll',
+  'message_reaction_count',
+  'channel_post'
+];
 
 export interface BotConnectionDeps {
   env: AppEnv;

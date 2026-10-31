@@ -1,9 +1,7 @@
 import { prepareAnswer } from '../workflows/rubric-first-guess';
-import { listRecentPublications } from '../../modules/publishing';
 import { deletePost } from '../../modules/lifecycle';
 import {
   BUILD_LEASE_MS,
-  type ChannelPost,
   exitOf,
   type LiveStatus,
   planSlots,
@@ -22,6 +20,8 @@ import { failCandidate } from '../workflows/rubric-build';
 import { type LabSwitches, schedulerState } from './locks';
 import { planCapabilities, rehearsalPace } from './runtime';
 import { notifySchedulerFailure } from '../workflows/rubric-notices';
+import { channelPosts } from './channel-posts';
+import { shiftOrYield } from './release-shift';
 import { readEvents } from './event-sources';
 import { closePoll } from '../workflows/rubric-poll-close';
 
@@ -73,23 +73,6 @@ async function dropPosts(container: Pick<Container, 'posts' | 'lifecycle' | 'clo
   }
 }
 
-async function channelPosts(
-  container: Pick<Container, 'publicationOutcomes'>,
-  ours: Set<string>,
-  now: number
-): Promise<ChannelPost[]> {
-  const live = ['scheduled', 'queued', 'preparing', 'sending', 'retry_wait', 'sent', 'unknown'];
-  return (await listRecentPublications({ repo: container.publicationOutcomes, now }, now - LOOKBACK_MS))
-    .filter((row) => live.includes(row.status) && !ours.has(row.postId))
-    .map((row) => ({
-      at: row.at,
-      weight: row.hasMedia ? 'V' : 'L',
-      rubric: null,
-      interactive: row.postKind === 'poll',
-      family: null
-    }));
-}
-
 /** What a tick reads and writes: the scheduler's own stores and the publishing and content it hands posts to. */
 export type SchedulerContainer = Pick<
   Container,
@@ -104,6 +87,7 @@ export type SchedulerContainer = Pick<
   | 'destinations'
   | 'publishing'
   | 'publicationOutcomes'
+  | 'rubricChannelPosts'
   | 'posts'
   | 'lifecycle'
   | 'publications'
@@ -179,7 +163,7 @@ export async function runRubricSchedulerTick(
           ready: INNER_RULES_READY,
           blocked: new Set((await container.rubricBreakers.open('rubric', now)).map((breaker) => breaker.key)),
           capabilities,
-          channel: await channelPosts(container, ours, now),
+          channel: await channelPosts(container, state.destination, ours, now, now - LOOKBACK_MS),
           latestPatchAt: await container.latestPatchAt(),
           horoscopeAnchorWeek: anchorWeek,
           events: await readEvents(container, now, pace === null ? null : await rehearsalStart(container, now)),
@@ -208,6 +192,7 @@ export async function runRubricSchedulerTick(
     counts.purgedAttempts = await purgeInRounds((limit) => slots.purgeAttempts(now - 90 * DAY_MS, limit));
     counts.purgedBuilds = await purgeInRounds((limit) => slots.purgeBuilds(now - 90 * DAY_MS, limit));
     await container.rubricNotices.purge(mskParts(now - 14 * DAY_MS).day);
+    await purgeInRounds((limit) => container.rubricChannelPosts.purge(now - 14 * DAY_MS, limit));
     await settings.stepDone('purge', now, null);
   }
   if (await settings.claimStep('health', now, now + 60 * 60_000)) {
@@ -333,6 +318,13 @@ export async function runRubricSchedulerTick(
             counts.patchChanged = (counts.patchChanged ?? 0) + 1;
             await dropPosts(container, slot);
           }
+          break;
+        }
+        // The owner posted by hand just before this slot: it moves behind his post, or yields when the day has no room.
+        const shifted = await shiftOrYield(container, slot, state.destination, now, pace);
+        if (shifted !== 'keep') {
+          counts[shifted] = (counts[shifted] ?? 0) + 1;
+          if (shifted === 'ownerYield') await dropPosts(container, slot);
           break;
         }
         const ready = await prepareAnswer(container, slot, state.destination.chatId);

@@ -57,6 +57,10 @@ One publication, or a series (the post, its poll 30 s later), keyed by the slot,
 (the rubric's rest starts from the real send time), some → `partial`, any unconfirmed → `unknown`, dropped past
 `not_after` → `missed`. Nothing is ever sent twice: an unconfirmed send waits for the owner.
 
+## The owner's own posts (31.10.2026, migration 0125)
+
+Only automatic posts in the rubric channel count toward the day's limits, heavy day and runs: our slots and the news (`app/rubric-scheduler/channel-posts.ts`; a series counts once, other channels count for nothing). Every other post there (the owner's, from the studio or straight to the channel) only keeps the 2 h gap (`ChannelPost.owner`). Posts sent straight to the channel arrive as `channel_post` updates (the bot is an admin; «Подключить бота» registers them) and are kept as times in `channel_posts` for 14 days. At release a ready slot within 2 h after such a post moves to that post + 2 h on the same Moscow day (`release-shift.ts`; the built post is kept, `not_after` follows); with no room it yields (`superseded`, `OWNER_POST`, posts deleted, rest not spent).
+
 ## Notices (`app/workflows/rubric-notices.ts`)
 
 One per reason and Moscow day (`rubric_notices`), at most six failures a day, then one summary; «[DEV]» in rehearsal.
