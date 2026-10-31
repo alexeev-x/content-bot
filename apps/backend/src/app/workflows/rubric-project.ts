@@ -45,6 +45,12 @@ export async function projectSlot(
     .filter((outcome) => outcome.status === 'sent')
     .reduce<number | null>((latest, outcome) => Math.max(latest ?? 0, outcome.finishedAt ?? 0), null);
   const times = next === 'unknown' ? scheduleOf('unknown', { slotAt: slot.slotAt, buildAt: slot.buildAt }, now) : null;
+  // The after-send steps are idempotent (dedupe keys, INSERT OR IGNORE, conditional bet update), so they run before the
+  // transition: a crash in between leaves the slot unmoved and the next tick repeats them without a second effect.
+  if ((next === 'sent' || next === 'partial') && sentAt !== null) {
+    await container.rubricSchedulerSettings.rubricSent(slot.rubricKey, sentAt);
+    await afterSlotSent(container, slot, { at: sentAt, pollId, messageIds, chatId });
+  }
   const moved = await container.rubricSlots.transition({
     id: slot.id,
     from: slot.status,
@@ -60,10 +66,5 @@ export async function projectSlot(
         : { errorCode: outcomes.find((outcome) => outcome.lastErrorCode !== null)?.lastErrorCode ?? next })
     }
   });
-  if (!moved) return null;
-  if ((next === 'sent' || next === 'partial') && sentAt !== null) {
-    await container.rubricSchedulerSettings.rubricSent(slot.rubricKey, sentAt);
-    await afterSlotSent(container, slot, { at: sentAt, pollId, messageIds, chatId });
-  }
-  return next;
+  return moved ? next : null;
 }

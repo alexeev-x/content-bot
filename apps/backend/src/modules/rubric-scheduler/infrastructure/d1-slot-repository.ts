@@ -128,7 +128,10 @@ export function createD1SlotRepository(db: D1Database): SlotRepository {
 
     async countingOf(rubricKey) {
       const row = await db
-        .prepare(`SELECT count(*) AS n FROM rubric_slots WHERE rubric_key = ?1 AND status IN (${COUNTING})`)
+        .prepare(
+          `SELECT count(*) AS n FROM rubric_slots WHERE rubric_key = ?1 AND status IN (${COUNTING})
+           AND kind NOT IN ('poll_close', 'follow_up')`
+        )
         .bind(rubricKey)
         .first<{ n: number }>();
       return row?.n ?? 0;

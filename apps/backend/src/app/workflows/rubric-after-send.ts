@@ -38,7 +38,14 @@ export async function afterSlotSent(
     const closesAt = sent.at + (rehearsing ? REHEARSAL_POLL_HOURS : meta.poll.closeAfterHours) * HOUR_MS;
     await container.audience
       .registerPoll({ pollId: sent.pollId, chatId, messageId: pollMessage, publishedAt: sent.at, closesAt })
-      .catch(() => undefined);
+      .catch((error: unknown) =>
+        container.logger.warn({
+          component: 'rubric-after-send',
+          operation: 'register_poll',
+          errorCode: 'POLL_REGISTER_FAILED',
+          detail: error instanceof Error ? error.name : 'unknown'
+        })
+      );
     await container.rubricSlots.insert(
       [
         {
@@ -118,21 +125,27 @@ export async function afterSlotSent(
           to: 'ready',
           now,
           set: {
-            build: {
-              posts: followUp.posts,
-              degradations: [],
-              hasPicture: true,
-              hasPoll: false,
-              bankTurn: null,
-              ...(followUp.guessHero === undefined ? {} : { guessHero: followUp.guessHero })
-            },
+            build: followBuild(followUp),
             postId: followUp.posts[0]?.postId ?? null
           }
         });
         break;
       }
-      // The dedupe key taken means a repeated read-back already made it.
-      if ((await container.rubricSlots.taken([`follow:${slot.id}`])).size > 0) break;
+      // The dedupe key taken means an earlier run already made it; if it died before filling the build, fill it now.
+      if ((await container.rubricSlots.taken([`follow:${slot.id}`])).size > 0) {
+        const made = (await container.rubricSlots.ofRubric(slot.rubricKey, 20)).find(
+          (each) => each.dedupeKey === `follow:${slot.id}`
+        );
+        if (made !== undefined && made.status === 'ready' && made.build === null)
+          await container.rubricSlots.transition({
+            id: made.id,
+            from: 'ready',
+            to: 'ready',
+            now,
+            set: { build: followBuild(followUp), postId: followUp.posts[0]?.postId ?? null }
+          });
+        break;
+      }
     }
   }
 
@@ -156,4 +169,15 @@ export async function afterSlotSent(
       await container.rubricBets.resolve({ id: bet.id, resultSlotId: slot.id, votes: votes?.options ?? null, now });
     }
   }
+}
+
+function followBuild(followUp: NonNullable<NonNullable<SlotRow['build']>['followUp']>): NonNullable<SlotRow['build']> {
+  return {
+    posts: followUp.posts,
+    degradations: [],
+    hasPicture: true,
+    hasPoll: false,
+    bankTurn: null,
+    ...(followUp.guessHero === undefined ? {} : { guessHero: followUp.guessHero })
+  };
 }
