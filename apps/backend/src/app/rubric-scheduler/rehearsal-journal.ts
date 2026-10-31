@@ -88,7 +88,11 @@ export function createRehearsalJournal(db: D1Database) {
       const { results } = await db
         .prepare(
           `SELECT c.slot_id, c.scenario, c.fired, c.kind, c.slot_at, s.status, s.error_code, s.attempt, s.cand_idx,
-             json_array_length(s.candidates_json) AS candidates
+             json_array_length(s.candidates_json) AS candidates,
+             (SELECT count(*) FROM job_attempts ja JOIN jobs j ON j.id = ja.job_id
+               WHERE ja.outcome IN ('sent', 'unknown')
+                 AND (j.publication_id = s.publication_id
+                   OR j.publication_id IN (SELECT value FROM json_each(s.build_json, '$.publications')))) AS sends
             FROM rubric_rehearsal_checks c JOIN rubric_slots s ON s.id = c.slot_id
             WHERE c.verdict = 'pending' ORDER BY c.slot_at LIMIT ?`
         )
@@ -104,6 +108,7 @@ export function createRehearsalJournal(db: D1Database) {
           attempt: number;
           cand_idx: number;
           candidates: number;
+          sends: number;
         }>();
       const update = db.prepare(
         `UPDATE rubric_rehearsal_checks SET verdict = ?, status = ?, error_code = ?, note = ?, checked_at = ?
@@ -120,6 +125,7 @@ export function createRehearsalJournal(db: D1Database) {
             attempt: row.attempt,
             candIdx: row.cand_idx,
             candidates: row.candidates,
+            sends: row.sends,
             slotAt: row.slot_at
           },
           now

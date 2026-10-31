@@ -16,6 +16,7 @@ const state = (extra: Partial<CheckState>): CheckState => ({
   candIdx: 0,
   candidates: 3,
   slotAt: NOW - 3_600_000,
+  sends: 1,
   ...extra
 });
 
@@ -43,13 +44,24 @@ describe('the rehearsal verdict', () => {
       'ok'
     ],
     ['a 429 that went out later', state({ scenario: 'tg_429', fired: true }), 'ok'],
-    ['a timeout left unknown', state({ scenario: 'tg_timeout', fired: true, status: 'unknown' }), 'ok'],
-    ['a timeout that was sent again', state({ scenario: 'tg_timeout', fired: true, status: 'sent' }), 'bad'],
+    ['a timeout waiting unknown', state({ scenario: 'tg_timeout', fired: true, status: 'unknown' }), null],
+    [
+      'a timeout unknown past the stuck limit',
+      state({ scenario: 'tg_timeout', fired: true, status: 'unknown', slotAt: NOW - 27 * 3_600_000 }),
+      'ok'
+    ],
+    ['a timeout the owner reconciled, one send', state({ scenario: 'tg_timeout', fired: true, status: 'sent' }), 'ok'],
+    [
+      'a timeout still unknown after a second send',
+      state({ scenario: 'tg_timeout', fired: true, status: 'unknown', sends: 2 }),
+      'bad'
+    ],
+    ['a timeout that was sent again', state({ scenario: 'tg_timeout', fired: true, status: 'sent', sends: 2 }), 'bad'],
     ['a lost channel that failed', state({ scenario: 'tg_forbidden', fired: true, status: 'send_failed' }), 'ok'],
     ['a staged failure the slot never reached', state({ scenario: 'tg_429', status: 'empty' }), 'void'],
     ['a replanned slot', state({ status: 'superseded' }), 'void']
   ])('%s', (_name, check, verdict) => {
-    expect(judge(check, NOW)?.verdict).toBe(verdict);
+    expect(judge(check, NOW)?.verdict ?? null).toBe(verdict);
   });
 
   it('waits while the slot is on its way, and calls it stuck after a day', () => {

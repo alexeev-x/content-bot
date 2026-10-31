@@ -57,6 +57,10 @@ export function patchChains(patches: PatchRelease[]): { base: string; firstAt: n
     const chain = chains.get(base);
     if (chain === undefined) chains.set(base, { base, firstAt: patch.at, versions: [patch.version] });
     else if (patch.at - chain.firstAt <= HOTFIX_JOIN_DAYS * DAY_MS) chain.versions.push(patch.version);
+    // A hotfix later than that is a patch release of its own: its own chain keyed by its full version, so its dedupe
+    // keys never collide with the first chain's. Whether it has hero changes is decided when the chain's posts are built.
+    else if (!chains.has(patch.version))
+      chains.set(patch.version, { base: patch.version, firstAt: patch.at, versions: [patch.version] });
   }
   return [...chains.values()].sort((a, b) => b.firstAt - a.firstAt);
 }

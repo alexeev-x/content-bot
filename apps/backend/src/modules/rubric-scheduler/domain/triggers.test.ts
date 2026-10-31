@@ -9,14 +9,39 @@ const keys = (events: { dedupeKey: string; fromDay: string; toDay: string }[]) =
   events.map((event) => `${event.dedupeKey} ${event.fromDay}..${event.toDay}`);
 
 describe('patch chains', () => {
-  it('joins a hotfix within five days and starts a new chain later', () => {
-    expect(
-      patchChains([
+  it.each([
+    [1, true],
+    [5, true],
+    [6, false],
+    [10, false]
+  ])('a same-base hotfix %i days after the patch joins it: %s, else it is a patch of its own', (days, joins) => {
+    const first = at('2026-11-02');
+    const hotfix = first + days * 86_400_000;
+    const chains = patchChains([
+      { version: '7.41', at: first },
+      { version: '7.41a', at: hotfix }
+    ]);
+    if (joins) expect(chains).toEqual([{ base: '7.41', firstAt: first, versions: ['7.41', '7.41a'] }]);
+    else
+      expect(chains).toEqual([
+        { base: '7.41a', firstAt: hotfix, versions: ['7.41a'] },
+        { base: '7.41', firstAt: first, versions: ['7.41'] }
+      ]);
+  });
+
+  it('plans a late hotfix as a fresh chain on its own keys, so the earlier chain is not re-posted', () => {
+    const events = eventCandidates({
+      announcements: [],
+      freshFinds: false,
+      openBet: null,
+      now: at('2026-11-12'),
+      patches: [
         { version: '7.41', at: at('2026-11-02') },
-        { version: '7.41a', at: at('2026-11-05') },
-        { version: '7.41b', at: at('2026-11-20') }
-      ])
-    ).toEqual([{ base: '7.41', firstAt: at('2026-11-02'), versions: ['7.41', '7.41a'] }]);
+        { version: '7.41a', at: at('2026-11-12') }
+      ]
+    });
+    expect(events.map((event) => event.dedupeKey)).toContain('chain:7.41a:patch_broken');
+    expect(events.map((event) => event.dedupeKey)).not.toContain('chain:7.41:patch_broken');
   });
 });
 

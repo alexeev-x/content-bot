@@ -32,7 +32,7 @@ slots not yet released once (their studio posts deleted); released ones finish i
 | State | Next action | Deadline → exit |
 |---|---|---|
 | `planned` | build at slot − 3 h: claim (`building`, lease 15 min) and queue `rubric_build` | slot + 4 min → `empty` |
-| `building` | lease over: `BUILD_LOST` — the candidate fails (rubric breaker counts it), the next candidate or `empty` | slot + 4 min → `empty` |
+| `building` | lease over: `BUILD_LOST` — the candidate fails (rubric breaker counts it), the next candidate or `empty` | slot + 4 min → `empty` | A queue-send error returns the slot to `planned` (attempt given back, no blame). A late build (slot already moved) deletes its posts and counts nothing.
 | `ready` | slot − 1 min: release | slot + 4 min → `missed` (posts deleted) |
 | `released` | read the publications back every minute | slot + 30 min → `missed` |
 | `unknown` | read back every 10 min until the owner reconciles in «Публикации» | 7 days → `unresolved` |
@@ -42,7 +42,7 @@ keeps its dedupe key), `cancelled` (switch off, rubric off, «Пропустит
 
 ## Build (`app/workflows/rubric-build.ts`, queue `rubric_build`)
 
-`buildRubricPost` in strict mode: a degradation the rubric does not allow fails the candidate. The bank turn is the
+`buildRubricPost` in strict mode: a degradation the rubric does not allow fails the candidate. The bank turn is the Bank turns count content slots only (not `poll_close` or `follow_up`). After-send steps run before the `sent` transition and are idempotent, so a crash between them is repeated by the next tick.
 count of the rubric's slots that took one (`sent`, `partial`, `unresolved`, `unknown`, `ready`, `released`), so a build
 that never goes out burns no line; the lab keeps its own counters. The post becomes approved studio posts (the
 `rubric-scheduler` actor): the post with its pictures, then its poll as a second post, or one poll with the picture
@@ -75,7 +75,7 @@ and a dedupe key; the plan places them before the pool rubrics.
 
 | Rubric | When | Dedupe key |
 |---|---|---|
-| 01 / 02 / 03 / 07 | the patch's day / the evening after / day 3 / days 4–6 (a hotfix within 5 days joins its patch) | `chain:<base>:<rubric>` |
+| 01 / 02 / 03 / 07 | the patch's day / the evening after / day 3 / days 4–6 (a hotfix within 5 days joins its patch; a later one is a patch of its own, chain `chain:<full version>:…`) | `chain:<base>:<rubric>` |
 | 06 bet / result | 21+ days after a patch, one open bet (`rubric_bets`) / two days after the next patch | `bet:<base>` / `bet-result:<base>` |
 | 08 | 30, 45, 60, 90, then every 30 days without a patch; at most two days earlier | `valve_time:<version>:<mark>` |
 | 09 | one to five days after a Steam announcement | `steam:<gid>` |
@@ -153,7 +153,7 @@ conditional writes (`rubric_settings.rest_source = 'learned'`, `rubric_hour_slot
 - **Pace** (`WEEK_PACE`, the plan's `PlanInput.pace`): rests, «apart» days and the quiet after a patch ÷ 8; slots at 10:00, 14:30, 16:30, 21:00 besides 12:30 and 19:00; ≤ 8 posts and 6 rubrics a day, 1 h apart; ≤ 2 interactive a day, 4 h apart; «same week» means the same day. Polls close after 2 h, 04's answer after 1 h (`rubric-after-send.ts`).
 - **Stubs**: a rubric that needs the AI, STRATZ or the match base is planned (`planCapabilities`) and built as a stub text (`rehearsal.ts` `stubPost`, with a stub poll for poll rubrics); no paid call. The similarity check skips stubs.
 - **Events** (`event-sources.ts`): the newest patch counts as out on the test's first day (its chain runs); «Валв-тайм» on day 1, the bet and an announcement on day 2, game-file finds on day 3.
-- **Staged failures** (`scenarioFor`): one slot in four, in turn — `build_crash` (the first build dies; the lost lease counts as `BUILD_LOST` and the next candidate goes), `build_fail` (the first candidate fails; the next one goes), `build_late` (every build dies; the slot ends empty), `tg_429`, `tg_timeout` (the job goes `unknown`, never re-sent), `tg_forbidden` (`send_failed`, rest not spent). Telegram failures are answered by `rehearsal-send.ts` through `DispatchDeps.rehearse` after the send mark, once per slot; Telegram is not called.
+- **Staged failures** (`scenarioFor`): one slot in four, in turn — `build_crash` (the first build dies; the lost lease counts as `BUILD_LOST` and the next candidate goes), `build_fail` (the first candidate fails; the next one goes), `build_late` (every build dies; the slot ends empty), `tg_429`, `tg_timeout` (the job goes `unknown`, never re-sent; the check stays open until the slot ends or 26 h, `bad` if a second send happened), `tg_forbidden` (`send_failed`, rest not spent). Telegram failures are answered by `rehearsal-send.ts` through `DispatchDeps.rehearse` after the send mark, once per slot; Telegram is not called.
 - **Journal** `rubric_rehearsal_checks` (`rehearsal-journal.ts`): the plan step (every 30 min) enlists new slots and judges ended ones (`judge`: ok / bad / void with a Russian note; a slot live 26 h past its time is «stuck»). `GET /api/v1/rubrics/rehearsal`, page `/lab/rehearsal`.
 
 ## Why a rubric post did not go out

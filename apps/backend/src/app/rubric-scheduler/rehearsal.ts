@@ -26,6 +26,8 @@ export interface CheckState {
   candIdx: number;
   candidates: number;
   slotAt: number;
+  /** Telegram send attempts the slot's publications made (an unknown one counts): more than one is a second send. */
+  sends: number;
 }
 
 export type Verdict = { verdict: 'ok' | 'bad' | 'void'; note: string };
@@ -83,12 +85,14 @@ export function judge(state: CheckState, now: number): Verdict | null {
       return { verdict: 'bad', note: `После «слишком часто» не вышла: ${what(state)}` };
     case 'tg_timeout':
       if (!fired) return done ? notFired : null;
-      if (status === 'unknown' || status === 'unresolved')
-        return {
-          verdict: 'ok',
-          note: 'Telegram не ответил: пост в «неизвестно», без повтора, ждёт разбора в «Публикациях»'
-        };
-      return { verdict: 'bad', note: `Telegram не ответил, а слот стал ${what(state)}` };
+      // The check stays open while the slot waits as «unknown»: a second send may still come, and that is the failure.
+      if (state.sends > 1)
+        return { verdict: 'bad', note: `Telegram не ответил, а пост отправили второй раз: ${what(state)}` };
+      if (status === 'unknown' && now <= state.slotAt + STUCK_AFTER_MS) return null;
+      return {
+        verdict: 'ok',
+        note: 'Telegram не ответил: пост не отправлялся повторно, ждал разбора в «Публикациях»'
+      };
     case 'tg_forbidden':
       if (!fired) return done ? notFired : null;
       if (status === 'send_failed')
