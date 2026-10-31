@@ -1262,7 +1262,7 @@ const WIDTH = 1536;
 const HEIGHT = 768;
 
 export async function rebus(context: RubricContext): Promise<RubricSample> {
-  const turn = await context.sources.turns?.next('rebus');
+  const turn = await context.sources.turns?.next('rebus', REBUSES.length);
   const size = REBUSES.length;
   const chosen =
     turn === undefined

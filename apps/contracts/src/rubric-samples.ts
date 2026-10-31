@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { rubricKeySchema } from './rubric-keys';
 
 /**
  * POST /api/v1/lab/rubrics («Тестирование», a DEV-only build, owner 25.10.2026): builds one rubric's post from live data (dotaconstants, Valve's datafeed, Steam, the game-files tracker, STRATZ) the way
@@ -8,38 +9,7 @@ import { z } from 'zod';
  * RATE_LIMIT 429, UNAVAILABLE 503 (the bot, the owner's chat, the browser, a data source; STATS_NOT_CONFIGURED until
  * STRATZ_TOKEN is set).
  */
-export const rubricSampleKeySchema = z.enum([
-  'patch_broken',
-  'who_is_imba',
-  'nerf_or_buff',
-  'whose_ability',
-  'files_dont_lie',
-  'who_gets_nerfed',
-  'valve_seriously',
-  'valve_time',
-  'rate_it',
-  'who_beats_whom',
-  'workshop_set',
-  'hero_guide',
-  'confess',
-  'explain_dumb',
-  'toxic_translator',
-  'ability_in_life',
-  'hero_profile',
-  'item_leaflet',
-  'tier_list',
-  'recruit_picks',
-  'forgotten_hero',
-  'horoscope',
-  'hero_trial',
-  'would_you_rather',
-  'on_lane',
-  'rebus',
-  'toxic_bingo',
-  'fake_item',
-  'shame_of_day',
-  'quote_of_day'
-]);
+export const rubricSampleKeySchema = rubricKeySchema;
 export type RubricSampleKey = z.infer<typeof rubricSampleKeySchema>;
 export const sendRubricSampleInputSchema = z.strictObject({ rubric: rubricSampleKeySchema });
 export type SendRubricSampleInput = z.infer<typeof sendRubricSampleInputSchema>;

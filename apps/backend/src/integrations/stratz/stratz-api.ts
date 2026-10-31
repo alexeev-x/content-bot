@@ -81,7 +81,8 @@ const GUIDE_MIN_NEWEST = 30;
 /** The stats bridge refuses a query over 4000 characters (bridge/stats-bridge): a read is split into requests under it. */
 const QUERY_MAX_CHARS = 3900;
 const DETAIL_BATCH = 10;
-const STRATZ_GAP_MS = 1200;
+/** The pause between two STRATZ requests: one at a time, never a burst (owner, 27.10.2026). */
+export const STRATZ_GAP_MS = 1200;
 /** Opponents whose filtered lists widen the candidates; the hero itself is skipped. */
 const GUIDE_OPPONENTS = [
   1, 2, 3, 5, 6, 7, 8, 9, 10, 11, 13, 14, 16, 18, 19, 20, 21, 22, 23, 25, 26, 27, 28, 29, 30, 31, 32, 34, 35, 36, 37,

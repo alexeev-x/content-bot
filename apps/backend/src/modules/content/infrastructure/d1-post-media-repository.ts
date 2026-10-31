@@ -331,10 +331,18 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
     async findPostState(postId): Promise<MediaPostState | null> {
       const post = await db
         .prepare(
-          'SELECT revision, status, kind, rich_html IS NOT NULL AS rich FROM posts WHERE id = ?1 AND deleted_at IS NULL'
+          `SELECT revision, status, kind, rich_html IS NOT NULL AS rich,
+                  coalesce(json_extract(poll_json, '$.pictureInPoll'), 0) AS picture_in_poll
+             FROM posts WHERE id = ?1 AND deleted_at IS NULL`
         )
         .bind(postId)
-        .first<{ revision: number; status: 'draft' | 'approved'; kind: 'text' | 'poll'; rich: number }>();
+        .first<{
+          revision: number;
+          status: 'draft' | 'approved';
+          kind: 'text' | 'poll';
+          rich: number;
+          picture_in_poll: number;
+        }>();
       if (post === null) return null;
       const { results } = await db
         .prepare(
@@ -350,6 +358,7 @@ export function createD1PostMediaRepository(db: D1Database): PostMediaRepository
         status: post.status,
         kind: post.kind,
         rich: post.rich === 1,
+        pictureInPoll: post.picture_in_poll === 1,
         media: results.map(toMedia)
       };
     },

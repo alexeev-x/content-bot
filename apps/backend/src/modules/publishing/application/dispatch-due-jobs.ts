@@ -172,7 +172,12 @@ async function dispatchJob(deps: DispatchDeps, jobId: string, budget: TickBudget
   // permanent failure before the mark, never sent and never left unknown.
   let poll: PostPoll | null = null;
   if (revision.kind === 'poll') {
-    if (revision.poll === null || pollIssue(revision.poll) !== null || revision.media.length > 0) {
+    // Media only as the poll's own picture: exactly one photo, and only when the poll says so (migration 0117).
+    const picture = revision.poll?.pictureInPoll === true;
+    const mediaFits = picture
+      ? revision.media.length === 1 && revision.media[0]?.kind === 'photo'
+      : revision.media.length === 0;
+    if (revision.poll === null || pollIssue(revision.poll) !== null || !mediaFits) {
       return refuse('CONTENT_INVALID', 'poll_invalid');
     }
     poll = revision.poll;
@@ -303,6 +308,7 @@ async function resolveSent(
         attemptOutcome: 'sent',
         externalMessageId: outcome.externalMessageIds[0] ?? null,
         externalMessageIds: outcome.externalMessageIds,
+        externalPollId: outcome.externalPollId ?? null,
         auditAction: 'job.succeeded'
       });
       return 'sent';

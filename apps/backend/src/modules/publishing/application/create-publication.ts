@@ -26,7 +26,13 @@ export interface CreatePublicationDeps {
 
 export async function createPublication(
   deps: CreatePublicationDeps,
-  command: { actor: string; idempotencyKey: string; input: CreatePublicationInput }
+  command: {
+    actor: string;
+    idempotencyKey: string;
+    input: CreatePublicationInput;
+    /** The scheduler's deadline (UTC ms): past it the job is cancelled, never sent. Not part of the HTTP input. */
+    notAfter?: number;
+  }
 ): Promise<PublicationDto> {
   const { actor, idempotencyKey, input } = command;
   const scheduledAt = Date.parse(input.scheduledAt);
@@ -37,7 +43,9 @@ export async function createPublication(
       revision: input.revision,
       destinationId: input.destinationId,
       scheduledAt,
-      timezone: input.timezone
+      timezone: input.timezone,
+      // Absent for the owner's publications, so their stored hashes stay as they were.
+      ...(command.notAfter === undefined ? {} : { notAfter: command.notAfter })
     })
   );
 
@@ -82,6 +90,7 @@ export async function createPublication(
         destinationId: record.destinationId,
         scheduledAt,
         timezone: record.timezone,
+        notAfter: command.notAfter ?? null,
         now: deps.now,
         actor,
         idempotency: ref,

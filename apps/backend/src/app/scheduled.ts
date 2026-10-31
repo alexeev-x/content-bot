@@ -1,3 +1,4 @@
+import { AppError } from '../shared/app-error';
 import type { BackgroundJob } from '@alexeev/contracts';
 import {
   ARCHIVE_LOOKBACK_SWEEP_MS,
@@ -220,9 +221,12 @@ export async function handleScheduled(
     }
   };
 
+  // One repository for the whole tick: it remembers a database that is behind migration 0117.
+  const dispatchJobs = container.dispatchJobs;
+
   await step('reconcile', async () => {
     const summary = await reconcileExpiredJobs({
-      repo: container.dispatchJobs,
+      repo: dispatchJobs,
       clock,
       logger,
       newId: container.newId,
@@ -233,14 +237,15 @@ export async function handleScheduled(
       expired: summary.expired,
       reconciledRetry: summary.retryWait,
       reconciledUnknown: summary.unknown,
-      reconciledFailed: summary.failed
+      reconciledFailed: summary.failed,
+      reconciledLate: summary.late
     };
   });
 
   if (container.publishing.enabled) {
     await step('dispatch', async () => {
       const summary = await dispatchDueJobs({
-        repo: container.dispatchJobs,
+        repo: dispatchJobs,
         posts: container.postRevisions,
         transport: container.transport,
         clock,
@@ -275,6 +280,17 @@ export async function handleScheduled(
   }
 
   const minute = new Date(controller.scheduledTime).getUTCMinutes();
+  // Production behind migration 0117 (the owner applies it before the release): once a day, at 09:00 Moscow time.
+  if (dispatchJobs.schemaBehind() && new Date(controller.scheduledTime).getUTCHours() === 6 && minute === 0) {
+    await tell(
+      'publishing',
+      new AppError(
+        'UNAVAILABLE',
+        'Продакшн-база без миграции 0117: примените её (Actions → D1 migrations). Публикации идут без защиты от опоздания.',
+        { reason: 'SCHEMA_BEHIND' }
+      )
+    );
+  }
   const mediaStorage = container.mediaStorage;
 
   await step('archive', async () => {

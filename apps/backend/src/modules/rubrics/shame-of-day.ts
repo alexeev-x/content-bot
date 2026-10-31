@@ -892,7 +892,7 @@ export async function shameOfDay(context: RubricContext): Promise<RubricSample> 
   const [heroes, items] = await Promise.all([context.sources.heroes(), context.sources.items()]);
   const itemNames = await context.sources.itemNames?.();
   const keys = new Map(items.map((item) => [item.id, item.key]));
-  const turn = await context.sources.turns?.next('shame_of_day');
+  const turn = await context.sources.turns?.next('shame_of_day', 2);
   const first: 'score' | 'build' = (turn ?? Math.floor(context.random() * 2)) % 2 === 0 ? 'score' : 'build';
 
   const recent = new Set((await context.sources.shameHeroes?.used()) ?? []);

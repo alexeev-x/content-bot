@@ -1629,7 +1629,7 @@ function signPage(suspect: Suspect, englishName: string, caseNumber: number): st
 }
 
 export async function suspect(context: RubricContext): Promise<RubricSample> {
-  const turn = await context.sources.turns?.next('hero_trial');
+  const turn = await context.sources.turns?.next('hero_trial', SUSPECTS.length);
   const size = SUSPECTS.length;
   const chosen =
     turn === undefined

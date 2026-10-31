@@ -466,7 +466,7 @@ export async function tierList(context: RubricContext): Promise<RubricSample> {
   const ctx: Ctx = { stats, names: new Map(heroes.map((hero) => [hero.id, hero.name.replace(/^npc_dota_hero_/, '')])) };
   // The looks take turns, one per post, the count kept between posts (owner, 28.10.2026: by the minute kept giving
   // the same two).
-  const turn = await context.sources.turns?.next('tier_list');
+  const turn = await context.sources.turns?.next('tier_list', LOOKS.length);
   const name =
     turn === undefined ? pick(LOOKS, context.random) : (LOOKS[turn % LOOKS.length] ?? pick(LOOKS, context.random));
   try {

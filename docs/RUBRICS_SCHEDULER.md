@@ -1,7 +1,7 @@
 # Rubrics → scheduler: what is left to build
 
 **Status: not built.** Today a rubric exists only as a DEV sample: «Тестирование» → «Рубрики» sends one rubric's post
-from live data to the owner's chat (`apps/backend/src/app/lab/rubric-samples.ts`). Nothing below runs yet. This file
+from live data to the owner's chat (`apps/backend/src/app/lab/rubric-samples.ts`, built by `app/rubric-build/`, the code the scheduler will post with). Nothing below runs yet. This file
 lists what the work of wiring rubrics to the scheduler and to real autopublishing must cover; the product rules
 (pool, weekly budget, two-week rest, news first, picture rule) are in `docs/PLAN.md` §2 and are not repeated here.
 Each rubric's approved look and text: `design-refs/rubrics/<NN>-<key>/README.md`.

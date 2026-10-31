@@ -56,7 +56,12 @@ function auditDetails(resolution: JobResolution): string {
   });
 }
 
-function resolutionStatements(db: D1Database, resolution: JobResolution, guard: Guard): D1PreparedStatement[] {
+function resolutionStatements(
+  db: D1Database,
+  resolution: JobResolution,
+  guard: Guard,
+  schema: Schema
+): D1PreparedStatement[] {
   const statements: D1PreparedStatement[] = [
     guarded(
       db,
@@ -110,13 +115,15 @@ function resolutionStatements(db: D1Database, resolution: JobResolution, guard: 
           `UPDATE publications
            SET external_message_id = COALESCE(?2, external_message_id),
                external_message_ids = COALESCE(?3, external_message_ids), last_error_code = ?4, updated_at = ?5
+               ${schema === 'current' ? ', external_poll_id = COALESCE(?6, external_poll_id)' : ''}
            WHERE id = ?1 AND ${ours}`,
         [
           resolution.publicationId,
           resolution.externalMessageId,
           resolution.externalMessageIds == null ? null : JSON.stringify(resolution.externalMessageIds),
           resolution.errorCode,
-          resolution.finishedAt
+          resolution.finishedAt,
+          ...(schema === 'current' ? [resolution.externalPollId ?? null] : [])
         ],
         guard
       )
@@ -187,16 +194,49 @@ interface ExpiredRow {
 export const SERIES_READY_SQL = (now: string) => `(blocked_by_job_id IS NULL OR EXISTS (
       SELECT 1 FROM jobs previous WHERE previous.id = jobs.blocked_by_job_id AND previous.status = 'succeeded'
         AND previous.updated_at + coalesce(jobs.chain_gap_ms, 0) <= ${now}))`;
-const DUE_BRANCH = (status: string) => `SELECT id, run_at FROM jobs
+// A job past its `not_after` (migration 0117) is never due: reconcile cancels it, and it must not hold up the scan.
+const ON_TIME_SQL = (now: string) => `(not_after IS NULL OR not_after >= ${now})`;
+const DUE_BRANCH = (status: string, onTime: boolean) => `SELECT id, run_at FROM jobs
     WHERE status IN ('pending', 'retry_wait') AND status = '${status}' AND run_at <= ?1 AND kind = 'publish'
-      AND ${SERIES_READY_SQL('?1')}
+      AND ${SERIES_READY_SQL('?1')}${onTime ? ` AND ${ON_TIME_SQL('?1')}` : ''}
     ORDER BY run_at, id LIMIT ?2`;
-
-export const DUE_JOBS_SQL = `SELECT id FROM (
-  SELECT id, run_at FROM (${DUE_BRANCH('pending')})
+const dueJobsSql = (onTime: boolean) => `SELECT id FROM (
+  SELECT id, run_at FROM (${DUE_BRANCH('pending', onTime)})
   UNION ALL
-  SELECT id, run_at FROM (${DUE_BRANCH('retry_wait')})
+  SELECT id, run_at FROM (${DUE_BRANCH('retry_wait', onTime)})
 ) ORDER BY run_at, id LIMIT ?2`;
+
+export const DUE_JOBS_SQL = dueJobsSql(true);
+/** The scan before migration 0117: the shim below falls back to it while production lacks the column. */
+const DUE_JOBS_SQL_V0 = dueJobsSql(false);
+
+// Copied from docs/BACKEND_ARCHITECTURE.md §5 "Conditional job claim", plus the deadline of migration 0117.
+const claimSql = (onTime: boolean) => `UPDATE jobs
+           SET status = 'claimed', attempts = attempts + 1,
+               lease_until = ?1, updated_at = ?2
+           WHERE id = ?3 AND status IN ('pending', 'retry_wait')
+             AND run_at <= ?2
+             AND (lease_until IS NULL OR lease_until < ?2)
+             AND ${SERIES_READY_SQL('?2')}${
+               onTime
+                 ? `
+             AND ${ON_TIME_SQL('?2')}`
+                 : ''
+             }
+           RETURNING id, publication_id, attempts`;
+
+/** Waiting jobs past their deadline, oldest deadline first (jobs_not_after_idx). */
+// Pinned: the planner would otherwise walk jobs_status_scheduled_idx by status and filter the deadline row by row.
+export const LATE_JOBS_SQL = `SELECT id FROM jobs INDEXED BY jobs_not_after_idx
+  WHERE not_after IS NOT NULL AND status IN ('pending', 'retry_wait') AND not_after < ?1
+  ORDER BY not_after, id LIMIT ?2`;
+
+/**
+ * `v0`: production D1 has not had migration 0117 yet (the owner applies it before the release). Publishing then keeps
+ * going without the deadline instead of stopping on «no such column». Remove with the shim (scheduler stage 9).
+ */
+type Schema = 'current' | 'v0';
+const SCHEMA_BEHIND = /no such (column: (not_after|external_poll_id)|index: jobs_not_after_idx)/;
 
 export const EXPIRED_CLAIMS_SQL = `SELECT id, publication_id, attempts, send_started_at, updated_at FROM jobs
   WHERE status = 'claimed' AND lease_until < ?1 ORDER BY lease_until LIMIT ?2`;
@@ -250,28 +290,46 @@ export const PURGE_OWNER_INCIDENT_ALERT_GROUPS_SQL = `DELETE FROM incident_alert
       ORDER BY recovery_claimed_at, group_key LIMIT ?1
     )`;
 
-export function createD1DispatchRepository(db: D1Database): DispatchRepository {
+export function createD1DispatchRepository(
+  db: D1Database,
+  onSchemaBehind: () => void = () => undefined
+): DispatchRepository {
+  // Per repository, so per tick: the first «no such column» switches the rest of this tick to the old statements.
+  let schema: Schema = 'current';
+  const fellBehind = (error: unknown) => {
+    if (schema === 'v0' || !(error instanceof Error) || !SCHEMA_BEHIND.test(error.message)) return false;
+    schema = 'v0';
+    onSchemaBehind();
+    return true;
+  };
+  const behind = async <T>(run: () => Promise<T>): Promise<T> => {
+    try {
+      return await run();
+    } catch (error) {
+      if (!fellBehind(error)) throw error;
+      return run();
+    }
+  };
   return {
+    schemaBehind: () => schema === 'v0',
+
     async findDueJobIds(now, limit) {
-      const { results } = await db.prepare(DUE_JOBS_SQL).bind(now, limit).all<{ id: string }>();
+      const { results } = await behind(() =>
+        db
+          .prepare(schema === 'current' ? DUE_JOBS_SQL : DUE_JOBS_SQL_V0)
+          .bind(now, limit)
+          .all<{ id: string }>()
+      );
       return results.map((row) => row.id);
     },
 
-    // Copied from docs/BACKEND_ARCHITECTURE.md §5 "Conditional job claim".
     async claim(jobId, now, leaseUntil): Promise<ClaimedJob | null> {
-      const result = await db
-        .prepare(
-          `UPDATE jobs
-           SET status = 'claimed', attempts = attempts + 1,
-               lease_until = ?1, updated_at = ?2
-           WHERE id = ?3 AND status IN ('pending', 'retry_wait')
-             AND run_at <= ?2
-             AND (lease_until IS NULL OR lease_until < ?2)
-             AND ${SERIES_READY_SQL('?2')}
-           RETURNING id, publication_id, attempts`
-        )
-        .bind(leaseUntil, now, jobId)
-        .all<ClaimRow>();
+      const result = await behind(() =>
+        db
+          .prepare(claimSql(schema === 'current'))
+          .bind(leaseUntil, now, jobId)
+          .all<ClaimRow>()
+      );
       const row = result.results[0];
       if (result.meta.changes !== 1 || row === undefined) return null;
       return { jobId: row.id, publicationId: row.publication_id, attempt: row.attempts };
@@ -309,8 +367,8 @@ export function createD1DispatchRepository(db: D1Database): DispatchRepository {
     },
 
     async resolve(resolution) {
-      const results = await db.batch(
-        resolutionStatements(db, resolution, attemptGuard(resolution.jobId, resolution.attempt))
+      const results = await behind(() =>
+        db.batch(resolutionStatements(db, resolution, attemptGuard(resolution.jobId, resolution.attempt), schema))
       );
       return results.at(-1)?.meta.changes === 1;
     },
@@ -329,6 +387,49 @@ export function createD1DispatchRepository(db: D1Database): DispatchRepository {
       return row !== null && row.status === resolution.status && row.outcome === resolution.attemptOutcome;
     },
 
+    // One batch: each statement re-checks the deadline and the job update comes last, so a job claimed or moved
+    // meanwhile is left alone. The publication's revision moves as on an owner's cancel: a stale edit is refused.
+    async cancelLateJobs(now, limit) {
+      if (schema === 'v0') return [];
+      let ids: string[];
+      try {
+        ids = (await db.prepare(LATE_JOBS_SQL).bind(now, limit).all<{ id: string }>()).results.map((row) => row.id);
+      } catch (error) {
+        if (fellBehind(error)) return [];
+        throw error;
+      }
+      if (ids.length === 0) return [];
+      const late = `SELECT id FROM jobs WHERE id IN (SELECT value FROM json_each(?1))
+        AND status IN ('pending', 'retry_wait') AND not_after < ?2`;
+      const list = JSON.stringify(ids);
+      const results = await db.batch([
+        db
+          .prepare(
+            `UPDATE publications SET last_error_code = 'NOT_AFTER_PASSED', revision = revision + 1, updated_at = ?2
+             WHERE id IN (SELECT publication_id FROM jobs WHERE id IN (${late}))`
+          )
+          .bind(list, now),
+        db
+          .prepare(
+            `INSERT INTO audit_log (actor_telegram_id, action, entity_type, entity_id, created_at, details)
+             SELECT 'system', 'job.expired', CASE WHEN publication_id IS NULL THEN 'job' ELSE 'publication' END,
+                    coalesce(publication_id, id), ?2, json_object('jobId', id, 'code', 'NOT_AFTER_PASSED')
+             FROM jobs WHERE id IN (${late})`
+          )
+          .bind(list, now),
+        db
+          .prepare(
+            `UPDATE jobs SET status = 'cancelled', lease_until = NULL, updated_at = ?2
+             WHERE id IN (${late}) RETURNING id, publication_id`
+          )
+          .bind(list, now)
+      ]);
+      return (results.at(-1)?.results ?? []).map((row) => {
+        const late = row as { id: string; publication_id: string | null };
+        return { jobId: late.id, publicationId: late.publication_id };
+      });
+    },
+
     async findExpiredClaims(now, limit): Promise<ExpiredClaim[]> {
       const { results } = await db.prepare(EXPIRED_CLAIMS_SQL).bind(now, limit).all<ExpiredRow>();
       return results.map((row) => ({
@@ -342,10 +443,20 @@ export function createD1DispatchRepository(db: D1Database): DispatchRepository {
 
     async resolveExpired(items, now) {
       if (items.length === 0) return [];
-      const groups = items.map(({ resolution, sendStarted }) =>
-        resolutionStatements(db, resolution, expiredGuard(resolution.jobId, resolution.attempt, now, sendStarted))
-      );
-      const results = await db.batch(groups.flat());
+      const statements = () =>
+        items.map(({ resolution, sendStarted }) =>
+          resolutionStatements(
+            db,
+            resolution,
+            expiredGuard(resolution.jobId, resolution.attempt, now, sendStarted),
+            schema
+          )
+        );
+      let groups = statements();
+      const results = await behind(() => {
+        groups = statements();
+        return db.batch(groups.flat());
+      });
       let offset = 0;
       return groups.map((group) => {
         offset += group.length;

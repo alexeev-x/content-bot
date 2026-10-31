@@ -1,4 +1,5 @@
 import { shuffledOrder } from './bank-order';
+import { infoNote, type RubricNote } from './degradations';
 import { type RubricContext, type RubricSample, noData, quiz, shuffled } from './types';
 
 // «Ты на линии» (owner, 30.10.2026): a Telegram quiz — a lane or skirmish moment, one mechanic with one right answer,
@@ -928,16 +929,17 @@ async function readValues(context: RubricContext, refs: Record<string, ValueRef>
 const ATTEMPTS = 3;
 
 export async function onLane(context: RubricContext): Promise<RubricSample> {
-  const turn = (await context.sources.turns?.next('on_lane')) ?? Math.floor(context.random() * QUIZZES.length);
+  const turn =
+    (await context.sources.turns?.next('on_lane', QUIZZES.length)) ?? Math.floor(context.random() * QUIZZES.length);
   const size = QUIZZES.length;
-  const notes: string[] = [];
+  const notes: RubricNote[] = [];
   for (let attempt = 0; attempt < ATTEMPTS; attempt += 1) {
     const at = turn + attempt;
     const chosen = QUIZZES[shuffledOrder(Math.floor(at / size), size)[at % size] ?? 0];
     if (chosen === undefined) continue;
     const read = await readValues(context, chosen.values ?? {});
     if (typeof read === 'string') {
-      notes.push(`Вопрос «${chosen.id}» отложен: ${read} — после патча его надо переписать.`);
+      notes.push(infoNote(`Вопрос «${chosen.id}» отложен: ${read} — после патча его надо переписать.`));
       continue;
     }
     const values = { ...read, ...chosen.calc?.(read) };
@@ -952,7 +954,7 @@ export async function onLane(context: RubricContext): Promise<RubricSample> {
       typeof chosen.explanation === 'string' ? fill(chosen.explanation, values) : chosen.explanation(values, kills);
     const question = `${fill(chosen.setup, values)} ${chosen.question}`;
     if (question.length > 300 || explanation.length > 200 || options.some((each) => each.length > 100)) {
-      notes.push(`Вопрос «${chosen.id}» не влез в лимиты Telegram с новыми цифрами.`);
+      notes.push(infoNote(`Вопрос «${chosen.id}» не влез в лимиты Telegram с новыми цифрами.`));
       continue;
     }
     return {

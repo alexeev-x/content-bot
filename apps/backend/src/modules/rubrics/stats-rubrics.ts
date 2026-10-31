@@ -16,6 +16,7 @@ import {
   talentRows,
   GUIDE_DAYS
 } from './guide-data';
+import { type RubricNote } from './degradations';
 import { type GuideItem, guideAltPicture, guideItemsPicture, guidePicture, type HeroGuideCard } from './guide-pictures';
 import { PICTURE_SIZE } from './picture';
 import { type PatchOutcome, patchOutcomes } from './patch-rubrics';
@@ -231,7 +232,8 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
   if (position === undefined) throw noData('hero positions');
   const [known, heroes] = await Promise.all([context.sources.items(), context.sources.heroes()]);
   const items = new Map(known.map((item) => [item.id, item]));
-  const notes: string[] = [];
+  const notes: RubricNote[] = [];
+  const note = (code: RubricNote['code'], text: string) => notes.push({ code, text });
   // A block OpenDota can stand in for fails quietly: its note is written once the fallback has had its turn.
   const failures = new Map<string, string>();
   const attempt = async <T>(block: string, read: () => Promise<T>, quiet = false): Promise<T | null> => {
@@ -241,7 +243,7 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
       // The error's code tells a wrong STRATZ argument (STRATZ_SHAPE) from a refusal or a timeout.
       const code = codeOf(error);
       if (quiet) failures.set(block, code);
-      else notes.push(`Нет данных: ${block} (${code})`);
+      else note('GUIDE_BLOCK_MISSING', `Нет данных: ${block} (${code})`);
       return null;
     }
   };
@@ -249,7 +251,7 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
   const quiet = fallback !== null;
   const missing = (block: string, openDotaBlock = `${block} OpenDota`) => {
     const codes = [failures.get(block), failures.get(openDotaBlock)].filter((code) => code !== undefined);
-    notes.push(`Нет данных: ${block}${codes.length === 0 ? '' : ` (${codes.join(', ')})`}`);
+    note('GUIDE_BLOCK_MISSING', `Нет данных: ${block}${codes.length === 0 ? '' : ` (${codes.join(', ')})`}`);
   };
   // One OpenDota read serves both the start items and the core.
   let popularity: Promise<Awaited<ReturnType<FallbackStatsSource['heroItemPopularity']>> | null> | undefined;
@@ -272,8 +274,11 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
   const baseGames = base === null ? null : await attempt('своя база матчей', () => base.games(hero.id, position));
   const games = baseGames !== null && baseGames.length >= BASE_MIN_GAMES ? baseGames : null;
   if (baseGames !== null && games === null)
-    notes.push(`Своя база: ${baseGames.length} матчей на позиции, нужно ${BASE_MIN_GAMES}: данные STRATZ`);
-  if (games !== null) notes.push(`Своя база: ${games.length} матчей на позиции за 14 дней`);
+    note(
+      'GUIDE_BASE_TOO_SMALL',
+      `Своя база: ${baseGames.length} матчей на позиции, нужно ${BASE_MIN_GAMES}: данные STRATZ`
+    );
+  if (games !== null) note('INFO', `Своя база: ${games.length} матчей на позиции за 14 дней`);
   // The sample: with the purchases (minutes, the starting set); without them when STRATZ refuses that field.
   const sample = await attempt('выборка матчей', async () => {
     if (games !== null && base !== null) {
@@ -284,7 +289,7 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
       return await stats.heroGuideSample(hero.id, position, true);
     } catch (error) {
       if (codeOf(error) !== 'STRATZ_SHAPE') throw error;
-      notes.push('Покупки по минутам не пришли (STRATZ_SHAPE): выборка без них');
+      note('GUIDE_SOURCE_FALLBACK', 'Покупки по минутам не пришли (STRATZ_SHAPE): выборка без них');
       return await stats.heroGuideSample(hero.id, position, false);
     }
   });
@@ -310,12 +315,14 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
     if (rows !== null) built = counted(medianMinutes(rows));
   }
   if (sample !== null) {
-    notes.push(
+    note(
+      'INFO',
       `Выборка: ${sample.matches.length} матчей на позиции ${position} из ${sample.fetched}, окно ${built?.days ?? '?'} дн.` +
         (built === null ? ` (мало для сборки: нужно ${BUILD_SAMPLE_MIN})` : `, посчитано ${built.matches}`)
     );
     if (sample.matches.length === 0 && sample.positions !== undefined)
-      notes.push(
+      note(
+        'INFO',
         `Позиции в ответе STRATZ: ${
           Object.entries(sample.positions)
             .map(([name, count]) => `${name}×${count}`)
@@ -330,7 +337,7 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
     // No usable sample: the per-item totals (and OpenDota behind them) give the build.
     const purchases = await attempt('предметы', () => stats.heroPositionPurchases(hero.id, position), quiet);
     if (purchases !== null) ({ core, situational } = splitBuild(rankPurchases(purchases, items, support)));
-    if (core.length > 0) notes.push('Предметы — суммы по предметам, не по матчам');
+    if (core.length > 0) note('GUIDE_SOURCE_FALLBACK', 'Предметы — суммы по предметам, не по матчам');
     if (core.length === 0 && fallback !== null) {
       const bought = await openDotaItems();
       const fromOpenDota =
@@ -339,7 +346,7 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
         // No minutes: OpenDota counts stretches of the match, not buy times.
         core = fromOpenDota.core.map((item) => ({ key: item.key }));
         situational = fromOpenDota.situational;
-        notes.push('Предметы — из OpenDota (без минут покупки)');
+        note('GUIDE_SOURCE_FALLBACK', 'Предметы — из OpenDota (без минут покупки)');
       }
     }
     if (core.length === 0) throw noData('hero purchases');
@@ -348,7 +355,8 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
   let start = built?.start ?? [];
   if (start.length === 0) {
     if (built !== null)
-      notes.push(
+      note(
+        'GUIDE_BLOCK_MISSING',
         `Нет данных: стартовый набор из матчей (${built.withPurchases ? 'ни один набор не повторился' : 'покупки не пришли'})`
       );
     const startRows = await attempt('стартовый закуп', () => stats.heroStartingItems(hero.id, position), quiet);
@@ -356,7 +364,7 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
     if (start.length === 0 && fallback !== null) {
       const bought = await openDotaItems();
       start = bought === null ? [] : startItems(bought.start, items);
-      if (start.length > 0) notes.push('Стартовый закуп — из OpenDota');
+      if (start.length > 0) note('GUIDE_SOURCE_FALLBACK', 'Стартовый закуп — из OpenDota');
     }
     if (start.length === 0 && (startRows !== null || quiet)) missing('стартовый закуп', 'предметы OpenDota');
   }
@@ -364,19 +372,21 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
   let neutrals = neutralRows === null ? [] : neutralPicks(neutralRows, items);
   if (neutrals.length === 0 && sample !== null) {
     neutrals = sampleNeutrals(sample.matches, items);
-    if (neutrals.length > 0) notes.push('Нейтралки — из матчей выборки');
+    if (neutrals.length > 0) note('GUIDE_SOURCE_FALLBACK', 'Нейтралки — из матчей выборки');
   }
   if (neutrals.length === 0 && neutralRows !== null)
-    notes.push(
+    note(
+      'GUIDE_BLOCK_MISSING',
       `Нет данных: нейтралки (STRATZ вернул ${neutralRows.length} строк, из них с уровнем ${neutralRows.filter((row) => row.tier !== null).length})`
     );
 
   const talentStats = await attempt('таланты', () => stats.heroTalents(hero.id, position));
   const talents = detail === null || talentStats === null ? [] : talentRows(talentList, talentStats);
-  if (talents.length === 0 && detail !== null && talentStats !== null) notes.push('Нет данных: таланты');
+  if (talents.length === 0 && detail !== null && talentStats !== null)
+    note('GUIDE_BLOCK_MISSING', 'Нет данных: таланты');
   const order = built?.plan ?? null;
   if (built !== null && order === null && detail !== null)
-    notes.push('Нет данных: прокачка (ни одна последовательность не повторилась или не видна ульта)');
+    note('GUIDE_BLOCK_MISSING', 'Нет данных: прокачка (ни одна последовательность не повторилась или не видна ульта)');
   const heroById = new Map(heroes.map((each) => [each.id, each]));
   const versus = games !== null ? enemyRows(games) : await attempt('матчапы', () => stats.heroMatchups(hero.id), quiet);
   // The base's are the hero at its position against each opponent, like Dota2ProTracker's.
@@ -384,7 +394,7 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
   if (matchups.length === 0 && fallback !== null) {
     const rows = await attempt('матчапы OpenDota', () => fallback.heroMatchups(hero.id), true);
     matchups = rows === null ? [] : matchupRows(rows, heroById, OPENDOTA_MATCHUP_MIN_MATCHES);
-    if (matchups.length > 0) notes.push('Матчапы — из OpenDota');
+    if (matchups.length > 0) note('GUIDE_SOURCE_FALLBACK', 'Матчапы — из OpenDota');
   }
   if (matchups.length === 0 && (versus !== null || quiet)) missing('матчапы');
   // Win rate by length from OpenDota alone: STRATZ's per-minute counts lean to wins (Techies: 76% under 35 minutes,
@@ -396,10 +406,12 @@ export async function heroGuide(context: RubricContext): Promise<RubricSample> {
         ? null
         : await attempt('винрейт по длине матча', () => fallback.heroDurations(hero.id));
   const byLength = bins === null ? null : lengthWinRatesFromBins(bins);
-  if (bins !== null && byLength === null) notes.push('Нет данных: винрейт по длине матча (мало матчей)');
+  if (bins !== null && byLength === null)
+    note('GUIDE_BLOCK_MISSING', 'Нет данных: винрейт по длине матча (мало матчей)');
 
   const alt = built?.alt ?? null;
-  if (built !== null && alt === null) notes.push('Нет данных: альтернативная сборка (нет другого набора в 15% матчей)');
+  if (built !== null && alt === null)
+    note('GUIDE_BLOCK_MISSING', 'Нет данных: альтернативная сборка (нет другого набора в 15% матчей)');
   // The win rate at the position from STRATZ's counts by day, which agree with Dota2ProTracker (Techies support 50.7%
   // against its 50%, 28.10.2026). The sample holds winners only, and an item's buyers win more the later it comes
   // (55.7% for Techies), so neither tells how a build does.

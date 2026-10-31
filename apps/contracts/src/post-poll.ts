@@ -41,11 +41,25 @@ export const postPollSchema = z.strictObject({
         .default('')
     })
     .nullable()
-    .default(null)
+    .default(null),
+  /**
+   * Telegram shows the options in a random order for each voter. Stored only (rubric scheduler, 31.10.2026): the editor
+   * never sets it, old stored polls read it as false.
+   */
+  shuffleOptions: z.boolean().default(false),
+  /** The post's one photo goes inside the poll (Bot API 10.3 `media`), no separate post. Stored only, like the above. */
+  pictureInPoll: z.boolean().default(false)
 });
 export type PostPoll = z.infer<typeof postPollSchema>;
 
-export const EMPTY_POLL: PostPoll = { question: '', options: ['', ''], allowsMultipleAnswers: false, quiz: null };
+export const EMPTY_POLL: PostPoll = {
+  question: '',
+  options: ['', ''],
+  allowsMultipleAnswers: false,
+  quiz: null,
+  shuffleOptions: false,
+  pictureInPoll: false
+};
 
 export type PollIssue =
   | 'QUESTION_EMPTY'

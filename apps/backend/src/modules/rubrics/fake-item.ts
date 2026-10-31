@@ -581,7 +581,8 @@ export function fakeItemPage(item: FakeItem, iconBase64: string): string {
 }
 
 export async function fakeItem(context: RubricContext): Promise<RubricSample> {
-  const turn = (await context.sources.turns?.next('fake_item')) ?? Math.floor(context.random() * ITEMS.length);
+  const turn =
+    (await context.sources.turns?.next('fake_item', ITEMS.length)) ?? Math.floor(context.random() * ITEMS.length);
   const size = ITEMS.length;
   const item = ITEMS[shuffledOrder(Math.floor(turn / size), size)[turn % size] ?? 0] ?? ITEMS[0];
   if (item === undefined) throw new Error('fake item bank is empty');

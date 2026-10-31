@@ -10,6 +10,9 @@ import { fakeTransport, HOURLY_TICK, makeTick, MINUTE_TICK, SENT, seedDueJob } f
 import { fakeOwnerMessenger } from '../helpers/fake-owner-messenger';
 import { createApi, fakeClock, type FakeClock, OWNER_TOKEN, resetDb, seedSession, START } from '../helpers/harness';
 import { meteredDb } from '../helpers/metered-db';
+
+// Every tick reads late jobs once (migration 0117: reconcile cancels jobs past their `not_after`), so each count below
+// holds that one read.
 import { count, jobOf } from '../helpers/publishing';
 import type { Api } from '../helpers/harness';
 
@@ -75,8 +78,8 @@ describe('an idle tick', () => {
     await makeTick({ clock, transport, db }).run();
 
     // Publishing scans, bounded alert bookkeeping, automation lease reconciliation and one claim, the bot media import read, heartbeat.
-    expect(meter.roundTrips).toBe(9);
-    expect(meter.statements).toBe(9);
+    expect(meter.roundTrips).toBe(10);
+    expect(meter.statements).toBe(10);
     const writes = meter.sql.filter((statement) => !/^\s*SELECT\b/i.test(statement));
     expect(writes).toHaveLength(3);
     expect(writes[0]).toMatch(/^\s*DELETE FROM incident_alert_groups\b/);
@@ -112,7 +115,7 @@ describe('an idle tick', () => {
     const { db, meter } = meteredDb(testDb());
     await makeTick({ clock, transport: fakeTransport(SENT), db, publishing: 'false' }).run();
 
-    expect(meter.roundTrips).toBe(8);
+    expect(meter.roundTrips).toBe(9);
     expect(meter.rowsRead).toBeLessThanOrEqual(12);
   });
 });
@@ -173,8 +176,8 @@ describe('the budget of a busy tick (Free plan: 50 D1 queries, 50 subrequests)',
     expect(await count('posts', 'archived_at IS NOT NULL')).toBe(0);
     // Pinned: 48 statements and 27 round trips (the heartbeat is written on minutes ending in 2 or 7, never with the
     // hourly cleanup), leaving two statements of Free-plan headroom.
-    expect(meter.statements).toBe(48);
-    expect(meter.roundTrips).toBe(27);
+    expect(meter.statements).toBe(49);
+    expect(meter.roundTrips).toBe(28);
     // Even if D1 counted every statement of a batch on its own, and Telegram calls beside them.
     expect(meter.statements).toBeLessThanOrEqual(50);
     expect(meter.roundTrips).toBeLessThanOrEqual(50);
@@ -199,8 +202,8 @@ describe('the budget of a busy tick (Free plan: 50 D1 queries, 50 subrequests)',
 
     // Each sent post is archived by the same tick: one read and one batch of two for all three. The owner's
     // «Опубликовано» notices add two reads (app origin and notification settings, shared with the alerts).
-    expect(meter.roundTrips).toBe(2 + 5 * DISPATCH_BATCH + 2 + 1 + 3 + 2);
-    expect(meter.statements).toBe(2 + 8 * DISPATCH_BATCH + 3 + 1 + 3 + 2);
+    expect(meter.roundTrips).toBe(3 + 5 * DISPATCH_BATCH + 2 + 1 + 3 + 2);
+    expect(meter.statements).toBe(3 + 8 * DISPATCH_BATCH + 3 + 1 + 3 + 2);
     expect(await count('posts', 'archived_at IS NOT NULL')).toBe(DISPATCH_BATCH);
   });
 });
@@ -224,8 +227,8 @@ describe('the purge tick (minute 30, nothing due)', () => {
     expect(await count('jobs')).toBe(PURGE_BATCH);
     // Reconciliation, due/archive/expired scans, automation reconciliation (no Dota claim at minute 30, review 24.10.2026), then the audit row,
     // eight child deletes, the hard delete and the soft delete of the posts (no heartbeat at minute 30).
-    expect(meter.roundTrips).toBe(9);
-    expect(meter.statements).toBe(3 + 7 + 1 + 8);
+    expect(meter.roundTrips).toBe(10);
+    expect(meter.statements).toBe(4 + 7 + 1 + 8);
   });
 
   it('an idle one writes no heartbeat', async () => {
@@ -233,7 +236,7 @@ describe('the purge tick (minute 30, nothing due)', () => {
 
     await makeTick({ clock, transport: fakeTransport(SENT), db, scheduledTime: START + 30 * 60_000 }).run();
 
-    expect(meter.roundTrips).toBe(8);
+    expect(meter.roundTrips).toBe(9);
     // Reads first, and no heartbeat at minute 30.
     expect(meter.sql.slice(0, 4).every((statement) => /^\s*SELECT\b/i.test(statement))).toBe(true);
     expect(meter.sql.some((statement) => /INSERT INTO system_state\b/.test(statement))).toBe(false);

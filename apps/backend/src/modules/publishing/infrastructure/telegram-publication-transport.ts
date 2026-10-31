@@ -1,7 +1,7 @@
 import { InputFile } from 'grammy';
 import type { InputMediaPhoto, InputMediaVideo } from '@grammyjs/types';
 import { type PostEntity, type PostPoll, richMediaId, richMediaPositions } from '@alexeev/contracts';
-import type { PublicationTransport } from '../application/ports';
+import type { PublicationMedia, PublicationTransport } from '../application/ports';
 import { sendTimeoutMs } from '../domain/dispatch-policy';
 import { classifySendResult, classifyTelegramError } from './classify-telegram-result';
 
@@ -53,6 +53,9 @@ export interface TelegramSender {
       allows_multiple_answers: boolean;
       correct_option_ids?: number[];
       explanation?: string;
+      shuffle_options?: boolean;
+      /** The poll's picture (Bot API 10.3). */
+      media?: { type: 'photo'; media: InputFile };
     },
     signal: AbortSignal
   ): Promise<unknown>;
@@ -77,7 +80,7 @@ export function createTelegramPublicationTransport(sender: TelegramSender, timeo
       const flags: SendFlags = { disable_notification: options.silent, protect_content: options.protectContent };
       try {
         if (poll !== null) {
-          return classifySendResult(await sender.sendPoll(chatId, pollParams(poll, flags), signal));
+          return classifySendResult(await sender.sendPoll(chatId, pollParams(poll, flags, media[0]), signal));
         }
         if (richHtml !== null) {
           // Only the media the HTML names are uploaded, each under its position's id (contracts post-rich.ts).
@@ -140,8 +143,17 @@ export function createTelegramPublicationTransport(sender: TelegramSender, timeo
   };
 }
 
-function pollParams(poll: PostPoll, flags: SendFlags): Parameters<TelegramSender['sendPoll']>[1] {
+// Only the flags a poll asks for are sent: an owner's poll goes exactly as before.
+function pollParams(
+  poll: PostPoll,
+  flags: SendFlags,
+  picture: PublicationMedia | undefined
+): Parameters<TelegramSender['sendPoll']>[1] {
   return {
+    ...(poll.shuffleOptions ? { shuffle_options: true } : {}),
+    ...(poll.pictureInPoll && picture !== undefined
+      ? { media: { type: 'photo' as const, media: new InputFile(streamChunks(picture.body), picture.fileName) } }
+      : {}),
     question: poll.question.trim(),
     options: poll.options.map((option) => option.trim()),
     type: poll.quiz === null ? 'regular' : 'quiz',

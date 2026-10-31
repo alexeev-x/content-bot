@@ -69,7 +69,9 @@ export async function attachRetainedPostMedia(
 ): Promise<AttachPostMediaResultDto> {
   const state = await deps.repo.findPostState(command.postId);
   if (state === null) throw new AppError('NOT_FOUND', 'Post not found');
-  if (state.kind === 'poll') throw kindMismatch('A poll post has no media');
+  if (state.kind === 'poll' && !state.pictureInPoll) throw kindMismatch('A poll post has no media');
+  if (state.kind === 'poll' && state.media.length + command.mediaIds.length > 1)
+    throw kindMismatch('A poll takes one picture');
   if (state.status !== 'draft')
     throw new AppError('CONFLICT', 'Only drafts can be changed', { reason: 'NOT_EDITABLE' });
   if (state.revision !== command.revision)

@@ -207,7 +207,7 @@ had mostly not parsed (7% kept).
 - **Alerts** (hourly, one of a kind a day): nothing kept for 2 hours, STRATZ refusing the address or token, more than 2%
   of read matches failing to parse, the day's STRATZ budget past 70%.
 - **Consumers**: «Гайд на героя» in «Тестирование» reads 14 days of the `immortal` band without the followed players'
-  rows (`app/lab/rubric-samples.ts`); with fewer than 150 games it keeps STRATZ's sample.
+  rows (`app/rubric-build/sources.ts`); with fewer than 150 games it keeps STRATZ's sample.
 - **Production**: database `content-stats-prod` (created by the owner 29.10.2026) and the Workflow
   `content-stats-snapshot-prod` are declared in `env.production`; its migrations are applied by the owner
   (`npx wrangler d1 migrations apply content-stats-prod --remote --env production`) before the release. The old tables

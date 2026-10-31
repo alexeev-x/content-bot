@@ -43,6 +43,8 @@ export interface TelegramSendApi {
     other: TelegramSendFlags,
     signal: AbortSignal
   ): Promise<unknown>;
+  /** Closes a poll the bot sent; the answer is the closed poll with its final counts. */
+  stopPoll(chatId: string, messageId: number, signal: AbortSignal): Promise<unknown>;
 }
 
 // Per-post send options (disable_notification: no sound; protect_content: no forwarding or saving).
@@ -99,7 +101,8 @@ export function createTelegramApi(token: string): TelegramSendApi {
         options.map((text) => ({ text })),
         { is_anonymous: true, ...rest },
         signal as never
-      )
+      ),
+    stopPoll: (chatId, messageId, signal) => api.stopPoll(chatId, messageId, undefined, signal as never)
   };
 }
 

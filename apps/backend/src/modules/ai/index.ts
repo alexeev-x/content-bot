@@ -27,7 +27,12 @@ export { drawForgottenScene, FORGOTTEN_SIZE } from './forgotten-picture';
 export { drawSuspectScene, SUSPECT_SIZE } from './suspect-picture';
 export { drawHoroscopeScene, HOROSCOPE_SIZE } from './horoscope-picture';
 export { drawRubricScene, type RubricScene } from './rubric-picture';
-export { writeRubricCaption } from './rubric-writer';
+export {
+  type RubricCaptionFailure,
+  type RubricCaptionResult,
+  writeRubricCaption,
+  writeRubricCaptionTyped
+} from './rubric-writer';
 export {
   ACTIVE_HYPOTHESES_MAX,
   createD1HypothesesRepository,

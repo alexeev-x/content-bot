@@ -57,7 +57,9 @@ function probe(
     listOwnerIncidentAlertGroups: () => Promise.resolve([]),
     claimOwnerIncidentAlertGroup: () => Promise.resolve(false),
     markOwnerIncidentAlertSent: () => Promise.resolve(),
-    countOpenIncidents: () => Promise.reject(new Error('unexpected'))
+    countOpenIncidents: () => Promise.reject(new Error('unexpected')),
+    cancelLateJobs: () => Promise.resolve([]),
+    schemaBehind: () => false
   };
   const lifecycle = {
     findArchivable: ({ since }: { since: number }) => {

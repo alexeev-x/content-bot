@@ -454,7 +454,7 @@ function tierList(card: number | undefined, context: RubricContext): RubricSampl
 }
 
 export async function toxicBingo(context: RubricContext): Promise<RubricSample> {
-  const turn = await context.sources.turns?.next('toxic_bingo');
+  const turn = await context.sources.turns?.next('toxic_bingo', TIER_LISTS.length * 2);
   if (turn === undefined) return context.random() < 0.5 ? bingo(undefined, context) : tierList(undefined, context);
   const card = Math.floor(turn / 2);
   return turn % 2 === 0 ? bingo(card, context) : tierList(card, context);

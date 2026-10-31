@@ -1,6 +1,7 @@
 import { RICH_MEDIA_SLOT } from '@alexeev/contracts';
 import { shuffledOrder } from './bank-order';
 import { escapeHtml } from './picture';
+import { infoNote } from './degradations';
 import { type HeroInfo, noData, pick, type RubricContext, type RubricSample } from './types';
 
 // «Гороскоп» (owner, 28.10.2026): a Monday horoscope by role (А), by role pairs (Б), by rank (В) or in the gachimuchi
@@ -1525,7 +1526,7 @@ async function ballHero(
 
 export async function horoscope(context: RubricContext): Promise<RubricSample> {
   // The forms take turns; inside a form the bank goes in a shuffled order without repeats (owner, 29.10.2026).
-  const turn = await context.sources.turns?.next('horoscope');
+  const turn = await context.sources.turns?.next('horoscope', HOROSCOPES.length);
   const slot = turn === undefined ? undefined : turn % FORM_TURN.length;
   const form = slot === undefined ? pick(FORM_TURN, context.random) : (FORM_TURN[slot] ?? 'А');
   const pool = HOROSCOPES.filter((each) => each.form === form);
@@ -1554,7 +1555,7 @@ export async function horoscope(context: RubricContext): Promise<RubricSample> {
   const short = (name: string) => name.replace(/^npc_dota_hero_/, '');
   return {
     picture: { html: PAGE, width: 1536, height: 768 },
-    notes: [`Гадалка: ${teller.localizedName} · в шаре: ${ball.localizedName} (${why})`],
+    notes: [infoNote(`Гадалка: ${teller.localizedName} · в шаре: ${ball.localizedName} (${why})`)],
     fortuneScene: {
       teller: { renderUrl: `${RENDERS}/${short(teller.name)}.png`, heroName: teller.localizedName },
       ball: { renderUrl: `${RENDERS}/${short(ball.name)}.png`, heroName: ball.localizedName }

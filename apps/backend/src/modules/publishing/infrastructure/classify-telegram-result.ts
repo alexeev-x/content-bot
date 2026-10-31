@@ -7,6 +7,14 @@ const DESTINATION_ERROR = /chat not found|not enough rights|have no rights|admin
 // "message is too long" carries none of the other words, yet it is the content's fault.
 
 const DEFAULT_RETRY_AFTER_SEC = 30;
+/** publications.external_poll_id holds 1–64 characters (migration 0117). */
+const POLL_ID_MAX = 64;
+
+function pollIdOf(poll: unknown): string | null {
+  if (typeof poll !== 'object' || poll === null || !('id' in poll)) return null;
+  const id = poll.id;
+  return typeof id === 'string' && id.length > 0 && id.length <= POLL_ID_MAX ? id : null;
+}
 
 // Telegram has no idempotency for sendMessage/sendPhoto: unless the Bot API clearly says
 // "refused", the safe answer is `unknown` (manual reconcile), never an automatic retry.
@@ -49,12 +57,14 @@ function classifyApiError(error: GrammyError): SendOutcome {
 }
 
 // A successful sendMessage/sendPhoto result must carry a positive safe integer message_id; otherwise we cannot prove
-// what was published, so it is `unknown` rather than `sent`.
+// what was published, so it is `unknown` rather than `sent`. A poll's `poll.id` is kept when it is there; a message
+// without it is still confirmed.
 export function classifySendResult(result: unknown): SendOutcome {
   if (typeof result === 'object' && result !== null && 'message_id' in result) {
     const id = result.message_id;
     if (typeof id === 'number' && Number.isSafeInteger(id) && id > 0) {
-      return { kind: 'sent', externalMessageIds: [String(id)] };
+      const pollId = 'poll' in result ? pollIdOf(result.poll) : null;
+      return { kind: 'sent', externalMessageIds: [String(id)], ...(pollId === null ? {} : { externalPollId: pollId }) };
     }
   }
   return { kind: 'unknown', reason: 'ok_without_message_id' };

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { AppError } from '../../shared/app-error';
 import type { Clock } from '../../platform/clock';
 import type { AiRepository } from './d1-ai-repository';
 import { AiProviderError, type AiTextProvider } from './ports';
@@ -37,8 +38,20 @@ const instructionsFor = (brief: string) => [...RULES, `Задание этой �
 const draftNumbers = (text: string) => text.match(/\d+(?:[.,]\d+)?/g) ?? [];
 const URL_PATTERN = /https?:\/\/\S+/g;
 
+/** Why the AI gave no caption: the scheduler's breaker and the owner's message need the cause, not just «no text». */
+export type RubricCaptionFailure = 'AI_NOT_READY' | 'PROVIDER_ERROR' | 'BAD_ANSWER' | 'NUMBER_LOST' | 'LINK_IN_TEXT';
+
+export type RubricCaptionResult =
+  { ok: true; text: string } | { ok: false; code: RubricCaptionFailure; detail?: string };
+
 /** The AI's caption, or null when the AI is off, out of budget, failed, or dropped a number of the draft. */
-export async function writeRubricCaption(
+export async function writeRubricCaption(...args: Parameters<typeof writeRubricCaptionTyped>): Promise<string | null> {
+  const result = await writeRubricCaptionTyped(...args);
+  return result.ok ? result.text : null;
+}
+
+/** The AI's caption, or the cause it gave none. */
+export async function writeRubricCaptionTyped(
   deps: { repo: AiRepository; clock: Clock; timezone: string; newId: () => string; provider: AiTextProvider | null },
   input: {
     title: string;
@@ -53,7 +66,7 @@ export async function writeRubricCaption(
     reference?: string;
     signal: AbortSignal;
   }
-): Promise<string | null> {
+): Promise<RubricCaptionResult> {
   // A link (a Workshop page) is kept by code under the text: the writer never sees or writes an address.
   const links = input.draft.match(URL_PATTERN) ?? [];
   const draft = input.draft.replace(URL_PATTERN, '').trim();
@@ -61,8 +74,10 @@ export async function writeRubricCaption(
   let ready;
   try {
     ready = await assertAiReady(deps, settings, settings.draftModel);
-  } catch {
-    return null;
+  } catch (error) {
+    // Off, no key, no model or price, budget spent: `reason` names which.
+    const reason = error instanceof AppError ? error.details?.['reason'] : undefined;
+    return { ok: false, code: 'AI_NOT_READY', ...(reason === undefined ? {} : { detail: reason }) };
   }
   let result;
   try {
@@ -83,7 +98,7 @@ export async function writeRubricCaption(
       signal: input.signal
     });
   } catch (error) {
-    if (error instanceof AiProviderError) return null;
+    if (error instanceof AiProviderError) return { ok: false, code: 'PROVIDER_ERROR', detail: error.code };
     throw error;
   }
   await recordAiUsage(deps, {
@@ -94,13 +109,14 @@ export async function writeRubricCaption(
     usage: result.usage,
     settings
   });
+  let text;
   try {
-    const text = answerSchema.parse(JSON.parse(result.text)).text;
-    // A caption that lost a number of the draft or carries an address is not this post's.
-    const kept = draftNumbers(draft).every((number) => text.includes(number));
-    if (!kept || /https?:|www\./iu.test(text)) return null;
-    return links.length === 0 ? text : `${text}\n\n${links.join('\n')}`;
+    text = answerSchema.parse(JSON.parse(result.text)).text;
   } catch {
-    return null;
+    return { ok: false, code: 'BAD_ANSWER' };
   }
+  // A caption that lost a number of the draft or carries an address is not this post's.
+  if (!draftNumbers(draft).every((number) => text.includes(number))) return { ok: false, code: 'NUMBER_LOST' };
+  if (/https?:|www\./iu.test(text)) return { ok: false, code: 'LINK_IN_TEXT' };
+  return { ok: true, text: links.length === 0 ? text : `${text}\n\n${links.join('\n')}` };
 }

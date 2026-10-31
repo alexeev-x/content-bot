@@ -18,6 +18,8 @@ const poll: PostPoll = {
   question: 'Which hero?',
   options: ['Axe', 'Lina'],
   allowsMultipleAnswers: false,
+  shuffleOptions: false,
+  pictureInPoll: false,
   quiz: { correctOptionIndex: 1, explanation: 'Lina it is' }
 };
 
@@ -54,7 +56,14 @@ describe('poll posts', () => {
 
   it('defaults a new poll to the empty draft poll', async () => {
     const post = await createPoll({ kind: 'poll' });
-    expect(post.poll).toEqual({ question: '', options: ['', ''], allowsMultipleAnswers: false, quiz: null });
+    expect(post.poll).toEqual({
+      question: '',
+      options: ['', ''],
+      allowsMultipleAnswers: false,
+      quiz: null,
+      shuffleOptions: false,
+      pictureInPoll: false
+    });
   });
 
   it('refuses text on a poll, a poll on a text post, and media on a poll', async () => {
@@ -77,6 +86,24 @@ describe('poll posts', () => {
       body: bytes
     });
     await expectRefusal(upload, { reason: 'KIND_MISMATCH' });
+  });
+
+  it('lets a poll with its picture inside take exactly one photo', async () => {
+    const pollPost = await createPoll({ kind: 'poll', poll: { ...poll, pictureInPoll: true } });
+    const bytes = new Uint8Array([
+      0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, 0, 0, 0, 13, 0x49, 0x48, 0x44, 0x52, 0, 0, 0, 2, 0, 0, 0, 3, 8, 2,
+      0, 0, 0, 0, 0, 0, 0
+    ]);
+    const upload = (revision: number, key: string) =>
+      api.request(`/api/v1/posts/${pollPost.id}/media?revision=${revision}&fileName=a.png`, {
+        method: 'POST',
+        headers: { 'idempotency-key': key, 'content-type': 'image/png', 'content-length': String(bytes.byteLength) },
+        body: bytes
+      });
+    const first = await upload(0, 'pp-1');
+    expect(first.status).toBe(201);
+    const second = await upload(1, 'pp-2');
+    expect(second.status).toBe(413);
   });
 
   it('approves only a complete poll and names the first issue otherwise', async () => {

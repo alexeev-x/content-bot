@@ -1,4 +1,5 @@
 import { AppError } from '../../shared/app-error';
+import type { RubricNote } from './degradations';
 
 // What a rubric sample reads and what it becomes. `app/` wires the sources: dotaconstants on GitHub (every hero and
 // item), Valve's Russian datafeed (abilities, patch notes), Steam, the game-files tracker and, once its token is set,
@@ -210,8 +211,11 @@ export interface RubricSources {
   tellers?: { used(): Promise<number[]>; remember(heroIds: number[]): Promise<void> } | null;
   /** The heroes of the last «Пидорок дня» winners (the next winner's hero differs); absent: any hero may come. */
   shameHeroes?: { used(): Promise<number[]>; remember(heroId: number): Promise<void> } | null;
-  /** A rubric's own counter of turns (0, 1, 2…), kept between posts; absent outside the Worker. */
-  turns?: { next(name: string): Promise<number> } | null;
+  /**
+   * A rubric's own counter of turns (0, 1, 2…), kept between posts; absent outside the Worker. `bankSize` is the bank the
+   * turn indexes, so the scheduler can tell when a round is used up.
+   */
+  turns?: { next(name: string, bankSize: number): Promise<number> } | null;
 }
 
 /** The bot's own high-rank matches, one row per player, the last 14 days (migration 0116). */
@@ -273,8 +277,8 @@ export interface RubricSample {
     /** A still to open the album with when every photo turns out animated. */
     cover?: string;
   };
-  /** Lines for the owner's sample only: what the rubric had to leave out. */
-  notes?: string[];
+  /** Lines for the owner: what the rubric had to leave out (a degradation code) or just info. */
+  notes?: RubricNote[];
   /** More pages of the same post: the picture and these are one carousel in one rich message. */
   slides?: { html: string; width: number; height: number }[];
   /** Links shown as words in the caption, never a bare address (owner, 27.10.2026: «ссылки прятать в текст»). */
@@ -385,7 +389,11 @@ export const DONT_BOTHER_JOKES = [
   'Не заёбывай',
   'Отъебись со своим патчем',
   'Да мне похуй, я на нём не играю',
-  'Иди нахуй со своими цифрами'
+  'Иди нахуй со своими цифрами',
+  // Owner, 31.10.2026: «нужно жёстче… типа отъебись, у меня семейный ужин с отцами».
+  'Отъебись, у меня семейный ужин с отцами',
+  'Ебал я ваши патчи вместе с Валвом',
+  'Хуй знает, я сейчас сру'
 ] as const;
 
 /** The options with one random joke option added at the end (the poll is shuffled for each voter). */

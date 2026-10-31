@@ -21,6 +21,8 @@ export interface MediaPostState {
   kind: 'text' | 'poll';
   /** A rich post names its media by position: removing or reordering them would send other pictures. */
   rich: boolean;
+  /** A poll whose one photo goes inside it (migration 0117 era, rubric scheduler): it may take exactly one picture. */
+  pictureInPoll: boolean;
   media: PostMediaDto[];
 }
 

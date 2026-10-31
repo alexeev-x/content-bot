@@ -1706,7 +1706,7 @@ export function spokenHeroName(key: string): string | undefined {
 
 // Every hero once (owner, 29.10.2026: «всех героев полностью»), in a shuffled order without repeats.
 export async function heroProfile(context: RubricContext): Promise<RubricSample> {
-  const turn = await context.sources.turns?.next('hero_profile');
+  const turn = await context.sources.turns?.next('hero_profile', ANKETAS.length);
   const size = ANKETAS.length;
   const anketa =
     turn === undefined

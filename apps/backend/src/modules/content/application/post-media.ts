@@ -62,10 +62,11 @@ function classifyPostState(
   revision: number
 ): asserts state is NonNullable<typeof state> {
   if (state === null) throw new AppError('NOT_FOUND', 'Post not found');
-  if (state.kind === 'poll') throw kindMismatch('A poll post has no media');
+  if (state.kind === 'poll' && !state.pictureInPoll) throw kindMismatch('A poll post has no media');
   if (state.status !== 'draft') throw conflict('NOT_EDITABLE');
   if (state.revision !== revision) throw conflict('STALE_REVISION');
-  if (state.media.length >= POST_MEDIA_MAX_ITEMS)
+  // A poll with its picture inside takes that one picture only.
+  if (state.media.length >= (state.kind === 'poll' ? 1 : POST_MEDIA_MAX_ITEMS))
     throw new HTTPException(413, { message: 'The post already has the maximum number of attachments' });
 }
 

@@ -354,7 +354,7 @@ const QUOTES: readonly (readonly [string, string])[] = [
 const REACTIONS = ['🗿 — база · 🤡 — кринж', '💯 — жиза · 🥴 — хуйня', '🫡 — уважаю · 💩 — говно'] as const;
 
 export async function quoteOfDay(context: RubricContext): Promise<RubricSample> {
-  const turn = await context.sources.turns?.next('quote_of_day');
+  const turn = await context.sources.turns?.next('quote_of_day', QUOTES.length);
   const size = QUOTES.length;
   const [quote, author] =
     turn === undefined

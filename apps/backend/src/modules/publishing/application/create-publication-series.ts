@@ -20,18 +20,29 @@ const MINUTE_MS = 60_000;
 // writes all of them or none; a refusal names the post it is about (`details.postId`).
 export async function createPublicationSeries(
   deps: CreatePublicationDeps,
-  command: { actor: string; idempotencyKey: string; input: CreatePublicationSeriesInput }
+  command: {
+    actor: string;
+    idempotencyKey: string;
+    input: CreatePublicationSeriesInput;
+    /** The scheduler's gap between posts, overriding `intervalMinutes` (whose HTTP minimum is 5). */
+    gapMs?: number;
+    /** The scheduler's deadline for every post of the series (see createPublication). */
+    notAfter?: number;
+  }
 ): Promise<PublicationSeriesDto> {
   const { actor, idempotencyKey, input } = command;
   const scheduledAt = Date.parse(input.scheduledAt);
-  const gapMs = input.intervalMinutes * MINUTE_MS;
+  const gapMs = command.gapMs ?? input.intervalMinutes * MINUTE_MS;
   const requestHash = await sha256Hex(
     JSON.stringify({
       items: input.items,
       destinationId: input.destinationId,
       scheduledAt,
       timezone: input.timezone,
-      intervalMinutes: input.intervalMinutes
+      intervalMinutes: input.intervalMinutes,
+      // Absent for the owner's series, so their stored hashes stay as they were.
+      ...(command.gapMs === undefined ? {} : { gapMs: command.gapMs }),
+      ...(command.notAfter === undefined ? {} : { notAfter: command.notAfter })
     })
   );
   return runIdempotent(
@@ -85,6 +96,7 @@ export async function createPublicationSeries(
         destinationId: input.destinationId,
         timezone: input.timezone,
         gapMs,
+        notAfter: command.notAfter ?? null,
         items: records.map(({ record, jobId }) => ({
           id: record.id,
           jobId,

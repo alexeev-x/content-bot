@@ -6,9 +6,20 @@ export type {
   PublicationTransport,
   PublicationMedia,
   OwnerIncidentAlertGroup,
+  PollStopOutcome,
+  PollStopper,
+  PublicationOutcomesRepository,
   RaisedIncident,
   SendOutcome
 } from './application/ports';
+export {
+  findPublicationByPost,
+  listRecentPublications,
+  type PublicationOutcome,
+  readPublicationOutcomes
+} from './application/read-publication-outcomes';
+export { createTelegramPollStopper } from './infrastructure/telegram-poll-stopper';
+export { createD1PublicationOutcomesRepository } from './infrastructure/d1-publication-outcomes-repository';
 export type {
   ChatInspection,
   ChatInspector,

@@ -20,7 +20,14 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-const poll = { question: 'Какой формат?', options: ['Раз', 'Два'], allowsMultipleAnswers: false, quiz: null };
+const poll = {
+  question: 'Какой формат?',
+  options: ['Раз', 'Два'],
+  allowsMultipleAnswers: false,
+  quiz: null,
+  shuffleOptions: false,
+  pictureInPoll: false
+};
 const pollPost = (overrides = {}) => post({ kind: 'poll', title: 'Какой формат?', body: '', poll, ...overrides });
 
 async function openPost(overrides = {}) {

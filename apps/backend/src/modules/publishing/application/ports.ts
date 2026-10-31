@@ -22,7 +22,8 @@ import type { JobSnapshot } from '../domain/status-projection';
 
 // The interface belongs to the consumer (docs/BACKEND_ARCHITECTURE.md §4).
 export type SendOutcome =
-  | { kind: 'sent'; externalMessageIds: string[] }
+  /** `externalPollId`: Telegram's `poll.id` of a sent poll; its absence never makes a confirmed send unknown. */
+  | { kind: 'sent'; externalMessageIds: string[]; externalPollId?: string }
   | { kind: 'rate_limited'; retryAfterSec: number } // 429: Telegram refused, nothing was published
   | {
       kind: 'rejected';
@@ -168,6 +169,8 @@ export interface JobResolution {
   retryAfterSec: number | null;
   externalMessageId: string | null;
   externalMessageIds?: readonly string[] | null;
+  /** A sent poll's id (migration 0117). */
+  externalPollId?: string | null;
   incident: JobIncident | null;
   auditAction: string;
 }
@@ -194,6 +197,13 @@ export interface DispatchRepository {
   /** One batch (attempt row, incident, publication, audit, job), guarded by `claimed` and the same attempt. */
   resolve(resolution: JobResolution): Promise<boolean>;
   findExpiredClaims(now: number, limit: number): Promise<ExpiredClaim[]>;
+  /**
+   * Cancels waiting jobs whose `not_after` passed (migration 0117): the publication gets `NOT_AFTER_PASSED` and an
+   * audit row, no incident. Returns the jobs this call cancelled.
+   */
+  cancelLateJobs(now: number, limit: number): Promise<{ jobId: string; publicationId: string | null }[]>;
+  /** True once this repository fell back to the statements before migration 0117 (production not migrated yet). */
+  schemaBehind(): boolean;
   /** One batch for all of them; each is guarded by an expired lease, the same attempt and the same send mark. */
   resolveExpired(items: readonly ExpiredResolution[], now: number): Promise<boolean[]>;
   /**
@@ -351,6 +361,8 @@ export interface NewPublication {
   destinationId: string;
   scheduledAt: number;
   timezone: string;
+  /** The job is cancelled, never sent, once this time (UTC ms) passes; application-level, never in the HTTP input. */
+  notAfter?: number | null;
   now: number;
   actor: string;
   idempotency: IdempotencyRef;
@@ -366,6 +378,8 @@ export interface NewPublicationSeries {
   gapMs: number;
   /** In series order; each later one waits for the job of the one before it. */
   items: { id: string; jobId: string; postId: string; postRevision: number; scheduledAt: number }[];
+  /** Every job of the series is cancelled once this time passes (see `NewPublication.notAfter`). */
+  notAfter?: number | null;
   now: number;
   actor: string;
   idempotency: IdempotencyRef;
@@ -599,4 +613,39 @@ export interface DashboardSnapshot {
 export interface DashboardRepository {
   /** Exactly one batch of five bounded statements. */
   read(range: { from: number; to: number; stuckBefore: number }): Promise<DashboardSnapshot>;
+}
+
+/** What closing a poll came to; safe to repeat (a second close is `already_closed`). */
+export type PollStopOutcome =
+  | { kind: 'closed'; total: number; options: { text: string; voters: number }[] }
+  | { kind: 'already_closed' }
+  | { kind: 'not_found' }
+  | { kind: 'rate_limited'; retryAfterSec: number }
+  | { kind: 'unknown'; reason: string; detail?: string };
+
+/** Closes a channel poll the bot sent (the rubric scheduler's 24 h and 7 day polls). Never throws. */
+export interface PollStopper {
+  stop(input: { chatId: string; messageId: number }): Promise<PollStopOutcome>;
+}
+
+/** One publication as the rubric scheduler reads it back. */
+export interface PublicationOutcomeRow {
+  publicationId: string;
+  postId: string;
+  scheduledAt: number;
+  externalMessageIds: string[];
+  externalPollId: string | null;
+  lastErrorCode: string | null;
+  job: JobSnapshot;
+  /** When the job last changed: for a sent one, about when it went out. */
+  jobUpdatedAt: number;
+}
+
+export interface PublicationOutcomesRepository {
+  /** At most 20 ids; unknown ids are absent. */
+  outcomes(ids: readonly string[]): Promise<PublicationOutcomeRow[]>;
+  /** The newest publication of a post to a channel, or null. */
+  latestForPost(postId: string, destinationId: string): Promise<PublicationOutcomeRow | null>;
+  /** Publications scheduled at or after `since`, newest first, at most 200. */
+  recent(since: number): Promise<(PublicationOutcomeRow & { postKind: 'text' | 'poll'; hasMedia: boolean })[]>;
 }

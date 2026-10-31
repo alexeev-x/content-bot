@@ -344,19 +344,19 @@ Not tested on purpose: pictures, copy, bank wording, CSS look, per-state renderi
 Common for every stage: work on `develop` or `feat/…` from it; agents commit with green checks (`npm run verify:changed`; R2/R3: full `npm run verify` + R3 independent review per skill `orchestrate`); commit only the stage's files, conventional message; contract changes in one commit with backend + contract tests + frontend API layer; ask the owner «Пушить?» once the stage is ready (batch pushes: CI minutes are limited from 1.11.2026); the owner pushes `develop` ⇒ CI applies pending migrations to DEV D1 and deploys DEV; agents then verify on DEV themselves (memory: act freely on DEV); for prod the owner applies the stage's migration via Actions → «D1 migrations» → production **before** opening the develop→main PR; agents never touch `main`, `--remote`, secrets or deploys. Report: Russian summary, checks with last output lines, commit hashes, push state, migration number. Docs change in the same commit as behaviour (docs only what exists).
 
 ### Stage 0 — extract and harden the build (no migration; R2)
-- [ ] backend-rubrics: `src/shared/msk-time.ts`; `modules/rubrics/{degradations,facts,meta}.ts` (+ `index.ts` exports), `RubricSample.notes` → coded `RubricNote` in on-lane, stats-rubrics, horoscope; `turns.next(name, bankSize)`.
-- [ ] backend-core: `app/rubric-build/{sources,build-post,scene,photos,payload,types,ports}.ts` from `app/lab/rubric-samples.ts` L60–673; lab shrinks to build + sends; `pace()` port; `writeRubricCaptionTyped` in `modules/ai/rubric-writer.ts` (+ `index.ts`); `export STRATZ_GAP_MS` in `integrations/stratz/stratz-api.ts`.
-- [ ] contracts (with frontend): `apps/contracts/src/rubric-keys.ts` (`RUBRIC_KEYS`, `rubricKeySchema`, `RUBRIC_TITLES`); `rubric-samples.ts` uses it; backend `samples.ts` imports it; `features/rubric-samples/ui/RubricSamples.tsx` titles from contracts (one commit).
-- [ ] tests: `meta.test.ts`, `build-post.test.ts` (strict degradations, `TEXT_TEMPLATE` from typed failure, scheduler ports side-effect free).
+- [x] backend-rubrics: `src/shared/msk-time.ts`; `modules/rubrics/{degradations,facts,meta}.ts` (+ `index.ts` exports), `RubricSample.notes` → coded `RubricNote` in on-lane, stats-rubrics, horoscope; `turns.next(name, bankSize)`.
+- [x] backend-core: `app/rubric-build/{sources,build-post,scene,photos,payload,types,ports}.ts` from `app/lab/rubric-samples.ts` L60–673; lab shrinks to build + sends; `pace()` port; `writeRubricCaptionTyped` in `modules/ai/rubric-writer.ts` (+ `index.ts`); `export STRATZ_GAP_MS` in `integrations/stratz/stratz-api.ts`.
+- [x] contracts (with frontend): `apps/contracts/src/rubric-keys.ts` (`RUBRIC_KEYS`, `rubricKeySchema`, `RUBRIC_TITLES`); `rubric-samples.ts` uses it; backend `samples.ts` imports it; `features/rubric-samples/ui/RubricSamples.tsx` titles from contracts (one commit).
+- [x] tests: `meta.test.ts`, `build-post.test.ts` (strict degradations, `TEXT_TEMPLATE` from typed failure, scheduler ports side-effect free).
 - Done: verify green; local-Worker samples of a bank text, a code picture and an AI scene written to a file match pre-change output (owner may press «Прислать» on DEV himself); `wrangler deploy --dry-run --outdir` size before/after recorded (> 7 MB ⇒ icons-to-R2 task before stage 4); DEV Workers Logs CPU per build recorded.
 - Prod: no runtime change. Commit `refactor(rubrics): …`; push with stage 1.
 
 ### Stage 1 — publishing extensions, migration 0117 (R3)
-- [ ] Read Bot API changelog (sendPoll `media`, `shuffle_options`, `open_period`/`close_date` limits, `stopPoll`) and record findings in the commit/doc (§2.2 #20).
-- [ ] backend-core: `migrations/0117_publishing_not_after_poll_id.sql`; publishing application/infrastructure files of `area-backend-core.md` §4.2 (`not_after`, `gapMs`, poll flags, `external_poll_id`, `stopPoll` + `telegram-poll-stopper.ts`, `readPublicationOutcomes`, `findPublicationByPost`, `listRecentPublications`), content `post-media`/`media-library`/`media-ports`/`d1-post-media-repository`, V0 shim in `d1-dispatch-repository.ts`.
-- [ ] contracts: stored poll schema flags (HTTP input unchanged) + frontend type consumers, one commit.
-- [ ] docs: `docs/backend/publishing.md`, `docs/backend/data-migrations.md` (prod-migration-before-main release step), `docs/DECISIONS.md` row for that step.
-- [ ] tests: L4 publishing list.
+- [x] Read Bot API changelog (sendPoll `media`, `shuffle_options`, `open_period`/`close_date` limits, `stopPoll`) and record findings in the commit/doc (§2.2 #20).
+- [x] backend-core: `migrations/0117_publishing_not_after_poll_id.sql`; publishing application/infrastructure files of `area-backend-core.md` §4.2 (`not_after`, `gapMs`, poll flags, `external_poll_id`, `stopPoll` + `telegram-poll-stopper.ts`, `readPublicationOutcomes`, `findPublicationByPost`, `listRecentPublications`), content `post-media`/`media-library`/`media-ports`/`d1-post-media-repository`, V0 shim in `d1-dispatch-repository.ts`.
+- [x] contracts: stored poll schema flags (HTTP input unchanged) + frontend type consumers, one commit.
+- [x] docs: `docs/backend/publishing.md`, `docs/backend/data-migrations.md` (prod-migration-before-main release step), `docs/DECISIONS.md` row for that step.
+- [x] tests: L4 publishing list.
 - Done: full verify; DEV after push: news autopublish still sends (regression), a manual test poll in the test channel closes via a scripted `stopPoll` from the local Worker (not prod).
 - Prod: owner applies **0117** first, then develop→main PR. Shim removed in stage 9.
 

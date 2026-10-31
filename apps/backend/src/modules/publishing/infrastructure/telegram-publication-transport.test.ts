@@ -98,6 +98,8 @@ describe('the Telegram transport adapter', () => {
       question: ' Q? ',
       options: ['a', 'b', 'c'],
       allowsMultipleAnswers: false,
+      shuffleOptions: false,
+      pictureInPoll: false,
       quiz: { correctOptionIndex: 2, explanation: 'because' }
     };
     const outcome = await createTelegramPublicationTransport(sender).send({
@@ -128,6 +130,37 @@ describe('the Telegram transport adapter', () => {
     ]);
   });
 
+  it('puts the picture inside a rubric poll, shuffles its options and keeps the poll id', async () => {
+    const sender = senderOf(() => Promise.resolve({ message_id: 32, poll: { id: 'poll-1' } }));
+    const outcome = await createTelegramPublicationTransport(sender).send({
+      chatId: '-100',
+      text: '',
+      entities: [],
+      media: [
+        {
+          kind: 'photo',
+          fileName: 'nerf.png',
+          contentType: 'image/png',
+          sizeBytes: 3,
+          body: new Blob([new Uint8Array([1, 2, 3])]).stream()
+        }
+      ],
+      options,
+      poll: {
+        question: 'Нерф или баф?',
+        options: ['Нерф', 'Баф', 'Не еби мозги'],
+        allowsMultipleAnswers: false,
+        quiz: null,
+        shuffleOptions: true,
+        pictureInPoll: true
+      },
+      richHtml: null
+    });
+    expect(outcome).toEqual({ kind: 'sent', externalMessageIds: ['32'], externalPollId: 'poll-1' });
+    const [, , params] = sender.requests[0] as [string, string, Record<string, unknown>];
+    expect(params).toMatchObject({ shuffle_options: true, media: { type: 'photo' } });
+  });
+
   it('sends a regular poll without quiz fields', async () => {
     const sender = senderOf(() => Promise.resolve({ message_id: 31 }));
     await createTelegramPublicationTransport(sender).send({
@@ -136,7 +169,14 @@ describe('the Telegram transport adapter', () => {
       entities: [],
       media: [],
       options,
-      poll: { question: 'Q', options: ['a', 'b'], allowsMultipleAnswers: true, quiz: null },
+      poll: {
+        question: 'Q',
+        options: ['a', 'b'],
+        allowsMultipleAnswers: true,
+        quiz: null,
+        shuffleOptions: false,
+        pictureInPoll: false
+      },
       richHtml: null
     });
     expect(sender.requests).toEqual([

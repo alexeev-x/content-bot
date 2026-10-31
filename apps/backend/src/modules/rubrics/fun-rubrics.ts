@@ -425,7 +425,7 @@ const CONFESS_BANK: readonly Confession[] = [...CONFESSIONS, ...HOT_TAKES];
 
 // Random order without repeats (owner, 29.10.2026): the rubric's turn counter walks a shuffled round of the bank.
 export async function confess(context: RubricContext): Promise<RubricSample> {
-  const turn = await context.sources.turns?.next('confess');
+  const turn = await context.sources.turns?.next('confess', CONFESS_BANK.length);
   const chosen =
     turn === undefined
       ? pick(CONFESS_BANK, context.random)
@@ -1459,7 +1459,7 @@ const EXPLAIN_BANK: readonly Mechanic[] = [...MECHANICS, ...HIDDEN_DETAILS];
 // The bank of 100 the owner approved on 29.10.2026, in a shuffled order without repeats; each round of the bank takes
 // the next of an entry's three comparisons, so a mechanic comes back with another joke.
 export async function explainDumb(context: RubricContext): Promise<RubricSample> {
-  const turn = await context.sources.turns?.next('explain_dumb');
+  const turn = await context.sources.turns?.next('explain_dumb', EXPLAIN_BANK.length);
   const size = EXPLAIN_BANK.length;
   const round = turn === undefined ? 0 : Math.floor(turn / size);
   const chosen =
@@ -1928,7 +1928,7 @@ const TRANSLATOR_BANK: readonly Entry[] = [...DICTIONARY, ...HOW_TO_SAY, ...THRE
 
 // The bank of 100 the owner approved on 29.10.2026, in a shuffled order without repeats.
 export async function toxicTranslator(context: RubricContext): Promise<RubricSample> {
-  const turn = await context.sources.turns?.next('toxic_translator');
+  const turn = await context.sources.turns?.next('toxic_translator', TRANSLATOR_BANK.length);
   const size = TRANSLATOR_BANK.length;
   const chosen =
     turn === undefined
@@ -3080,7 +3080,7 @@ const LIFE_BANK: readonly LifePoll[] = [...LIFE_SCENES, ...LIFE_CATCHES, ...LIFE
 
 // The bank of 100 the owner approved on 29.10.2026, in a shuffled order without repeats.
 export async function abilityInLife(context: RubricContext): Promise<RubricSample> {
-  const turn = await context.sources.turns?.next('ability_in_life');
+  const turn = await context.sources.turns?.next('ability_in_life', LIFE_BANK.length);
   const size = LIFE_BANK.length;
   const chosen =
     turn === undefined
@@ -4222,7 +4222,7 @@ function leafletRich(leaflet: Leaflet): string {
 
 // The bank of 100 the owner approved on 29.10.2026, in a shuffled order without repeats.
 export async function itemLeaflet(context: RubricContext): Promise<RubricSample> {
-  const turn = await context.sources.turns?.next('item_leaflet');
+  const turn = await context.sources.turns?.next('item_leaflet', LEAFLETS.length);
   const size = LEAFLETS.length;
   const leaflet =
     turn === undefined
@@ -4630,7 +4630,7 @@ const RATHER_BANK: readonly (readonly [string, string, string])[] = [
 ];
 
 export async function wouldYouRather(context: RubricContext): Promise<RubricSample> {
-  const turn = await context.sources.turns?.next('would_you_rather');
+  const turn = await context.sources.turns?.next('would_you_rather', RATHER_BANK.length);
   const size = RATHER_BANK.length;
   const chosen =
     turn === undefined

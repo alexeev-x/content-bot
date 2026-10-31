@@ -485,7 +485,15 @@ export function createContainer(env: ContainerEnv, overrides: ContainerOverrides
       return requested && !hasSender ? { enabled: false, blockedBy: 'bot_token_missing' } : { enabled: requested };
     },
     get dispatchJobs() {
-      return createD1DispatchRepository(db());
+      // Production without migration 0117 keeps publishing on the old statements; the log line says so.
+      return createD1DispatchRepository(db(), () =>
+        createLogger().warn({
+          component: 'dispatch',
+          operation: 'schema',
+          status: 'behind',
+          errorCode: 'SCHEMA_BEHIND'
+        })
+      );
     },
     // publishing asks for a revision snapshot through its own port; only this wiring knows the content module.
     get postRevisions(): PostRevisionSource {

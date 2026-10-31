@@ -326,7 +326,14 @@ describe('media from the owner becomes a draft', () => {
       {
         kind: 'poll',
         body: '',
-        poll: { question: 'Кто мы такие', options: ['не мы', 'мыв', 'мы'], allowsMultipleAnswers: true, quiz: null }
+        poll: {
+          question: 'Кто мы такие',
+          options: ['не мы', 'мыв', 'мы'],
+          allowsMultipleAnswers: true,
+          quiz: null,
+          shuffleOptions: false,
+          pictureInPoll: false
+        }
       }
     ]);
     expect(replyTexts()).toEqual(['Черновик-опрос создан']);

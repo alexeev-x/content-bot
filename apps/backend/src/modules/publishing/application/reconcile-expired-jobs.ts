@@ -3,6 +3,9 @@ import type { Logger } from '../../../platform/logging/logger';
 import { attemptsExhausted, RECONCILE_BATCH, retryRunAt } from '../domain/dispatch-policy';
 import type { DispatchRepository, ExpiredClaim, ExpiredResolution, JobResolution, RaisedIncident } from './ports';
 
+/** Late jobs cancelled per tick: a bounded batch, the rest go next tick. */
+const LATE_BATCH = 20;
+
 export interface ReconcileDeps {
   repo: DispatchRepository;
   clock: Clock;
@@ -16,6 +19,8 @@ export interface ReconcileSummary {
   retryWait: number;
   unknown: number;
   failed: number;
+  /** Waiting jobs cancelled because their `not_after` passed (NOT_AFTER_PASSED, no incident). */
+  late: number;
   /** The job moved on (the original dispatcher finished) between the read and the write. */
   skipped: number;
   /** The incidents this tick wrote (an unconfirmed send, exhausted attempts), for the owner alert. */
@@ -28,8 +33,29 @@ export interface ReconcileSummary {
 // the job becomes `unknown` with an incident and is never retried automatically.
 // An idle tick costs one indexed read that finds no rows.
 export async function reconcileExpiredJobs(deps: ReconcileDeps): Promise<ReconcileSummary> {
-  const summary: ReconcileSummary = { expired: 0, retryWait: 0, unknown: 0, failed: 0, skipped: 0, raised: [] };
+  const summary: ReconcileSummary = {
+    expired: 0,
+    retryWait: 0,
+    unknown: 0,
+    failed: 0,
+    late: 0,
+    skipped: 0,
+    raised: []
+  };
   const now = deps.clock.now();
+  // A post that missed its deadline never goes out late (migration 0117); this runs with the kill switch off too, so a
+  // paused dispatcher does not leave late posts to go out once it is back.
+  const late = await deps.repo.cancelLateJobs(now, LATE_BATCH);
+  summary.late = late.length;
+  for (const job of late) {
+    deps.logger.warn({
+      component: 'reconcile',
+      operation: 'not_after',
+      jobId: job.jobId,
+      status: 'cancelled',
+      errorCode: 'NOT_AFTER_PASSED'
+    });
+  }
   const claims = await deps.repo.findExpiredClaims(now, RECONCILE_BATCH);
   summary.expired = claims.length;
   if (claims.length === 0) return summary;

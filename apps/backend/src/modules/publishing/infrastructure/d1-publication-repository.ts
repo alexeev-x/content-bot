@@ -437,6 +437,17 @@ function summarizeRows(rows: readonly SummaryRow[], now: number): Map<string, Po
 }
 
 export function createD1PublicationRepository(db: D1Database): PublicationRepository {
+  // A time the owner picks drops the scheduler's deadline (`not_after`, migration 0117). Production may not have the
+  // column yet (the owner applies 0117 before the release): then the change runs without it.
+  async function withoutDeadline<T>(change: (clear: string) => Promise<T>): Promise<T> {
+    try {
+      return await change(' not_after = NULL,');
+    } catch (error) {
+      if (!(error instanceof Error) || !/no such column: not_after/.test(error.message)) throw error;
+      return change('');
+    }
+  }
+
   const selectOne = (id: string) =>
     db.prepare(`SELECT ${PUBLICATION_COLUMNS} ${FROM_PUBLICATIONS} WHERE p.id = ?1`).bind(id);
 
@@ -584,11 +595,22 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
           ),
         db
           .prepare(
-            `INSERT INTO jobs (id, kind, publication_id, status, run_at, attempts, dedupe_key, publication_scheduled_at, created_at, updated_at)
-             SELECT ?1, 'publish', ?2, 'pending', ?3, 0, ?4, ?3, ?5, ?5
-             WHERE EXISTS (SELECT 1 FROM publications WHERE id = ?2)`
+            input.notAfter == null
+              ? `INSERT INTO jobs (id, kind, publication_id, status, run_at, attempts, dedupe_key, publication_scheduled_at, created_at, updated_at)
+                 SELECT ?1, 'publish', ?2, 'pending', ?3, 0, ?4, ?3, ?5, ?5
+                 WHERE EXISTS (SELECT 1 FROM publications WHERE id = ?2)`
+              : `INSERT INTO jobs (id, kind, publication_id, status, run_at, attempts, dedupe_key, publication_scheduled_at, created_at, updated_at, not_after)
+                 SELECT ?1, 'publish', ?2, 'pending', ?3, 0, ?4, ?3, ?5, ?5, ?6
+                 WHERE EXISTS (SELECT 1 FROM publications WHERE id = ?2)`
           )
-          .bind(input.jobId, input.id, input.scheduledAt, `publish:${input.id}`, input.now),
+          .bind(
+            input.jobId,
+            input.id,
+            input.scheduledAt,
+            `publish:${input.id}`,
+            input.now,
+            ...(input.notAfter == null ? [] : [input.notAfter])
+          ),
         db
           .prepare(
             `INSERT INTO audit_log (actor_telegram_id, action, entity_type, entity_id, created_at, details)
@@ -653,10 +675,15 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
             ),
           db
             .prepare(
-              `INSERT INTO jobs (id, kind, publication_id, status, run_at, attempts, dedupe_key, publication_scheduled_at,
-                                 created_at, updated_at, blocked_by_job_id, chain_gap_ms)
-               SELECT ?1, 'publish', ?2, 'pending', ?3, 0, ?4, ?3, ?5, ?5, ?6, ?7
-               WHERE EXISTS (SELECT 1 FROM publications WHERE id = ?2)`
+              input.notAfter == null
+                ? `INSERT INTO jobs (id, kind, publication_id, status, run_at, attempts, dedupe_key, publication_scheduled_at,
+                                   created_at, updated_at, blocked_by_job_id, chain_gap_ms)
+                   SELECT ?1, 'publish', ?2, 'pending', ?3, 0, ?4, ?3, ?5, ?5, ?6, ?7
+                   WHERE EXISTS (SELECT 1 FROM publications WHERE id = ?2)`
+                : `INSERT INTO jobs (id, kind, publication_id, status, run_at, attempts, dedupe_key, publication_scheduled_at,
+                                   created_at, updated_at, blocked_by_job_id, chain_gap_ms, not_after)
+                   SELECT ?1, 'publish', ?2, 'pending', ?3, 0, ?4, ?3, ?5, ?5, ?6, ?7, ?8
+                   WHERE EXISTS (SELECT 1 FROM publications WHERE id = ?2)`
             )
             .bind(
               item.jobId,
@@ -665,7 +692,8 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
               `publish:${item.id}`,
               input.now,
               previous?.jobId ?? null,
-              previous === undefined ? null : input.gapMs
+              previous === undefined ? null : input.gapMs,
+              ...(input.notAfter == null ? [] : [input.notAfter])
             ),
           db
             .prepare(
@@ -776,21 +804,23 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
     },
 
     reschedule(change) {
-      return changeJob({
-        ...change,
-        action: 'publication.reschedule',
-        // A job waiting for a retry becomes a plain scheduled one: the owner picked a new time.
-        // The claim SQL only takes pending/retry_wait jobs, so a claimed job is never matched here.
-        jobStatement: db
-          .prepare(
-            `UPDATE jobs SET status = 'pending', run_at = ?3, lease_until = NULL, updated_at = ?4
+      return withoutDeadline((clear) =>
+        changeJob({
+          ...change,
+          action: 'publication.reschedule',
+          // A job waiting for a retry becomes a plain scheduled one: the owner picked a new time.
+          // The claim SQL only takes pending/retry_wait jobs, so a claimed job is never matched here.
+          jobStatement: db
+            .prepare(
+              `UPDATE jobs SET status = 'pending', run_at = ?3, lease_until = NULL,${clear} updated_at = ?4
              WHERE publication_id = ?1 AND kind = 'publish' AND status IN ('pending', 'retry_wait')
                AND EXISTS (SELECT 1 FROM publications WHERE id = ?1 AND revision = ?2)`
-          )
-          .bind(change.id, change.expectedRevision, change.scheduledAt, change.now),
-        publicationSet: { sql: 'scheduled_at = ?4, timezone = ?5,', bindings: [change.scheduledAt, change.timezone] },
-        auditDetails: { scheduledAt: change.scheduledAt }
-      });
+            )
+            .bind(change.id, change.expectedRevision, change.scheduledAt, change.now),
+          publicationSet: { sql: 'scheduled_at = ?4, timezone = ?5,', bindings: [change.scheduledAt, change.timezone] },
+          auditDetails: { scheduledAt: change.scheduledAt }
+        })
+      );
     },
 
     cancel(change) {
@@ -900,20 +930,22 @@ export function createD1PublicationRepository(db: D1Database): PublicationReposi
             auditDetails: { outcome: 'sent', externalMessageIds: resolution.externalMessageIds.join(',') }
           });
         case 'resend':
-          return changeJob({
-            ...common,
-            jobStatement: db
-              .prepare(
-                `UPDATE jobs SET status = 'pending', run_at = ?3, lease_until = NULL, send_started_at = NULL,
+          return withoutDeadline((clear) =>
+            changeJob({
+              ...common,
+              jobStatement: db
+                .prepare(
+                  `UPDATE jobs SET status = 'pending', run_at = ?3, lease_until = NULL, send_started_at = NULL,${clear}
                    updated_at = ?4 WHERE ${jobGuard}`
-              )
-              .bind(change.id, change.expectedRevision, resolution.scheduledAt, change.now),
-            publicationSet: {
-              sql: 'scheduled_at = ?4, timezone = ?5, last_error_code = NULL,',
-              bindings: [resolution.scheduledAt, resolution.timezone]
-            },
-            auditDetails: { outcome: 'resend', scheduledAt: resolution.scheduledAt, timezone: resolution.timezone }
-          });
+                )
+                .bind(change.id, change.expectedRevision, resolution.scheduledAt, change.now),
+              publicationSet: {
+                sql: 'scheduled_at = ?4, timezone = ?5, last_error_code = NULL,',
+                bindings: [resolution.scheduledAt, resolution.timezone]
+              },
+              auditDetails: { outcome: 'resend', scheduledAt: resolution.scheduledAt, timezone: resolution.timezone }
+            })
+          );
         case 'cancel':
           return changeJob({
             ...common,

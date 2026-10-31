@@ -1,43 +1,12 @@
-import type { RubricSampleKey } from '@alexeev/contracts';
+import { RUBRIC_KEYS, RUBRIC_TITLES, type RubricSampleKey } from '@alexeev/contracts';
 import { useState } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import { Button } from '../../../shared/ui';
 import { useSendRubricSample } from '../api/rubric-samples-api';
 import styles from './RubricSamples.module.css';
 
-// All 30 approved rubrics, in the order of RUBRIC_KEYS: the owner calls any of them to look (owner, 30.10.2026).
-const RUBRICS: { key: RubricSampleKey; title: string }[] = [
-  { key: 'patch_broken', title: 'Кого понерфили' },
-  { key: 'who_is_imba', title: 'Кто теперь имба?' },
-  { key: 'nerf_or_buff', title: 'Нерф или баф?' },
-  { key: 'whose_ability', title: 'Чья способность?' },
-  { key: 'files_dont_lie', title: 'Утечка недели' },
-  { key: 'who_gets_nerfed', title: 'Кого понерфят?' },
-  { key: 'valve_seriously', title: 'Valve, ты серьёзно?' },
-  { key: 'valve_time', title: 'Валв-тайм' },
-  { key: 'rate_it', title: 'Оцениваем' },
-  { key: 'who_beats_whom', title: 'Кто кого перебьёт?' },
-  { key: 'workshop_set', title: 'Сеты из мастерской' },
-  { key: 'hero_guide', title: 'Гайд на героя' },
-  { key: 'confess', title: 'Признавайтесь' },
-  { key: 'explain_dumb', title: 'Объясни как дебилу' },
-  { key: 'toxic_translator', title: 'Переводчик с токсичного' },
-  { key: 'ability_in_life', title: 'Способность в жизнь' },
-  { key: 'hero_profile', title: 'Анкета' },
-  { key: 'item_leaflet', title: 'Инструкция по применению' },
-  { key: 'tier_list', title: 'Тир-лист' },
-  { key: 'recruit_picks', title: 'Что брать рекруту' },
-  { key: 'forgotten_hero', title: 'Забытый герой' },
-  { key: 'horoscope', title: 'Гороскоп' },
-  { key: 'hero_trial', title: 'Подозреваемый' },
-  { key: 'would_you_rather', title: 'Что выберешь?' },
-  { key: 'on_lane', title: 'Ты на линии' },
-  { key: 'rebus', title: 'Ребус' },
-  { key: 'toxic_bingo', title: 'Токсик-бинго' },
-  { key: 'fake_item', title: 'Предмет, которого нет' },
-  { key: 'shame_of_day', title: 'Пидорок дня' },
-  { key: 'quote_of_day', title: 'Цитата дня' }
-];
+// Every rubric, in the order of RUBRIC_KEYS: the owner calls any of them to look (owner, 30.10.2026).
+const RUBRICS = RUBRIC_KEYS.map((key) => ({ key, title: RUBRIC_TITLES[key] }));
 
 const REASONS: Record<string, string> = {
   BOT_NOT_CONFIGURED: 'Бот не подключён.',
