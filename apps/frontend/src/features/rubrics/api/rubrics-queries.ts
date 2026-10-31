@@ -1,6 +1,7 @@
 import type { RubricKey, UpdateRubricInput, UpdateRubricSchedulerInput } from '@alexeev/contracts';
 import { queryOptions, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
+  devEnableRubrics,
   getRubricCalendar,
   getRubricComments,
   getRubricCompare,
@@ -159,6 +160,19 @@ function useRubricMutation<TInput, TResult>(mutationFn: (input: TInput) => Promi
 
 export const useUpdateRubricScheduler = () =>
   useRubricMutation((input: UpdateRubricSchedulerInput) => updateRubricScheduler(input));
+/** Also refreshes the settings document: dev-enable flips its background switches, which the news blockers read. */
+export function useRubricDevEnable() {
+  const client = useQueryClient();
+  return useMutation({
+    mutationFn: devEnableRubrics,
+    retry: false,
+    onSettled: () =>
+      Promise.all([
+        client.invalidateQueries({ queryKey: rubricKeys.all }),
+        client.invalidateQueries({ queryKey: ['owner-settings'] })
+      ])
+  });
+}
 export const useUpdateRubric = () =>
   useRubricMutation(({ key, input }: { key: RubricKey; input: UpdateRubricInput }) => updateRubric(key, input));
 export const useSkipRubricSlot = () => useRubricMutation((id: string) => skipRubricSlot(id));

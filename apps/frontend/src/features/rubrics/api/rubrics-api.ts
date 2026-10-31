@@ -53,6 +53,11 @@ export function updateRubricScheduler(input: UpdateRubricSchedulerInput) {
   return apiRequest('/api/v1/rubrics/scheduler', rubricSchedulerStatusSchema, { method: 'PUT', body: input });
 }
 
+/** DEV only: the lab master switch and the «Рубрики» job in one press; 404 elsewhere. Answers the new status. */
+export function devEnableRubrics() {
+  return apiRequest('/api/v1/rubrics/dev-enable', rubricSchedulerStatusSchema, { method: 'POST', body: {} });
+}
+
 export function updateRubric(key: RubricKey, input: UpdateRubricInput) {
   return apiRequest(`/api/v1/rubrics/${key}`, rubricItemSchema, { method: 'PATCH', body: input });
 }

@@ -1,8 +1,23 @@
 import { AUTOPUBLISH_DAILY_LIMIT_MAX } from '@alexeev/contracts';
-import { useState } from 'react';
-import { Button, ConfirmDialog, Icon, Panel, Select, Switch, TextField } from '../../../shared/ui';
+import { type ReactNode, useState } from 'react';
+import {
+  Button,
+  ConfirmDialog,
+  Icon,
+  Panel,
+  Select,
+  Switch,
+  Tab,
+  TabList,
+  TabPanel,
+  Tabs,
+  TextField
+} from '../../../shared/ui';
 import type { SettingsPatch } from '../model/use-general-settings';
 import styles from './GeneralSettingsEditor.module.css';
+import { NewsBlockers } from './NewsBlockers';
+
+export type AutopublishTab = 'news' | 'rubrics';
 
 type Props = {
   enabled: boolean;
@@ -10,6 +25,9 @@ type Props = {
   dailyLimit: number;
   channels: readonly { id: string; title: string }[];
   change: (patch: SettingsPatch) => void;
+  /** The «Рубрики» tab, composed by the page (a feature never imports another feature). */
+  rubrics?: ReactNode;
+  initialTab?: AutopublishTab;
 };
 
 type Pending = { patch: SettingsPatch; title: string; description: string; confirmLabel: string };
@@ -24,32 +42,38 @@ const limitOf = (text: string): number | null => {
  * Valve's news without the owner (owner, 21–22.10.2026). Every change here is asked once more (owner, 23.10.2026:
  * «я могу случайно поменять»): the switch, the channel, and the limit, which is typed and saved by its own button.
  */
-export function AutopublishPanel({ enabled, destinationId, dailyLimit, channels, change }: Props) {
+export function AutopublishPanel({
+  enabled,
+  destinationId,
+  dailyLimit,
+  channels,
+  change,
+  rubrics,
+  initialTab = 'news'
+}: Props) {
+  const [tab, setTab] = useState<AutopublishTab>(rubrics === undefined ? 'news' : initialTab);
   const [pending, setPending] = useState<Pending | null>(null);
   const [limitText, setLimitText] = useState(String(dailyLimit));
   const typed = limitOf(limitText);
   const channelTitle = (id: string | null) => channels.find((channel) => channel.id === id)?.title ?? 'не выбран';
-  return (
-    <Panel
-      title="Автопубликация"
-      icon={<Icon name="send" />}
-      note="Новости Valve выходят без вас, если проверка фактов ничего не нашла. Остальное, как и раньше, приходит вам черновиком."
-    >
+  const askEnable = (value: boolean) =>
+    setPending({
+      patch: { autopublishEnabled: value },
+      title: value ? 'Включить автопубликацию?' : 'Выключить автопубликацию?',
+      description: value
+        ? `Новости Valve будут выходить в «${channelTitle(destinationId)}» без вас, до ${dailyLimit} в сутки.`
+        : 'Новости Valve снова будут приходить вам черновиком.',
+      confirmLabel: value ? 'Включить' : 'Выключить'
+    });
+  const news = (
+    <>
+      <NewsBlockers hasChannel={destinationId !== null} askEnable={() => askEnable(true)} change={change} />
       <div className={styles.report}>
         <Switch
           variant="row"
           isSelected={enabled}
           isDisabled={!enabled && destinationId === null}
-          onChange={(value) =>
-            setPending({
-              patch: { autopublishEnabled: value },
-              title: value ? 'Включить автопубликацию?' : 'Выключить автопубликацию?',
-              description: value
-                ? `Новости Valve будут выходить в «${channelTitle(destinationId)}» без вас, до ${dailyLimit} в сутки.`
-                : 'Новости Valve снова будут приходить вам черновиком.',
-              confirmLabel: value ? 'Включить' : 'Выключить'
-            })
-          }
+          onChange={askEnable}
           description={
             destinationId === null ? 'Сначала выберите канал.' : 'О каждом таком посте бот коротко напишет без звука.'
           }
@@ -97,6 +121,28 @@ export function AutopublishPanel({ enabled, destinationId, dailyLimit, channels,
           ) : null}
         </div>
       </div>
+    </>
+  );
+  return (
+    <Panel
+      title="Автопубликация"
+      icon={<Icon name="send" />}
+      note="Новости Valve выходят без вас, если проверка фактов ничего не нашла. Остальное, как и раньше, приходит вам черновиком."
+    >
+      {rubrics === undefined ? (
+        news
+      ) : (
+        <Tabs selectedKey={tab} onSelectionChange={(key) => setTab(key === 'rubrics' ? 'rubrics' : 'news')}>
+          <div className={styles.tabsBar}>
+            <TabList aria-label="Что публикуется само">
+              <Tab id="news">Новости</Tab>
+              <Tab id="rubrics">Рубрики</Tab>
+            </TabList>
+          </div>
+          <TabPanel id="news">{news}</TabPanel>
+          <TabPanel id="rubrics">{rubrics}</TabPanel>
+        </Tabs>
+      )}
       <ConfirmDialog
         isOpen={pending !== null}
         onOpenChange={(open) => {

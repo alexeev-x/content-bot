@@ -5,7 +5,7 @@ import { ru } from '../../../shared/lib/ru';
 import { Banner, Button, ErrorState, Icon, Panel, Skeleton, VisuallyHidden } from '../../../shared/ui';
 import { type SettingsPatch, useGeneralSettings } from '../model/use-general-settings';
 import { AutopublishActivity } from './AutopublishActivity';
-import { AutopublishPanel } from './AutopublishPanel';
+import { AutopublishPanel, type AutopublishTab } from './AutopublishPanel';
 import styles from './GeneralSettingsEditor.module.css';
 import { TimezoneField, TimezoneFieldSkeleton } from './TimezoneField';
 
@@ -58,6 +58,9 @@ export type GeneralSettingsView = NonNullable<ReturnType<typeof useGeneralSettin
 type Props = {
   /** Enabled channels for the automatic publishing, composed by the page (features never import each other). */
   channels?: readonly { id: string; title: string }[];
+  /** The «Рубрики» tab of the automatic publishing, composed by the page like `channels`. */
+  rubricsTab?: ReactNode;
+  initialAutopublishTab?: AutopublishTab;
   /**
    * Replaces the panels with other parts of the same settings document, saved the same way (load, conflict, status):
    * «Тестирование» → «Фоновые задачи» (BackgroundJobsEditor), so its code stays out of the production bundle.
@@ -66,7 +69,7 @@ type Props = {
 };
 
 /** The time zone and the automatic publishing; every change saves by itself. */
-export function GeneralSettingsEditor({ channels = [], children }: Props) {
+export function GeneralSettingsEditor({ channels = [], rubricsTab, initialAutopublishTab, children }: Props) {
   const { query, view, problem, status, isFetching, change, keepMine, loadCurrent } = useGeneralSettings();
   const now = useNow();
   const clock = view ? zoneClock(now, view.timezone) : null;
@@ -135,6 +138,8 @@ export function GeneralSettingsEditor({ channels = [], children }: Props) {
             dailyLimit={view.autopublishDailyLimit}
             channels={channels}
             change={change}
+            {...(rubricsTab === undefined ? {} : { rubrics: rubricsTab })}
+            {...(initialAutopublishTab === undefined ? {} : { initialTab: initialAutopublishTab })}
           />
           <AutopublishActivity />
         </>

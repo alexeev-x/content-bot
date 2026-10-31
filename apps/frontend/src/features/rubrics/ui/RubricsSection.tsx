@@ -7,7 +7,7 @@ import { RubricList } from './RubricList';
 import { RubricsAnalytics } from './RubricsAnalytics';
 import { analyticsCopy } from './analytics-copy';
 import { RubricsForecast } from './RubricsForecast';
-import { SchedulerPanel } from './SchedulerPanel';
+import { SchedulerBar } from './SchedulerBar';
 import styles from './RubricsPage.module.css';
 
 /** «Рубрики»: the switch on top, then the calendar (real slots and the forecast), the list of rubrics or
@@ -19,7 +19,7 @@ export function RubricsSection() {
   const [openRubric, setOpenRubric] = useState<RubricKey | null>(null);
   return (
     <div className={styles.page}>
-      <SchedulerPanel />
+      <SchedulerBar />
       <Tabs selectedKey={tab} onSelectionChange={(key) => setTab(String(key))}>
         <TabList aria-label={copy.tabs.label}>
           <Tab id="calendar">{copy.tabs.calendar}</Tab>

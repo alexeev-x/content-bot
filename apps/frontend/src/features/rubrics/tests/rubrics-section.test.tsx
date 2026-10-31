@@ -3,14 +3,15 @@ import { QueryClientProvider } from '@tanstack/react-query';
 import { cleanup, render, screen, within } from '@testing-library/react';
 import userEvent from '@testing-library/user-event';
 import { http, HttpResponse } from 'msw';
-import { afterEach, beforeEach, describe, expect, it } from 'vitest';
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { clearSession, setSession } from '../../../shared/api/session';
 import { ToastProvider } from '../../../shared/ui';
 import { accessToken } from '../../../test/fixtures';
 import { server, setupMswServer } from '../../../test/msw';
 import { createTestQueryClient } from '../../../test/query-wrapper';
 import { RubricList } from '../ui/RubricList';
-import { SchedulerPanel } from '../ui/SchedulerPanel';
+import { RubricsAutopublishSettings } from '../ui/RubricsAutopublishSettings';
+import { StartChecklistDialog } from '../ui/StartChecklistDialog';
 import { RubricsForecast } from '../ui/RubricsForecast';
 
 setupMswServer();
@@ -74,14 +75,85 @@ function show(ui: React.ReactNode) {
 }
 
 describe('«Рубрики»', () => {
-  it('says what stops the scheduler and keeps the switch off until a channel is chosen', async () => {
+  it('keeps the switch off until a channel is chosen', async () => {
     server.use(
       http.get('*/api/v1/rubrics/status', () => HttpResponse.json(status())),
       http.get('*/api/v1/destinations', () => HttpResponse.json({ items: [], nextCursor: null }))
     );
-    show(<SchedulerPanel />);
-    expect(await screen.findByText('Выключено: рубрики не выходят.')).toBeTruthy();
-    expect(screen.getByRole('switch', { name: 'Рубрики выходят сами' }).hasAttribute('disabled')).toBe(true);
+    show(<RubricsAutopublishSettings />);
+    expect((await screen.findByRole('switch', { name: 'Рубрики выходят сами' })).hasAttribute('disabled')).toBe(true);
+  });
+
+  describe('«Что мешает запуску»', () => {
+    const channel = {
+      id: '00000000-0000-4000-8000-0000000000c1',
+      title: 'Тестовый канал',
+      chatId: '@t',
+      kind: 'channel',
+      enabled: true,
+      revision: 0,
+      createdAt: '2026-10-01T00:00:00.000Z',
+      updatedAt: '2026-10-01T00:00:00.000Z'
+    };
+    const blocked = status({
+      mode: 'rehearsal',
+      locks: [
+        { code: 'SWITCHED_OFF', fix: 'ENABLE_RUBRICS' },
+        { code: 'NO_DESTINATION', fix: 'PICK_CHANNEL' },
+        { code: 'LAB_OFF', fix: 'ENABLE_LAB_JOB' },
+        { code: 'PUBLISHING_OFF', fix: null }
+      ]
+    });
+    const open = () => {
+      server.use(
+        http.get('*/api/v1/rubrics/status', () => HttpResponse.json(blocked)),
+        http.get('*/api/v1/destinations', () => HttpResponse.json({ items: [channel], nextCursor: null }))
+      );
+      show(<StartChecklistDialog status={blocked} isOpen onOpenChange={() => undefined} />);
+    };
+
+    it('lists every blocker, with a fix only where one exists, and never lists the switch itself', async () => {
+      open();
+      const dialog = await screen.findByRole('dialog', { name: 'Что мешает запуску' });
+      expect(within(dialog).getAllByRole('listitem')).toHaveLength(3);
+      expect(within(dialog).queryByText('Выключено: рубрики не выходят.')).toBeNull();
+      expect(within(dialog).getByText('Выберите канал.')).toBeTruthy();
+      expect(within(dialog).getByText('На DEV выключена фоновая задача «Рубрики».')).toBeTruthy();
+      expect(within(dialog).getByText('Публикация выключена на сервере (PUBLISHING_ENABLED).')).toBeTruthy();
+      // The channel picker and the one DEV button; the server setting has none.
+      expect(within(dialog).getAllByRole('button', { name: /Сохранить|Включить всё нужное на DEV/ })).toHaveLength(2);
+    });
+
+    it('saves the picked channel on the shown revision, and only after a choice', async () => {
+      let sent: unknown = null;
+      server.use(
+        http.put('*/api/v1/rubrics/scheduler', async ({ request }) => {
+          sent = await request.json();
+          return HttpResponse.json(blocked);
+        })
+      );
+      open();
+      const dialog = await screen.findByRole('dialog');
+      const save = within(dialog).getByRole('button', { name: 'Сохранить' });
+      expect(save.getAttribute('aria-disabled') ?? String(save.hasAttribute('disabled'))).toBe('true');
+      await userEvent.click(within(dialog).getByRole('button', { name: /Канал/ }));
+      await userEvent.click(await screen.findByRole('option', { name: 'Тестовый канал' }));
+      await userEvent.click(within(dialog).getByRole('button', { name: 'Сохранить' }));
+      await vi.waitFor(() => expect(sent).toEqual({ enabled: false, destinationId: channel.id, revision: 3 }));
+    });
+
+    it('turns on everything DEV needs with one request', async () => {
+      let called = 0;
+      server.use(
+        http.post('*/api/v1/rubrics/dev-enable', () => {
+          called += 1;
+          return HttpResponse.json(blocked);
+        })
+      );
+      open();
+      await userEvent.click(await screen.findByRole('button', { name: 'Включить всё нужное на DEV' }));
+      await vi.waitFor(() => expect(called).toBe(1));
+    });
   });
 
   it("saves a rubric's rest with the revision it showed", async () => {
