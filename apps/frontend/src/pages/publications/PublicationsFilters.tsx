@@ -1,7 +1,15 @@
 import { useState } from 'react';
 import { publicationCopy } from '../../features/publications';
 import styles from './PublicationsPage.module.css';
-import { FilterButton, PhoneToolbar, PhoneToolbarSearch, SearchField, SortSheet } from '../../shared/ui';
+import {
+  Drawer,
+  FilterButton,
+  PhoneToolbar,
+  PhoneToolbarSearch,
+  Radio,
+  RadioGroup,
+  SearchField
+} from '../../shared/ui';
 
 const copy = publicationCopy.filters;
 
@@ -37,12 +45,24 @@ type PhoneProps = {
   /** `undefined` is the default order of the tab. */
   order: Order | undefined;
   defaultOrder: Order;
+  /** `undefined` is «За всё время». */
+  period: string | undefined;
   isLoading: boolean;
   onOrderChange: (order: Order | undefined) => void;
+  onPeriodChange: (period: string | undefined) => void;
 };
 
-/** Phone: the same search over the loaded rows plus «Сортировка», a sheet that holds only the order. */
-export function PhoneFilters({ query, onQueryChange, order, defaultOrder, isLoading, onOrderChange }: PhoneProps) {
+/** Phone: search over the loaded rows plus one «Фильтры» sheet that holds the order and the period. */
+export function PhoneFilters({
+  query,
+  onQueryChange,
+  order,
+  defaultOrder,
+  period,
+  isLoading,
+  onOrderChange,
+  onPeriodChange
+}: PhoneProps) {
   const [open, setOpen] = useState(false);
   const current = order ?? defaultOrder;
   return (
@@ -57,25 +77,34 @@ export function PhoneFilters({ query, onQueryChange, order, defaultOrder, isLoad
             onChange={onQueryChange}
           />
         </PhoneToolbarSearch>
-        <FilterButton
-          count={0}
-          sort={{
-            label: copy.sort,
-            value: `${publicationCopy.list.columns.time} ${current === 'asc' ? '↑' : '↓'}`,
-            spoken: orderOptions.find((option) => option.id === current)?.label ?? ''
-          }}
-          isDisabled={isLoading}
-          onPress={() => setOpen(true)}
-        />
+        <FilterButton count={period === undefined ? 0 : 1} isDisabled={isLoading} onPress={() => setOpen(true)} />
       </PhoneToolbar>
-      <SortSheet
-        isOpen={open}
-        onOpenChange={setOpen}
-        title={copy.sort}
-        options={orderOptions}
-        value={current}
-        onChange={(next) => onOrderChange(next === defaultOrder ? undefined : (next as Order))}
-      />
+      <Drawer variant="bottom" title="Фильтры" isOpen={open} onOpenChange={setOpen}>
+        <RadioGroup
+          label={copy.sort}
+          variant="rows"
+          value={current}
+          onChange={(next) => onOrderChange(next === defaultOrder ? undefined : (next as Order))}
+        >
+          {orderOptions.map((option) => (
+            <Radio key={option.id} value={option.id}>
+              {option.label}
+            </Radio>
+          ))}
+        </RadioGroup>
+        <RadioGroup
+          label="Период публикаций"
+          variant="rows"
+          value={period ?? 'all'}
+          onChange={(next) => onPeriodChange(next === 'all' ? undefined : next)}
+        >
+          {periodOptions.map((option) => (
+            <Radio key={option.id} value={option.id}>
+              {option.label}
+            </Radio>
+          ))}
+        </RadioGroup>
+      </Drawer>
     </>
   );
 }

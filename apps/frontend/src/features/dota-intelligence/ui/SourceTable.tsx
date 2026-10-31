@@ -1,21 +1,23 @@
-import type { SourceEventDto, SourceEventView } from '@alexeev/contracts';
+import type { SourceEventView } from '@alexeev/contracts';
 import { useQuery } from '@tanstack/react-query';
 import { useEffect, useMemo } from 'react';
 import { ApiError } from '../../../shared/api/http-client';
 import { PAGE_SIZE } from '../../../shared/api/page-query';
 import { useNow } from '../../../shared/lib/use-now';
+import { groupByDay } from '../../../shared/lib/group-by-day';
 import {
   Banner,
-  type DataColumn,
-  DataTable,
   EmptyState,
   ErrorState,
+  GroupedList,
+  ListRow,
+  ListRowSkeleton,
   Pagination,
   Panel,
+  PanelList,
   Select
 } from '../../../shared/ui';
 import { sourceEventsQueryOptions } from '../api/sources-queries';
-import { DotaTime } from './DotaTime';
 import { EventStatus, TYPE_LABEL } from './event-status';
 import { SourceEventDrawer } from './SourceEventDrawer';
 import styles from './SourceTable.module.css';
@@ -38,6 +40,12 @@ const EMPTY: Record<SourceEventView, { title: string; description: string }> = {
   past: { title: 'Прошлых анонсов нет', description: 'Все анонсы Steam уже в списке событий.' }
 };
 
+function clock(iso: string, timeZone: string): string {
+  return new Intl.DateTimeFormat('ru-RU', { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(
+    new Date(iso)
+  );
+}
+
 type Props = {
   state: SourceTableView;
   timezone: string;
@@ -54,41 +62,13 @@ export function SourceTable({ state, timezone, onChange }: Props) {
     if (query.data && !query.isPlaceholderData && state.page > lastPage) onChange({ page: lastPage });
   }, [query.data, query.isPlaceholderData, state.page, lastPage, onChange]);
 
-  const columns = useMemo<DataColumn<SourceEventDto>[]>(
-    () => [
-      {
-        id: 'title',
-        header: 'Событие',
-        isRowHeader: true,
-        cell: (event) => (
-          <span className={styles.titleCell}>
-            <span className={styles.title}>{event.title}</span>
-            <span className={styles.meta}>
-              {TYPE_LABEL[event.type]} · {event.sourceName}
-            </span>
-          </span>
-        )
-      },
-      {
-        id: 'date',
-        header: 'Опубликовано',
-        width: 160,
-        cell: (event) => (
-          <span className={styles.nowrap}>
-            <DotaTime iso={event.publishedAt} now={now} timezone={timezone} />
-          </span>
-        )
-      },
-      {
-        id: 'status',
-        header: 'Статус',
-        width: 200,
-        compactSlot: 'trailing',
-        cell: (event) => <EventStatus event={event} />
-      }
-    ],
-    [now, timezone]
-  );
+  const items = useMemo(() => query.data?.items ?? [], [query.data]);
+  const days = useMemo(() => groupByDay(items, (event) => event.publishedAt, timezone), [items, timezone]);
+  // One source for every shown event is said once above the list instead of on each row.
+  const commonSource =
+    items.length > 1 && items.every((event) => event.sourceName === items[0]?.sourceName)
+      ? items[0]?.sourceName
+      : undefined;
 
   const opened = query.data?.items.find((event) => event.id === state.open);
   const requestId = query.error instanceof ApiError ? query.error.requestId : undefined;
@@ -127,24 +107,48 @@ export function SourceTable({ state, timezone, onChange }: Props) {
           {...(requestId ? { requestId } : {})}
           onRetry={() => void query.refetch()}
         />
-      ) : (
-        <DataTable
-          aria-label="События источников"
-          columns={columns}
-          rows={query.data?.items ?? []}
-          getRowId={(event) => event.id}
-          getRowText={(event) => `${event.title}, ${TYPE_LABEL[event.type]}`}
-          onRowAction={(id) => onChange({ open: id })}
-          activeId={state.open}
-          isLoading={query.isPending}
-          loadingRows={PAGE_SIZE}
-          density="compact"
-          rowHeight="tall"
-          flush
-          emptyState={
-            <EmptyState icon="bell" title={EMPTY[state.view].title} description={EMPTY[state.view].description} />
-          }
+      ) : query.isPending ? (
+        <PanelList aria-label="Загрузка событий">
+          {Array.from({ length: 8 }, (_, index) => (
+            <ListRowSkeleton key={index} />
+          ))}
+        </PanelList>
+      ) : items.length === 0 ? (
+        <EmptyState
+          size="compact"
+          icon="bell"
+          title={EMPTY[state.view].title}
+          description={EMPTY[state.view].description}
         />
+      ) : (
+        <div className={styles.list}>
+          {commonSource ? <p className={styles.common}>Источник: {commonSource}</p> : null}
+          <GroupedList
+            variant="chip"
+            stickyHeaders
+            groups={days.map((day) => ({ id: day.key, label: day.label, count: day.items.length }))}
+          >
+            {(id) => (
+              <PanelList aria-label="События источников">
+                {(days.find((day) => day.key === id)?.items ?? []).map((event) => (
+                  <ListRow
+                    key={event.id}
+                    title={event.title}
+                    leading={
+                      <time dateTime={event.publishedAt} title={`${event.publishedAt} (${timezone})`}>
+                        {clock(event.publishedAt, timezone)}
+                      </time>
+                    }
+                    meta={commonSource ? TYPE_LABEL[event.type] : `${TYPE_LABEL[event.type]} · ${event.sourceName}`}
+                    status={<EventStatus event={event} />}
+                    isActive={state.open === event.id}
+                    onPress={() => onChange({ open: event.id })}
+                  />
+                ))}
+              </PanelList>
+            )}
+          </GroupedList>
+        </div>
       )}
       <SourceEventDrawer
         key={state.open ?? 'closed'}

@@ -17,6 +17,13 @@ export function utcOffsetLabel(instant: Date, timeZone: string): string {
 }
 
 /** «7 окт., 12:00» in an explicit zone. */
+/** «09:30» in an explicit zone: the day is already the group header. */
+export function formatClock(iso: string, timeZone: string): string {
+  return new Intl.DateTimeFormat(LOCALE, { timeZone, hour: '2-digit', minute: '2-digit', hourCycle: 'h23' }).format(
+    new Date(iso)
+  );
+}
+
 export function formatShort(iso: string, timeZone: string): string {
   return new Intl.DateTimeFormat(LOCALE, {
     timeZone,

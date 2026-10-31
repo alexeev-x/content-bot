@@ -298,7 +298,7 @@
     padding: var(--space-3);
   }
   .search {
-    flex: 1 1 100%;
+    flex: 1 1 0;
   }
   .tabs {
     padding-inline: var(--space-2);

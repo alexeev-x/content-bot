@@ -17,6 +17,7 @@ import {
   Button,
   EmptyState,
   ErrorState,
+  Menu,
   Pagination,
   PageHeader,
   Panel,
@@ -120,6 +121,13 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onPublis
     setQuery('');
     onSearchChange({ q: undefined }, { replace: true });
   };
+  const onPeriodChange = (value: string | undefined) =>
+    onSearchChange({
+      period: value === undefined || value === 'all' ? undefined : (value as PublicationPeriod),
+      from: undefined,
+      to: undefined,
+      id: undefined
+    });
   const resetAll = () => {
     setQuery('');
     onSearchChange({ ...CLEARED, view: undefined, period: undefined, q: undefined, from: undefined, to: undefined });
@@ -205,33 +213,34 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onPublis
     <>
       <PageHeader
         title={copy.list.title}
-        actions={
-          <>
-            <Button variant="secondary" icon="list" onPress={() => setSeriesOpen(true)}>
-              Опубликовать серию
-            </Button>
-            <Button icon="send" onPress={() => setPublishOpen(true)}>
-              {copy.list.publishPost}
-            </Button>
-          </>
+        // Two side-by-side buttons were 387 px wide and pushed the phone layout to 427 px: one primary action
+        // plus the rare «серия» in a menu.
+        primaryAction={
+          <Button icon="send" onPress={() => setPublishOpen(true)}>
+            {copy.list.publishPost}
+          </Button>
+        }
+        secondaryActions={
+          <Menu
+            label="Ещё действия"
+            items={[{ id: 'series', label: 'Опубликовать серию', icon: 'list' }]}
+            onAction={(id) => {
+              if (id === 'series') setSeriesOpen(true);
+            }}
+          />
         }
       />
       <div className={styles.page}>
-        <div className={styles.period}>
-          <Select
-            label="Период публикаций"
-            options={periodOptions}
-            value={search.period ?? 'all'}
-            onChange={(value) =>
-              onSearchChange({
-                period: value === 'all' ? undefined : (value as PublicationPeriod),
-                from: undefined,
-                to: undefined,
-                id: undefined
-              })
-            }
-          />
-        </div>
+        {narrow ? null : (
+          <div className={styles.period}>
+            <Select
+              label="Период публикаций"
+              options={periodOptions}
+              value={search.period ?? 'all'}
+              onChange={(value) => onPeriodChange(value)}
+            />
+          </div>
+        )}
         <ActiveFilters
           label="Включённые фильтры"
           resetLabel="Сбросить всё"
@@ -328,6 +337,8 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onPublis
                         onQueryChange={setQuery}
                         order={search.order}
                         defaultOrder={defaultOrder}
+                        period={search.period}
+                        onPeriodChange={onPeriodChange}
                         isLoading={list.isPending || detailsPending}
                         onOrderChange={(next) => onSearchChange({ order: next })}
                       />
