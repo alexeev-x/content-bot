@@ -34,6 +34,7 @@ export function usePublicationsData(search: PublicationsSearch, timeZone: string
             : undefined;
   const shared = {
     ...(search.post ? { postId: search.post } : {}),
+    ...(search.kind ? { kind: search.kind } : {}),
     ...(range ? range : {})
   };
   const filtersFor = (tab: PublicationView, q: string | undefined, order: Order | undefined): PublicationFilters => ({

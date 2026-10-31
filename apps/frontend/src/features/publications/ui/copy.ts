@@ -29,7 +29,7 @@ export const copy = {
     title: 'Публикации',
     description: 'Все отправки и расписание. Статус меняется только по подтверждению сервера.',
     tableLabel: 'Список публикаций',
-    columns: { post: 'Пост', status: 'Статус', channel: 'Канал', time: 'Время', message: 'Сообщение' },
+    columns: { post: 'Пост', kind: 'Тип', status: 'Статус', channel: 'Канал', time: 'Время', message: 'Сообщение' },
     onePost: 'Показаны публикации одного поста.',
     allPosts: 'Показать все',
     unknownPost: 'Пост недоступен',
@@ -39,7 +39,6 @@ export const copy = {
         ? 'Пост написал и опубликовал ИИ сам, без вашего одобрения. Видно только вам.'
         : 'Пост написал ИИ-редактор, одобрили вы. Видно только вам.',
     aiShort: 'ИИ',
-    rubric: 'Рубрика',
     allInChannel: (title: string) => `Канал: ${title}`,
     unknownChannel: 'Канал недоступен',
     noMessage: '—',
@@ -66,6 +65,8 @@ export const copy = {
     errors: 'Ошибки'
   },
   filters: {
+    kindLabel: 'Тип публикации',
+    allKinds: 'Все типы',
     searchLabel: 'Поиск по публикациям',
     searchHint: 'Пост, канал, статус, время',
     phoneSearch: 'Поиск',

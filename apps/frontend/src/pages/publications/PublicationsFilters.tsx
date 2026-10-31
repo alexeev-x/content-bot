@@ -1,5 +1,6 @@
+import type { PublicationKind } from '@alexeev/contracts';
 import { useState } from 'react';
-import { publicationCopy } from '../../features/publications';
+import { PUBLICATION_KIND_LABELS, publicationCopy } from '../../features/publications';
 import styles from './PublicationsPage.module.css';
 import {
   Drawer,
@@ -18,6 +19,11 @@ export type Order = 'asc' | 'desc';
 const orderOptions = [
   { id: 'desc', label: copy.sortNewest },
   { id: 'asc', label: copy.sortOldest }
+];
+
+export const kindOptions = [
+  { id: 'all', label: copy.allKinds },
+  ...(Object.entries(PUBLICATION_KIND_LABELS) as [PublicationKind, string][]).map(([id, label]) => ({ id, label }))
 ];
 
 export const periodOptions = [
@@ -47,9 +53,12 @@ type PhoneProps = {
   defaultOrder: Order;
   /** `undefined` is «За всё время». */
   period: string | undefined;
+  /** `undefined` is «Все типы». */
+  kind: string | undefined;
   isLoading: boolean;
   onOrderChange: (order: Order | undefined) => void;
   onPeriodChange: (period: string | undefined) => void;
+  onKindChange: (kind: string | undefined) => void;
 };
 
 /** Phone: search over the loaded rows plus one «Фильтры» sheet that holds the order and the period. */
@@ -59,9 +68,11 @@ export function PhoneFilters({
   order,
   defaultOrder,
   period,
+  kind,
   isLoading,
   onOrderChange,
-  onPeriodChange
+  onPeriodChange,
+  onKindChange
 }: PhoneProps) {
   const [open, setOpen] = useState(false);
   const current = order ?? defaultOrder;
@@ -77,7 +88,11 @@ export function PhoneFilters({
             onChange={onQueryChange}
           />
         </PhoneToolbarSearch>
-        <FilterButton count={period === undefined ? 0 : 1} isDisabled={isLoading} onPress={() => setOpen(true)} />
+        <FilterButton
+          count={(period === undefined ? 0 : 1) + (kind === undefined ? 0 : 1)}
+          isDisabled={isLoading}
+          onPress={() => setOpen(true)}
+        />
       </PhoneToolbar>
       <Drawer variant="bottom" title="Фильтры" isOpen={open} onOpenChange={setOpen}>
         <RadioGroup
@@ -99,6 +114,18 @@ export function PhoneFilters({
           onChange={(next) => onPeriodChange(next === 'all' ? undefined : next)}
         >
           {periodOptions.map((option) => (
+            <Radio key={option.id} value={option.id}>
+              {option.label}
+            </Radio>
+          ))}
+        </RadioGroup>
+        <RadioGroup
+          label={copy.kindLabel}
+          variant="rows"
+          value={kind ?? 'all'}
+          onChange={(next) => onKindChange(next === 'all' ? undefined : next)}
+        >
+          {kindOptions.map((option) => (
             <Radio key={option.id} value={option.id}>
               {option.label}
             </Radio>

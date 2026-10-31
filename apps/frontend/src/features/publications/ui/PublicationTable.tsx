@@ -1,3 +1,4 @@
+import { kindLabel } from '../model/kind-label';
 import { seriesLabel } from '../model/series-label';
 import { PAGE_SIZE } from '../../../shared/api/page-query';
 import { postHeadline } from '../../../shared/lib/post-headline';
@@ -89,13 +90,11 @@ function MessageCell({
 function PostCell({
   value,
   deleted,
-  origin,
-  rubric
+  origin
 }: {
   value: PostPreview | undefined;
   deleted: boolean;
   origin: PublicationDto['postOrigin'];
-  rubric: PublicationDto['rubric'];
 }) {
   if (!value) {
     return (
@@ -113,7 +112,6 @@ function PostCell({
       <span className={styles.cellTitle}>
         <strong className={styles.title} title={headline}>
           {origin ? <AiMark text={copy.list.aiPost(origin.source)} /> : null} {headline || value.title}
-          {rubric ? <span className={styles.deletedBadge}>{copy.list.rubric}</span> : null}
           {deleted ? <span className={styles.deletedBadge}>{copy.list.postDeleted}</span> : null}
         </strong>
         {value.kind === 'poll' ? (
@@ -161,14 +159,13 @@ function Grid(props: Props) {
         id: 'post',
         header: copy.list.columns.post,
         isRowHeader: true,
-        cell: (row) => (
-          <PostCell
-            value={post(row)}
-            deleted={row.postDeleted === true}
-            origin={row.postOrigin}
-            rubric={row.rubric ?? null}
-          />
-        )
+        cell: (row) => <PostCell value={post(row)} deleted={row.postDeleted === true} origin={row.postOrigin} />
+      },
+      {
+        id: 'kind',
+        width: 130,
+        header: copy.list.columns.kind,
+        cell: (row) => <span className={styles.kind}>{kindLabel(row)}</span>
       },
       {
         id: 'channel',
@@ -256,9 +253,10 @@ function Cards({ rows, post, channel, onOpen, activeId, isLoading, selectable, s
   const renderRow = (row: PublicationDto) => {
     const status = displayStatus(row);
     const place = channel(row)?.title ?? copy.list.unknownChannel;
+    // A series row's type already reads «Серия · 2 из 3», so the series note is not repeated.
     const meta = [
-      seriesLabel(row),
-      row.rubric ? copy.list.rubric : undefined,
+      row.kind === 'series' ? (seriesLabel(row) ?? kindLabel(row)) : kindLabel(row),
+      row.kind === 'series' ? undefined : seriesLabel(row),
       row.postOrigin ? copy.list.aiShort : undefined,
       common === undefined ? place : undefined,
       row.postDeleted === true ? copy.list.postDeleted : undefined

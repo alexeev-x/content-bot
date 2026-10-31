@@ -19,6 +19,7 @@ export async function listPublications(
   const pageQuery = {
     status: query.status,
     statusGroup: query.statusGroup,
+    kind: query.kind,
     postId: query.postId,
     destinationId: query.destinationId,
     q: query.q,

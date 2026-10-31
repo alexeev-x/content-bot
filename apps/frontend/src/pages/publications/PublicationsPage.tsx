@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
-import type { PublicationDeleteRefusal, PublicationDto, PublicationStatus } from '@alexeev/contracts';
+import type { PublicationDeleteRefusal, PublicationDto, PublicationKind, PublicationStatus } from '@alexeev/contracts';
 import { PAGE_SIZE } from '../../shared/api/page-query';
 import { ApiError } from '../../shared/api/http-client';
 import { ru } from '../../shared/lib/ru';
@@ -7,6 +7,7 @@ import { classifyApiError } from '../../shared/api/error-kind';
 import {
   DeletePublicationsDialog,
   deleteTargetOf,
+  PUBLICATION_KIND_LABELS,
   PublicationDrawer,
   PublicationTable,
   publicationCopy,
@@ -33,7 +34,7 @@ import {
   Select
 } from '../../shared/ui';
 import type { RowSelection } from '../../shared/ui';
-import { periodOptions, PhoneFilters, SearchFilter, type Order } from './PublicationsFilters';
+import { kindOptions, periodOptions, PhoneFilters, SearchFilter, type Order } from './PublicationsFilters';
 import { PublishPostDialog } from './PublishPostDialog';
 import { PublishSeriesDialog } from './PublishSeriesDialog';
 import { ResendPublicationDialog } from './ResendPublicationDialog';
@@ -96,7 +97,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onPublis
   const openRow = search.id ? items.find((item) => item.id === search.id) : undefined;
   const openDestination = openRow ? channel(openRow) : undefined;
   const view = search.view ?? 'all';
-  const selectionScope = `${view}\u0000${search.post ?? ''}\u0000${search.q ?? ''}\u0000${search.period ?? ''}\u0000${search.from ?? ''}\u0000${search.to ?? ''}`;
+  const selectionScope = `${view}\u0000${search.post ?? ''}\u0000${search.q ?? ''}\u0000${search.period ?? ''}\u0000${search.kind ?? ''}\u0000${search.from ?? ''}\u0000${search.to ?? ''}`;
   const [storedSelection, setStoredSelection] = useState<{
     scope: string;
     mode: boolean;
@@ -128,9 +129,23 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onPublis
       to: undefined,
       id: undefined
     });
+  const onKindChange = (value: string | undefined) =>
+    onSearchChange({
+      kind: value === undefined || value === 'all' ? undefined : (value as PublicationKind),
+      page: undefined,
+      id: undefined
+    });
   const resetAll = () => {
     setQuery('');
-    onSearchChange({ ...CLEARED, view: undefined, period: undefined, q: undefined, from: undefined, to: undefined });
+    onSearchChange({
+      ...CLEARED,
+      view: undefined,
+      period: undefined,
+      kind: undefined,
+      q: undefined,
+      from: undefined,
+      to: undefined
+    });
   };
   const ready = !list.isPending && !list.isError;
   const emptyFiltered =
@@ -138,6 +153,7 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onPublis
     search.view !== undefined ||
     search.order !== undefined ||
     search.period !== undefined ||
+    search.kind !== undefined ||
     search.from !== undefined ||
     search.to !== undefined;
   const selectableRows = rows.filter(
@@ -232,13 +248,23 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onPublis
       />
       <div className={styles.page}>
         {narrow ? null : (
-          <div className={styles.period}>
-            <Select
-              label="Период публикаций"
-              options={periodOptions}
-              value={search.period ?? 'all'}
-              onChange={(value) => onPeriodChange(value)}
-            />
+          <div className={styles.filters}>
+            <div className={styles.period}>
+              <Select
+                label="Период публикаций"
+                options={periodOptions}
+                value={search.period ?? 'all'}
+                onChange={(value) => onPeriodChange(value)}
+              />
+            </div>
+            <div className={styles.period}>
+              <Select
+                label={copy.filters.kindLabel}
+                options={kindOptions}
+                value={search.kind ?? 'all'}
+                onChange={(value) => onKindChange(value)}
+              />
+            </div>
           </div>
         )}
         <ActiveFilters
@@ -252,6 +278,15 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onPublis
                     id: 'period',
                     label: `Период: ${periodOptions.find((option) => option.id === search.period)?.label ?? search.period}`,
                     onRemove: () => onSearchChange({ period: undefined })
+                  }
+                ]
+              : []),
+            ...(search.kind !== undefined
+              ? [
+                  {
+                    id: 'kind',
+                    label: `Тип: ${PUBLICATION_KIND_LABELS[search.kind]}`,
+                    onRemove: () => onSearchChange({ kind: undefined, page: undefined })
                   }
                 ]
               : []),
@@ -338,7 +373,9 @@ export function PublicationsPage({ search, onSearchChange, onOpenPosts, onPublis
                         order={search.order}
                         defaultOrder={defaultOrder}
                         period={search.period}
+                        kind={search.kind}
                         onPeriodChange={onPeriodChange}
+                        onKindChange={onKindChange}
                         isLoading={list.isPending || detailsPending}
                         onOrderChange={(next) => onSearchChange({ order: next })}
                       />

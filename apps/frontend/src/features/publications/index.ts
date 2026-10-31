@@ -25,3 +25,4 @@ export { PublicationsSkeleton } from './ui/PublicationsSkeleton';
 export { PublicationTable, type PublicationChannel, type PublicationOrder } from './ui/PublicationTable';
 export { PublishDialog } from './ui/PublishDialog';
 export { PublicationSettings, type EnsureApproved } from './ui/PublicationSettings';
+export { PUBLICATION_KIND_LABELS } from './model/kind-label';
