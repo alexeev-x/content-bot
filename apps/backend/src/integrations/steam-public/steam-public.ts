@@ -42,7 +42,7 @@ const plainText = (contents: string) =>
     .slice(0, NEWS_TEXT_MAX);
 const CLAN_IMAGE = /\{STEAM_CLAN_(?:LOC_)?IMAGE\}\/(\d{1,12}\/[0-9a-f]{40}\.(?:png|jpe?g|gif|webp))/iu;
 
-export type SteamPublicErrorCode = 'STEAM_FETCH' | 'STEAM_HTTP' | 'STEAM_SHAPE';
+export type SteamPublicErrorCode = 'STEAM_FETCH' | 'STEAM_HTTP' | 'STEAM_BLOCKED' | 'STEAM_SHAPE';
 
 export class SteamPublicError extends Error {
   constructor(
@@ -55,6 +55,12 @@ export class SteamPublicError extends Error {
     this.name = 'SteamPublicError';
   }
 }
+
+const WEB_API = 'https://api.steampowered.com/';
+/** Steam's own mirror of the Web API (30.10.2026: answers while Akamai refuses api.steampowered.com to a Worker). */
+const WEB_API_MIRROR = 'https://community.steam-api.com/';
+
+const BLOCKED_HINT = 'Steam (Akamai) не пускает адрес сервера: Access Denied';
 
 const newsSchema = z.object({
   appnews: z.object({
@@ -106,17 +112,45 @@ export interface SteamPublicApi {
 
 export function createSteamPublicApi(input: { fetchImpl?: typeof fetch } = {}): SteamPublicApi {
   const fetchImpl = input.fetchImpl ?? fetch;
-  async function text(url: string, init: RequestInit = {}, signal?: AbortSignal): Promise<string> {
+  async function attempt(url: string, init: RequestInit, signal?: AbortSignal): Promise<string> {
     let response: Response;
     try {
       response = await fetchImpl(url, { ...init, signal: signal ?? AbortSignal.timeout(STEAM_PUBLIC_TIMEOUT_MS) });
     } catch (error) {
       throw new SteamPublicError('STEAM_FETCH', null, causeDetail(error));
     }
-    if (!response.ok) throw new SteamPublicError('STEAM_HTTP', response.status, await readErrorDetail(response));
+    if (!response.ok) {
+      // Akamai's refusal of a Worker's address is an HTML page, not an answer of the API.
+      if (response.status === 403 && (response.headers.get('content-type') ?? '').includes('text/html'))
+        throw new SteamPublicError('STEAM_BLOCKED', 403, BLOCKED_HINT);
+      throw new SteamPublicError('STEAM_HTTP', response.status, await readErrorDetail(response));
+    }
     const body = await readCappedText(response, MAX_BODY_BYTES);
     if (body === null) throw new SteamPublicError('STEAM_SHAPE');
     return body;
+  }
+  /**
+   * A Web API path is asked once of Steam's mirror when the main address fails (refused, unreachable, an error status);
+   * a call the caller aborted is not repeated. steamcommunity.com pages have no mirror and fail as they are.
+   */
+  async function text(url: string, init: RequestInit = {}, signal?: AbortSignal): Promise<string> {
+    try {
+      return await attempt(url, init, signal);
+    } catch (error) {
+      if (!(error instanceof SteamPublicError) || error.code === 'STEAM_SHAPE' || signal?.aborted === true) throw error;
+      if (!url.startsWith(WEB_API)) throw error;
+      try {
+        return await attempt(`${WEB_API_MIRROR}${url.slice(WEB_API.length)}`, init, signal);
+      } catch (again) {
+        if (!(again instanceof SteamPublicError)) throw again;
+        // The mirror first: the owner's alert is cut at 300 characters, and the main address's refusal is the known part.
+        throw new SteamPublicError(
+          error.code === 'STEAM_BLOCKED' ? error.code : again.code,
+          again.httpStatus ?? error.httpStatus,
+          `зеркало ${new URL(WEB_API_MIRROR).host}: ${again.detail ?? again.code}; основной адрес: ${error.detail ?? error.code}`
+        );
+      }
+    }
   }
   const json = (body: string) => {
     try {
