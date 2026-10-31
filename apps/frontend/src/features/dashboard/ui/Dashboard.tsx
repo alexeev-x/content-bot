@@ -22,6 +22,8 @@ export type PageBindings = {
   /** False until the owner's timezone is known: the day, week and activity reads wait, so none runs twice. */
   timezoneKnown?: boolean;
   onOpenPublication: (publicationId: string) => void;
+  /** Opens a rubric slot's drawer, composed by the page. */
+  onOpenRubricSlot: (slotId: string) => void;
   /** Opens the publication list for one owner-zone day (the bars of «Неделя»). */
   onOpenDay: (day: { from: string; to: string }) => void;
   onNewPost: () => void;
@@ -44,6 +46,7 @@ export function Dashboard({
   timezone = 'Europe/Moscow',
   timezoneKnown = true,
   onOpenPublication,
+  onOpenRubricSlot,
   onOpenDay,
   onNewPost,
   onPublishDraft,
@@ -108,6 +111,7 @@ export function Dashboard({
     drafts,
     timezone,
     onOpenPublication,
+    onOpenRubricSlot,
     onOpenDay,
     onNewPost,
     onPublishDraft,

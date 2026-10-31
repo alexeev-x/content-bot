@@ -5,7 +5,6 @@ import {
   RUBRIC_TITLES,
   rubricSlotReason
 } from '@alexeev/contracts';
-import { Link, useNavigate } from '@tanstack/react-router';
 import type { CSSProperties } from 'react';
 import { Button as AriaButton } from 'react-aria-components';
 import { formatClock } from '../../../shared/lib/clock';
@@ -73,6 +72,10 @@ type Props = {
   phone: boolean;
   onOpenPublication: (publicationId: string) => void;
   onNewPost: () => void;
+  /** Opens the publication list for the day: a button in the widget's footer, never the header. */
+  onOpenDay: (day: { from: string; to: string }) => void;
+  /** Opens the rubric slot's drawer (composed by the page: features never import each other). */
+  onOpenRubricSlot: (slotId: string) => void;
   /** The day's studio events for the second lane; undefined while loading. Sends already show as markers. */
   events?: readonly ActivityItemDto[] | undefined;
   onOpenActivity?: (items: readonly ActivityItemDto[]) => void;
@@ -94,11 +97,12 @@ export function DayTimeline({
   phone,
   onOpenPublication,
   onNewPost,
+  onOpenDay,
+  onOpenRubricSlot,
   events,
   onOpenActivity,
   rubricSlots
 }: Props) {
-  const navigate = useNavigate();
   const eventGroups = groupByTime(
     (events ?? [])
       .filter((event) => event.action !== 'job.succeeded')
@@ -124,17 +128,7 @@ export function DayTimeline({
   // A day with nothing planned and nothing logged: one calm state instead of an empty scale.
   const quiet = empty && (!showEvents || eventCount === 0);
   return (
-    <Widget
-      id="line"
-      title={copy.line.title}
-      busy={items === undefined}
-      action={
-        <Link to="/publications" search={{ from: day.from, to: day.to }}>
-          {copy.line.all}
-          <Icon name="chevron-right" size={14} />
-        </Link>
-      }
-    >
+    <Widget id="line" title={copy.line.title} busy={items === undefined}>
       <div className={shell.body}>
         {quiet ? (
           <EmptyState
@@ -216,7 +210,7 @@ export function DayTimeline({
                               className={styles.marker}
                               data-rubric="slot"
                               aria-label={copy.line.slotMarker(title, clock, status)}
-                              onPress={() => void navigate({ to: '/rubrics' })}
+                              onPress={() => onOpenRubricSlot(slot.slotId)}
                             >
                               {phone ? (
                                 <Icon name={tone.icon} size={16} />
@@ -376,6 +370,14 @@ export function DayTimeline({
               </strong>
             </li>
           </ul>
+        )}
+        {quiet ? null : (
+          <div className={styles.footer}>
+            <Button size="sm" variant="ghost" onPress={() => onOpenDay({ from: day.from, to: day.to })}>
+              {copy.line.allOfDay}
+              <Icon name="chevron-right" size={14} />
+            </Button>
+          </div>
         )}
       </div>
     </Widget>

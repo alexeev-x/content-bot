@@ -16,6 +16,7 @@ export type WidgetEnv = {
   /** Owner timezone for calendar projections and date links. */
   timezone: string;
   onOpenPublication: (publicationId: string) => void;
+  onOpenRubricSlot: (slotId: string) => void;
   /** Opens the publication list for one owner-zone day. */
   onOpenDay: (day: { from: string; to: string }) => void;
   onNewPost: () => void;

@@ -30,6 +30,7 @@ export function DashboardSkeleton({
         drafts: undefined,
         timezone,
         onOpenPublication: ignore,
+        onOpenRubricSlot: ignore,
         onOpenDay: ignore,
         onNewPost: ignore,
         onPublishDraft: ignore,
