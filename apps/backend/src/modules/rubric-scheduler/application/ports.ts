@@ -236,8 +236,8 @@ export interface SlotRepository {
 export interface ChannelPostRepository {
   /** Stores one; a repeated update changes nothing. */
   record(chatId: string, messageId: number, at: number): Promise<void>;
-  /** Post times (UTC ms) of a channel from `since` on, oldest first, at most 200. */
-  since(chatId: string, since: number): Promise<number[]>;
+  /** Posts of a channel from `since` on, newest first, at most 200. */
+  since(chatId: string, since: number): Promise<{ at: number; messageId: number }[]>;
   /** Removes up to `limit` rows older than `before`; returns how many. */
   purge(before: number, limit: number): Promise<number>;
 }

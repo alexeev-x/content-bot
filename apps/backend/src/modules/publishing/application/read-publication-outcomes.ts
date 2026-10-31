@@ -65,6 +65,7 @@ export async function listRecentPublications(
     destinationId: string;
     actor: string | null;
     seriesPosition: number | null;
+    externalMessageIds: string[];
   }[]
 > {
   return (await deps.repo.recent(since)).map((row) => ({
@@ -75,6 +76,7 @@ export async function listRecentPublications(
     postId: row.postId,
     destinationId: row.destinationId,
     actor: row.actor,
-    seriesPosition: row.seriesPosition
+    seriesPosition: row.seriesPosition,
+    externalMessageIds: row.externalMessageIds
   }));
 }

@@ -20,7 +20,12 @@ export async function channelPosts(
   since: number
 ): Promise<ChannelPost[]> {
   const direct = await container.rubricChannelPosts.since(destination.chatId, since);
-  const studio = (await listRecentPublications({ repo: container.publicationOutcomes, now }, since))
+  const recent = await listRecentPublications({ repo: container.publicationOutcomes, now }, since);
+  // A post the bot sent itself is never the owner's, whatever Telegram reports back about it.
+  const ourMessages = new Set(
+    recent.filter((row) => row.destinationId === destination.id).flatMap((row) => row.externalMessageIds)
+  );
+  const studio = recent
     .filter(
       (row) =>
         LIVE.includes(row.status) &&
@@ -39,13 +44,15 @@ export async function channelPosts(
   // Posts sent straight to the channel (the bot receives them as updates): only their time is known, so they keep the gap.
   return [
     ...studio,
-    ...direct.map((at): ChannelPost => ({
-      at,
-      weight: 'L',
-      rubric: null,
-      interactive: false,
-      family: null,
-      owner: true
-    }))
+    ...direct
+      .filter((post) => !ourMessages.has(String(post.messageId)))
+      .map((post): ChannelPost => ({
+        at: post.at,
+        weight: 'L',
+        rubric: null,
+        interactive: false,
+        family: null,
+        owner: true
+      }))
   ];
 }

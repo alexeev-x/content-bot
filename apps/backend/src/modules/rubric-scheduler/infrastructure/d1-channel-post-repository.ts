@@ -17,11 +17,11 @@ export function createD1ChannelPostRepository(db: D1Database): ChannelPostReposi
     async since(chatId, since) {
       const { results } = await db
         .prepare(
-          'SELECT posted_at FROM channel_posts WHERE chat_id = ?1 AND posted_at >= ?2 ORDER BY posted_at LIMIT ?3'
+          'SELECT posted_at, message_id FROM channel_posts WHERE chat_id = ?1 AND posted_at >= ?2 ORDER BY posted_at DESC LIMIT ?3'
         )
         .bind(chatId, since, READ_MAX)
-        .all<{ posted_at: number }>();
-      return results.map((row) => row.posted_at);
+        .all<{ posted_at: number; message_id: number }>();
+      return results.map((row) => ({ at: row.posted_at, messageId: row.message_id }));
     },
     async purge(before, limit) {
       const result = await db

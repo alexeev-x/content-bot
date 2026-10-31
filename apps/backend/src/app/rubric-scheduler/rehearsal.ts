@@ -89,6 +89,9 @@ export function judge(state: CheckState, now: number): Verdict | null {
       if (state.sends > 1)
         return { verdict: 'bad', note: `Telegram не ответил, а пост отправили второй раз: ${what(state)}` };
       if (status === 'unknown' && now <= state.slotAt + STUCK_AFTER_MS) return null;
+      // After a timeout the post waits for the owner: still unknown, unresolved, or sent once he reconciled it.
+      if (status !== 'unknown' && status !== 'unresolved' && status !== 'sent')
+        return { verdict: 'bad', note: `Telegram не ответил, а слот стал ${what(state)}` };
       return {
         verdict: 'ok',
         note: 'Telegram не ответил: пост не отправлялся повторно, ждал разбора в «Публикациях»'

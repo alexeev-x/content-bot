@@ -25,7 +25,8 @@ const slot = (time: number): SlotRow =>
     build: { posts: [{ postId: 'post-1', revision: 1, kind: 'text' }], degradations: [], hasPicture: false }
   }) as unknown as SlotRow;
 
-function harness(direct: number[]) {
+function harness(times: number[]) {
+  const direct = times.map((at, index) => ({ at, messageId: 1000 + index }));
   const moves: { to: string; set: Record<string, unknown> }[] = [];
   const container = {
     publicationOutcomes: { outcomes: async () => [], latestForPost: async () => null, recent: async () => [] },

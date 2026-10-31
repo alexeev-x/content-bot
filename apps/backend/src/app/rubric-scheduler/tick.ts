@@ -274,7 +274,7 @@ export async function runRubricSchedulerTick(
           await container.aiJobs.send({ id: container.newId(), kind: 'rubric_build', slotId: slot.id, attempt });
         } catch (error) {
           // Nothing was queued, so no build ever started: the slot goes back to planned (the next tick sends again) and
-          // the rubric is not blamed. The attempt is given back too.
+          // the rubric is not blamed. The raised attempt stays, so a message the queue took after all no longer matches it.
           container.logger.warn({
             component: 'rubric-scheduler',
             operation: 'build_enqueue',
@@ -287,7 +287,7 @@ export async function runRubricSchedulerTick(
             attempt,
             to: 'planned',
             now,
-            set: { attempt: slot.attempt, leaseUntil: null, nextActionAt: now }
+            set: { leaseUntil: null, nextActionAt: now }
           });
           builds -= 1;
         }

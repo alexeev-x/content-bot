@@ -240,7 +240,8 @@ describe('the rubric scheduler', () => {
     });
     const after = (await slots()).find((slot) => slot.id === first.id);
     expect(after?.status).toBe('planned');
-    expect(after?.attempt).toBe(first.attempt);
+    // The raised attempt stays: a message the queue took after all no longer matches the slot.
+    expect(after?.attempt).toBe(first.attempt + 1);
     expect(after?.error_code).toBeNull();
   });
 

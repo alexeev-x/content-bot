@@ -32,7 +32,7 @@ const row = (extra: Partial<typeof base> & { scheduledAt?: number } = {}) => {
   };
 };
 
-function run(rows: ReturnType<typeof row>[], direct: number[] = []) {
+function run(rows: ReturnType<typeof row>[], direct: { at: number; messageId: number }[] = []) {
   return channelPosts(
     {
       publicationOutcomes: { outcomes: async () => [], latestForPost: async () => null, recent: async () => rows },
@@ -64,10 +64,18 @@ describe('channelPosts', () => {
   });
 
   it('keeps the gap after a post sent straight to the channel without counting it', async () => {
-    const posts = await run([], [NOW - 3_600_000]);
+    const posts = await run([], [{ at: NOW - 3_600_000, messageId: 900 }]);
     expect(posts).toEqual([
       { at: NOW - 3_600_000, weight: 'L', rubric: null, interactive: false, family: null, owner: true }
     ]);
+  });
+
+  it('never takes a post the bot sent itself for the owner’s, even when Telegram reports it back', async () => {
+    const posts = await run(
+      [row({ actor: AUTOPUBLISH_ACTOR, externalMessageIds: ['900'] })],
+      [{ at: NOW - 3_600_000, messageId: 900 }]
+    );
+    expect(posts.filter((post) => post.owner === true)).toEqual([]);
   });
 
   it('counts our own rubric posts a slot does not cover like the news', async () => {

@@ -258,7 +258,10 @@ export function createBot(config: BotConfig, runtime: BotRuntime): Bot {
   bot.use(async (ctx, next) => {
     const post = ctx.update.channel_post;
     if (post === undefined) return next();
-    await runtime.channelPosts?.record(String(post.chat.id), post.message_id, post.date * 1000);
+    // A channel may be set up by its number or by @username: both are kept, so the gap is found either way.
+    const username = 'username' in post.chat ? post.chat.username : undefined;
+    const keys = [String(post.chat.id), ...(username === undefined ? [] : [`@${username}`])];
+    for (const key of keys) await runtime.channelPosts?.record(key, post.message_id, post.date * 1000);
   });
   // Before the owner check: these updates are the audience's, never the owner's, and never get an answer. The branch
   // swallows its own failures, so the owner's flow is the same whether it works or not.
