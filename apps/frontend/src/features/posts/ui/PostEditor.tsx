@@ -628,7 +628,17 @@ export function PostEditor({
             }}
             className={styles.backButton}
           />
-        ) : null}
+        ) : (
+          <Button
+            variant="ghost"
+            size="sm"
+            icon="chevron-left"
+            onPress={() => void backToPosts()}
+            className={styles.backButton}
+          >
+            К постам
+          </Button>
+        )}
         <div className={styles.titleCopy}>
           <h1 ref={statusRef} tabIndex={-1}>
             {editor.isNew ? copy.composer.newTitle : editor.title.trim() || copy.untitled}
@@ -678,9 +688,11 @@ export function PostEditor({
 
       {showApprovedPreview ? side : narrow && mobilePreviewOpen ? previewPanel : composer}
       <footer className={narrow ? styles.actionBar : styles.footerBar}>
-        <Button variant="secondary" size={narrow ? 'sm' : 'xl'} icon="arrow-left" onPress={() => void backToPosts()}>
-          К постам
-        </Button>
+        {narrow ? (
+          <Button variant="secondary" size="sm" icon="arrow-left" onPress={() => void backToPosts()}>
+            К постам
+          </Button>
+        ) : null}
         <p className={styles.footerNote}>
           <Icon name="info" size={16} />
           {isApproved ? copy.approved.footerNote : 'Черновик сохраняется автоматически'}
