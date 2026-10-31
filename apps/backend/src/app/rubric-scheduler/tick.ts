@@ -36,6 +36,19 @@ const RELEASES_PER_TICK = 2;
 const PROJECTIONS_PER_TICK = 4;
 const DAY_MS = 86_400_000;
 const LOOKBACK_MS = 7 * DAY_MS;
+const PURGE_BATCH = 200;
+const PURGE_ROUNDS = 5;
+
+/** Up to five batches of one purge, stopping at the first empty one (as audience/application/retention.ts). */
+async function purgeInRounds(purge: (limit: number) => Promise<number>): Promise<number> {
+  let total = 0;
+  for (let round = 0; round < PURGE_ROUNDS; round += 1) {
+    const removed = await purge(PURGE_BATCH);
+    total += removed;
+    if (removed === 0) break;
+  }
+  return total;
+}
 
 /** The first Monday after `day` (MSK): the horoscope's rhythm starts there when the switch goes on (§13). */
 function nextMonday(day: string): string {
@@ -192,7 +205,8 @@ export async function runRubricSchedulerTick(
 
   // Housekeeping: attempts kept 90 days and notices 14, once a day; the plan's health once an hour.
   if (await settings.claimStep('purge', now, now + DAY_MS)) {
-    counts.purgedAttempts = await slots.purgeAttempts(now - 90 * DAY_MS, 200);
+    counts.purgedAttempts = await purgeInRounds((limit) => slots.purgeAttempts(now - 90 * DAY_MS, limit));
+    counts.purgedBuilds = await purgeInRounds((limit) => slots.purgeBuilds(now - 90 * DAY_MS, limit));
     await container.rubricNotices.purge(mskParts(now - 14 * DAY_MS).day);
     await settings.stepDone('purge', now, null);
   }

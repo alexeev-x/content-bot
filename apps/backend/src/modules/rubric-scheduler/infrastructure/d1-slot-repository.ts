@@ -1,5 +1,5 @@
 import type { SlotAttemptRow, SlotBuild, SlotRepository, SlotRow } from '../application/ports';
-import { COUNTING_STATUSES, LIVE_STATUSES, type SlotStatus } from '../domain/slot-machine';
+import { COUNTING_STATUSES, ENDED_STATUSES, LIVE_STATUSES, type SlotStatus } from '../domain/slot-machine';
 
 // The scheduler's slots (migration 0119). Inserts skip a taken time or dedupe key (the partial unique indexes decide,
 // so two ticks planning at once never make two posts); every status change is conditional on the status it leaves.
@@ -286,6 +286,20 @@ export function createD1SlotRepository(db: D1Database): SlotRepository {
         .prepare(
           `DELETE FROM rubric_slot_attempts WHERE (slot_id, attempt, step) IN (
              SELECT slot_id, attempt, step FROM rubric_slot_attempts WHERE started_at < ?1 LIMIT ?2)`
+        )
+        .bind(before, limit)
+        .run();
+      return result.meta.changes;
+    },
+
+    async purgeBuilds(before, limit) {
+      const ended = ENDED_STATUSES.map((status) => `'${status}'`).join(', ');
+      const result = await db
+        .prepare(
+          `UPDATE rubric_slots SET build_json = NULL, facts_json = NULL WHERE id IN (
+             SELECT id FROM rubric_slots
+              WHERE slot_at < ?1 AND status IN (${ended}) AND (build_json IS NOT NULL OR facts_json IS NOT NULL)
+              LIMIT ?2)`
         )
         .bind(before, limit)
         .run();

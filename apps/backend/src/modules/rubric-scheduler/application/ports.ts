@@ -227,6 +227,8 @@ export interface SlotRepository {
   attempts(slotId: string): Promise<SlotAttemptRow[]>;
   /** Removes attempts older than `before` (90 days). */
   purgeAttempts(before: number, limit: number): Promise<number>;
+  /** Empties `build` and `facts` of ended slots that were due before `before` (90 days); the row stays as history. */
+  purgeBuilds(before: number, limit: number): Promise<number>;
 }
 
 export interface NoticeRepository {

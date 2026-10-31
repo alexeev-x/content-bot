@@ -206,6 +206,50 @@ describe('the rubric scheduler', () => {
     expect(rest?.last_sent_at).toBeGreaterThanOrEqual(first.slot_at);
   });
 
+  it('empties the build and facts of ended slots older than 90 days, and nothing else', async () => {
+    const first = await planFirst();
+    // Two more rows copied from the planned one (the plan of one test day may hold fewer slots).
+    const columns = (await testDb().prepare('PRAGMA table_info(rubric_slots)').all<{ name: string }>()).results.map(
+      (column) => column.name
+    );
+    const ids = { b: '00000000-0000-4000-8000-00000000000b', c: '00000000-0000-4000-8000-00000000000c' };
+    for (const suffix of ['b', 'c'] as const) {
+      const values = columns.map((name) =>
+        name === 'id' ? `?1` : name === 'dedupe_key' ? `dedupe_key || ?1` : name === 'slot_at' ? `slot_at + ?2` : name
+      );
+      await testDb()
+        .prepare(
+          `INSERT INTO rubric_slots (${columns.join(', ')}) SELECT ${values.join(', ')} FROM rubric_slots WHERE id = ?3`
+        )
+        .bind(ids[suffix], suffix === 'b' ? 1_000 : 2_000, first.id)
+        .run();
+    }
+    const old = { id: first.id };
+    const recent = { id: ids.b };
+    const live = { id: ids.c };
+    const day = 86_400_000;
+    const keep = async (id: string, status: string, slotAt: number) =>
+      testDb()
+        .prepare(
+          `UPDATE rubric_slots SET status = ?2, slot_at = ?3, build_json = '{"hasPicture":true}', facts_json = '{"a":1}' WHERE id = ?1`
+        )
+        .bind(id, status, slotAt)
+        .run();
+    await keep(old.id, 'sent', START - 100 * day);
+    await keep(recent.id, 'sent', START - 10 * day);
+    await keep(live.id, 'planned', START - 100 * day + 60_000);
+    await testDb().prepare("UPDATE rubric_step_marks SET next_due_at = 0 WHERE step = 'purge'").run();
+    await tick();
+    const rows = await testDb()
+      .prepare('SELECT id, build_json, facts_json FROM rubric_slots WHERE id IN (?1, ?2, ?3)')
+      .bind(old.id, recent.id, live.id)
+      .all<{ id: string; build_json: string | null; facts_json: string | null }>();
+    const of = (id: string) => rows.results.find((row) => row.id === id);
+    expect(of(old.id)).toMatchObject({ build_json: null, facts_json: null });
+    expect(of(recent.id)?.build_json).not.toBeNull();
+    expect(of(live.id)?.facts_json).not.toBeNull();
+  });
+
   it('cancels the slots not yet released once switched off', async () => {
     await switchOn();
     await tick();
