@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { postMediaSchema } from './media';
+import { rubricKeySchema } from './rubric-keys';
 import { postOriginSchema } from './post-origin';
 import { postEntitySchema } from './post-entities';
 import {
@@ -94,6 +95,8 @@ export const publicationSchema = z.object({
     })
     .nullable()
     .optional(),
+  /** Set when the publication is a rubric post (the scheduler's slot owns it); null/absent for any other post. */
+  rubric: z.object({ key: rubricKeySchema }).nullable().optional(),
   /** The sent revision, only with `postDeleted`; a media file removed by retention is missing from `media`. */
   postSnapshot: z
     .object({

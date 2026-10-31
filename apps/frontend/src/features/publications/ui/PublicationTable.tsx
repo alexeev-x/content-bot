@@ -89,11 +89,13 @@ function MessageCell({
 function PostCell({
   value,
   deleted,
-  origin
+  origin,
+  rubric
 }: {
   value: PostPreview | undefined;
   deleted: boolean;
   origin: PublicationDto['postOrigin'];
+  rubric: PublicationDto['rubric'];
 }) {
   if (!value) {
     return (
@@ -111,6 +113,7 @@ function PostCell({
       <span className={styles.cellTitle}>
         <strong className={styles.title} title={headline}>
           {origin ? <AiMark text={copy.list.aiPost(origin.source)} /> : null} {headline || value.title}
+          {rubric ? <span className={styles.deletedBadge}>{copy.list.rubric}</span> : null}
           {deleted ? <span className={styles.deletedBadge}>{copy.list.postDeleted}</span> : null}
         </strong>
         {value.kind === 'poll' ? (
@@ -158,7 +161,14 @@ function Grid(props: Props) {
         id: 'post',
         header: copy.list.columns.post,
         isRowHeader: true,
-        cell: (row) => <PostCell value={post(row)} deleted={row.postDeleted === true} origin={row.postOrigin} />
+        cell: (row) => (
+          <PostCell
+            value={post(row)}
+            deleted={row.postDeleted === true}
+            origin={row.postOrigin}
+            rubric={row.rubric ?? null}
+          />
+        )
       },
       {
         id: 'channel',
@@ -248,6 +258,7 @@ function Cards({ rows, post, channel, onOpen, activeId, isLoading, selectable, s
     const place = channel(row)?.title ?? copy.list.unknownChannel;
     const meta = [
       seriesLabel(row),
+      row.rubric ? copy.list.rubric : undefined,
       row.postOrigin ? copy.list.aiShort : undefined,
       common === undefined ? place : undefined,
       row.postDeleted === true ? copy.list.postDeleted : undefined

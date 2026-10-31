@@ -12,11 +12,11 @@ import styles from './RubricsPage.module.css';
 
 /** «Рубрики»: the switch on top, then the calendar (real slots and the forecast), the list of rubrics or
  * how they land (analytics). */
-export function RubricsSection() {
+export function RubricsSection({ initialRubric = null }: { initialRubric?: RubricKey | null }) {
   // Taken once per mount: the page shows «today» as it was when opened.
   const [today] = useState(() => mskDay(new Date().toISOString()));
-  const [tab, setTab] = useState('calendar');
-  const [openRubric, setOpenRubric] = useState<RubricKey | null>(null);
+  const [tab, setTab] = useState(initialRubric === null ? 'calendar' : 'rubrics');
+  const [openRubric, setOpenRubric] = useState<RubricKey | null>(initialRubric);
   return (
     <div className={styles.page}>
       <SchedulerBar />

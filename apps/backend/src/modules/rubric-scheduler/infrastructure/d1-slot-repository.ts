@@ -120,6 +120,23 @@ export function createD1SlotRepository(db: D1Database): SlotRepository {
       return row === null ? null : toSlot(row);
     },
 
+    async rubricOfPublications(publicationIds) {
+      const ids = publicationIds.slice(0, 100);
+      if (ids.length === 0) return new Map();
+      const marks = ids.map((_, index) => `?${index + 1}`).join(', ');
+      const { results } = await db
+        .prepare(
+          `SELECT publication_id AS pid, rubric_key AS rubric FROM rubric_slots
+           WHERE publication_id IN (${marks}) AND kind <> 'poll_close' AND status <> 'superseded'
+           UNION ALL
+           SELECT j.value AS pid, s.rubric_key AS rubric FROM rubric_slots s, json_each(s.build_json, '$.publications') j
+           WHERE s.build_json IS NOT NULL AND s.kind <> 'poll_close' AND s.status <> 'superseded' AND j.value IN (${marks})`
+        )
+        .bind(...ids)
+        .all<{ pid: string; rubric: string }>();
+      return new Map(results.map((row) => [row.pid, row.rubric]));
+    },
+
     ofRubric: (rubricKey, limit) =>
       many(
         `SELECT ${COLUMNS} FROM rubric_slots WHERE rubric_key = ?1 ORDER BY slot_at DESC LIMIT ?2`,

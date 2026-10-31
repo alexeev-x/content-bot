@@ -6,7 +6,8 @@ import {
   deletePublicationInputSchema,
   listPublicationsQuerySchema,
   reschedulePublicationInputSchema,
-  resolveUnknownPublicationInputSchema
+  resolveUnknownPublicationInputSchema,
+  type RubricKey
 } from '@alexeev/contracts';
 import { type Context, Hono } from 'hono';
 import { z } from 'zod';
@@ -23,6 +24,7 @@ import {
   resolveUnknownPublication
 } from '../modules/publishing';
 import { readStudioOrigins } from './post-origins';
+import { readRubricOfPublications } from './rubric-scheduler/read-history';
 import { getOwnerOperationsSettings } from '../modules/settings';
 import { AppError } from '../shared/app-error';
 import { appOriginOf } from './bot/app-origin';
@@ -32,6 +34,8 @@ import { limitBody, validated } from './validation';
 import { kickDispatch } from './workflows/dispatch-now';
 
 const MAX_BODY_BYTES = 8 * 1024;
+
+const rubricMark = (key: RubricKey | undefined) => (key === undefined ? null : { key });
 
 const idempotencyHeaderSchema = z.object({ 'idempotency-key': z.string().min(1).max(255) });
 const idParamSchema = z.object({ id: z.string() });
@@ -150,9 +154,17 @@ export const publicationsRoutes = new Hono<AppBindings>()
       container,
       page.items.map((item) => item.postId)
     );
+    const rubrics = await readRubricOfPublications(
+      container,
+      page.items.map((item) => item.id)
+    );
     return c.json({
       ...page,
-      items: page.items.map((item) => ({ ...item, postOrigin: origins.get(item.postId) ?? null }))
+      items: page.items.map((item) => ({
+        ...item,
+        postOrigin: origins.get(item.postId) ?? null,
+        rubric: rubricMark(rubrics.get(item.id))
+      }))
     });
   })
   .get('/:id', validated('param', idParamSchema), async (c) => {
@@ -160,7 +172,8 @@ export const publicationsRoutes = new Hono<AppBindings>()
     const id = publicationId(c.req.valid('param').id);
     const publication = await getPublication({ repo: container.publications, now: container.clock.now() }, id);
     const origin = (await readStudioOrigins(container, [publication.postId])).get(publication.postId);
-    return c.json({ ...publication, postOrigin: origin ?? null });
+    const rubric = (await readRubricOfPublications(container, [publication.id])).get(publication.id);
+    return c.json({ ...publication, postOrigin: origin ?? null, rubric: rubricMark(rubric) });
   })
   .get('/:id/history', validated('param', idParamSchema), async (c) => {
     const container = c.get('container');
